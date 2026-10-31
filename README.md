@@ -1,30 +1,173 @@
 # IC-7300 Console
 
-A desktop front end for the Icom IC-7300: full CAT control over the rig's USB port, an audio waterfall
-from its USB sound card, and the rig's own wideband scope as a second waterfall.
+A desktop front end for the Icom IC-7300. Plug the radio into your PC with one USB cable and you get:
 
-    build\ic7300console.exe          run it (finds COM port and sound card itself)
-    build\ic7300console.exe --demo   a simulated radio: touches no hardware and no saved settings
+- **Full CAT control**: frequency, mode, filters, levels, noise controls, RIT/XIT, split, meters and the tuner
+- **An audio waterfall**, from the radio's built-in USB sound card
+- **A band waterfall**, from the radio's own wideband scope
+- **Station tools**: memories, a log with ADIF export, a CW keyer with macros, voice memories and WAV recording
+- **A demo mode** with a simulated radio, so you can try it all with no hardware
 
-Only one program can own the rig's COM port, so close Station or MorseRx first. The sound card is shared.
+It's written in C++17 with Dear ImGui, GLFW and miniaudio. It builds to a single executable with nothing to install.
 
-## Setting up the rig
+## Contents
 
-MENU > SET > Connectors > CI-V:
+- [Tested on](#tested-on)
+- [Quick start](#quick-start)
+- [Building](#building)
+- [Setting up the radio](#setting-up-the-radio)
+- [Running it](#running-it)
+- [Using it](#using-it)
+- [Transmit safety](#transmit-safety)
+- [Your data](#your-data)
+- [How it works](#how-it-works)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Third-party code](#third-party-code)
 
-| Setting | Value |
+## Tested on
+
+| | |
 |---|---|
-| CI-V USB Port | Unlink from [REMOTE] (the scope stream needs this) |
-| CI-V USB Baud Rate | 115200 |
-| CI-V Address | 94h |
-| CI-V USB Echo Back | OFF (ON also works) |
+| **Operating system** | Windows 11 Pro (build 26300), x64 |
+| **Compilers** | MinGW-w64 GCC 16.2 (WinLibs UCRT) with CMake 4.4 and Ninja 1.13; Visual Studio 2026 (MSVC, x64) |
+| **Radio** | Icom IC-7300 over USB, with the Silicon Labs CP210x driver 6.6.1.0 |
 
-Also: raise USB AF Output Level until the level bar in the AUDIO toolbar sits below red, and leave
-USB SEND and USB Keying OFF, since a serial line left high would otherwise key the rig.
+Other setups:
+
+- **Other versions of Windows**: not tested.
+- **Linux and macOS**: the code is written (POSIX serial, GLFW, miniaudio, per-user data folders) but **has never been compiled or run**. Expect to make some small fixes on the first build.
+- **IC-7300 MK2**: not tested.
+
+## Quick start
+
+On Windows 11, in PowerShell:
+
+```powershell
+winget install BrechtSanders.WinLibs.POSIX.UCRT   # GCC, CMake and Ninja; open a new terminal afterwards
+winget install Git.Git                            # if you don't already have Git
+
+git clone https://github.com/laindonlad/IC-7300-Scope.git
+cd IC-7300-Scope
+cmake -S . -B build -G Ninja
+cmake --build build
+
+.\build\ic7300console.exe --demo     # try it with a simulated radio
+```
+
+When you're ready to use a real radio, [set it up](#setting-up-the-radio), then run `.\build\ic7300console.exe`. It finds the COM port and sound card itself.
+
+## Building
+
+You need CMake 3.16 or newer and a C++17 compiler. All the libraries are already in `third_party/` at pinned versions, so there's nothing else to download and there are no submodules:
+
+| Library | Version |
+|---|---|
+| Dear ImGui | 1.91.9b |
+| GLFW | 3.4 |
+| miniaudio | 0.11.22 |
+
+### Windows with MinGW-w64
+
+```powershell
+cmake -S . -B build -G Ninja
+cmake --build build
+.\build\test_core
+```
+
+The executables are statically linked, so `ic7300console.exe` can be copied to another PC and run on its own.
+
+### Windows with Visual Studio
+
+Install the **Desktop development with C++** workload in the Visual Studio Installer, then:
+
+```powershell
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+cmake --build build --config Release
+.\build\Release\test_core
+```
+
+The programs are in `build\Release`, so use that path in the commands below. These builds use the shared Microsoft C++ runtime, so another PC may need the Visual C++ Redistributable. Use the MinGW-w64 build if you want a single file to hand to someone.
+
+For an older Visual Studio, change the generator name. `cmake --help` lists them. Only 2026 has been tested.
+
+### Build outputs
+
+| File | What it is |
+|---|---|
+| `ic7300console` | The application |
+| `ic7300probe` | A console tool that checks the protocol against a real radio ([details](#testing)) |
+| `test_core` | The core test suite |
+
+The default build type is Release. To build only the core library, the tests and the probe, without the window, add `-DBUILD_GUI=OFF` to the first `cmake` command.
+
+### Linux and macOS (untested)
+
+Linux needs these packages, and your user must be in the `dialout` group to open the serial port:
+
+```sh
+sudo apt install build-essential cmake ninja-build libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+sudo usermod -aG dialout "$USER"     # then log out and back in
+```
+
+macOS needs Xcode's command line tools and CMake. On both, the build commands are the same as above, using `./build/ic7300console` to run it.
+
+## Setting up the radio
+
+Connect the radio's USB port to the PC. It appears as two devices: a serial port (a Silicon Labs CP210x bridge) and a sound card (**USB Audio CODEC**). If no COM port appears, install the CP210x driver from Silicon Labs or Icom's USB driver.
+
+Then, on the radio, go to **MENU > SET > Connectors > CI-V**:
+
+| Setting | Value | Why |
+|---|---|---|
+| CI-V USB Port | Unlink from [REMOTE] | The scope stream needs this |
+| CI-V USB Baud Rate | 115200 | The scope stream needs this too |
+| CI-V Address | 94h | The radio's default, and what the app expects |
+| CI-V USB Echo Back | OFF | ON also works |
+
+And under **Connectors**:
+
+| Setting | Value | Why |
+|---|---|---|
+| USB AF Output Level | Raise it until the level bar in the AUDIO toolbar sits below red | Sets the level of the audio waterfall and recordings |
+| USB SEND and USB Keying | OFF | Otherwise a serial line left high could key the radio |
+
+The app can't change these for you, by design. Menu writes use addresses that differ between the IC-7300 and the MK2, and a wrong address silently changes some other setting, so the app never sends them.
+
+Only one program can own a COM port, so close any other CAT software first. The sound card can be shared. To run this app alongside something that needs the COM port, such as WSJT-X, use `--no-rig` for the audio waterfall alone.
+
+## Running it
+
+| Option | What it does |
+|---|---|
+| *(none)* | Finds the radio and connects |
+| `--demo` | Uses a simulated radio and test audio. Touches no hardware, and keeps its own settings, memories and log |
+| `--port COM11` | Uses this serial port instead of the saved or detected one |
+| `--no-rig` | Audio waterfall only: leaves the serial port alone |
+| `--size 1600x900` | Sets the window size |
+| `--tab N` | Opens on a right-hand tab: 0 Keypad, 1 Memories, 2 Log, 3 CW / Voice |
+| `--selftest out.txt` | Runs the scripted GUI test ([details](#testing)). Use it with `--demo` |
+| `--screenshot out.bmp` | Saves a screenshot and exits |
+| `--frames N` | Which frame `--screenshot` captures |
+
+Port, baud rate, CI-V address, sound devices, your callsign and the PTT time limit are all in **Rig > Settings**. Keys and the radio setup are also listed in **Help**.
 
 ## Using it
 
-**Punch in a frequency**: just start typing, anywhere. Enter goes there, Esc cancels. Or use the keypad tab.
+### The window
+
+| Area | What's there |
+|---|---|
+| **Top** | Frequency and mode of both VFOs; S, SWR, ALC and Vd meters; ARM TX, PTT, TUNE, ATU, SPLIT, A/B, A=B |
+| **Below that** | Band, mode, data mode, filter and tuning step |
+| **Left** | Receive, filter and noise controls, including AF, RF gain, preamp, attenuator, AGC, Twin PBT, NB, NR and notch |
+| **Centre** | The band scope and the audio waterfall. Drag the bar between them to resize. Either can be hidden from **View** |
+| **Right** | Tabs for Keypad, Memories, Log and CW / Voice |
+| **Bottom** | Connection status and UTC. The dot is green when connected, amber when the port is open but the radio isn't answering, and red when the port can't be opened |
+
+### Entering a frequency
+
+Just start typing, anywhere. Enter goes there and Esc cancels. You can also use the Keypad tab.
 
 | Typed | Means |
 |---|---|
@@ -33,15 +176,15 @@ USB SEND and USB Keying OFF, since a serial line left high would otherwise key t
 | `14074.5` | 14074.5 kHz |
 | `7` | 7 MHz (75 or below is MHz) |
 | `198` | 198 kHz |
-| `198k`, `14.074m` | says so outright |
-| `14.074.123` | as the rig displays it |
-| `+5`, `-1.5` | kHz from the dial |
+| `198k`, `14.074m` | Says so outright |
+| `14.074.123` | As the radio displays it |
+| `+5`, `-1.5` | kHz up or down from the dial |
 
-**Keys**
+### Keys
 
 | Key | Action |
 |---|---|
-| Left, Right | Tune by the step (Shift: ten times) |
+| Left, Right | Tune by the step (Shift: ten times the step) |
 | Up, Down | Change the step |
 | Page Up, Page Down | Next or previous band |
 | F1 to F8 | LSB, USB, CW, CW-R, AM, FM, RTTY, RTTY-R |
@@ -49,74 +192,221 @@ USB SEND and USB Keying OFF, since a serial line left high would otherwise key t
 | F11, F12 | Split, swap VFOs |
 | Ctrl+Space | PTT on or off, once armed |
 
-**Mouse**
+### Mouse
 
-- Wheel on a digit tunes that digit; click its top half for up, bottom half for down.
-- Wheel on a waterfall tunes by the step. Wheel on a slider moves it.
-- Click the band scope to tune there. Right-click it for split and memories.
-- Click the audio waterfall to move that signal to the pitch: 1500 Hz on SSB, your CW pitch on CW. In data
-  modes the dial stays put, so a digital program keeps its place.
-- A band button returns to where you last were on that band. Right-click it for CW, FT8, FT4, WSPR and SSB.
-- Right-click SPLIT for a quick offset.
+- **Digits**: the wheel tunes that digit. Click the top half to go up, the bottom half to go down.
+- **Waterfalls**: the wheel tunes by the step.
+- **Sliders**: the wheel moves them.
+- **Band scope**: click to tune there. Right-click for split and memories.
+- **Audio waterfall**: click to move that signal to the pitch, which is 1500 Hz on SSB and your CW pitch on CW. In data modes the dial stays put, so a digital program keeps its place.
+- **Band buttons**: click to return to where you last were on that band. Right-click for CW, FT8, FT4, WSPR and SSB frequencies.
+- **SPLIT**: right-click for a quick offset.
 
-**Also here**: RX and TX levels, filter width and shape, Twin PBT, NB, NR, notch, RIT/XIT, meters, ATU, A/B,
-memories, a log with ADIF export, a CW keyer with macros, voice memories, WAV recording, listening through
-the PC's speakers, and the band plan as a coloured strip under the scope (blue CW, purple digital, green
-SSB, orange FM). It's a simplified guide, not a statement of what your licence allows.
+### Band plan
 
-Settings, memories, the log and recordings are plain files in `%APPDATA%\IC7300Console` (Rig > Open data folder).
+The coloured strip under the band scope shows the band plan: blue for CW, purple for digital, green for SSB and orange for FM. It's a simplified version of IARU Region 1 and **not a statement of what your licence allows**.
+
+The 4 m button only works on radios that have that band. Others refuse the command and the status bar says so.
 
 ## Transmit safety
 
-Enforced in `src/rig.cpp`, so no part of the window can get round it:
+These rules are enforced in `src/rig.cpp`, below the window, so no button or menu can get round them:
 
-- Nothing transmits until **ARM TX** is pressed, and it's off at every start. That covers PTT, TUNE, CW and voice
-  memories. Disarming also releases PTT.
-- PTT lets go by itself after a time limit (180 s by default, in Settings).
-- Un-key is resent until the rig itself reports it has stopped, including across a lost link. Closing the
-  program un-keys too.
-- Listen won't play to the rig's USB sound card, as that's its modulation input.
+- **Nothing transmits until ARM TX is pressed**, and it's off at every start. That covers PTT, TUNE, CW and voice memories. Disarming also releases PTT.
+- **PTT has a time limit.** It lets go by itself after 180 seconds by default (5 to 600 seconds, in Settings).
+- **Un-key is confirmed.** It's resent every 250 ms until the radio itself reports it has stopped, including across a lost link. Closing the program un-keys too.
+- **Listen won't play into the radio.** It refuses to play to any device named USB Audio CODEC, as the radio's sound card is its modulation input.
+- **Opening the port doesn't key the radio.** RTS and DTR are held low, as the radio can be set to key on either.
 
-A hard crash or a pulled USB cable can't send an un-key. The rig's own Time-Out Timer setting is the backstop,
-so keep it on.
+> [!WARNING]
+> A hard crash or a pulled USB cable can't send an un-key. The radio's own Time-Out Timer is the backstop, so keep it on.
 
-## Building
+## Your data
 
-Needs CMake and a C++17 compiler. Everything else is in `third_party/` at pinned versions: Dear ImGui 1.91.9b,
-GLFW 3.4, miniaudio 0.11.22.
+Everything is stored as plain text files in a per-user folder. **Rig > Open data folder** takes you there.
 
-    cmake -S . -B build -G Ninja
-    cmake --build build
-    build\test_core
-
-Linux first needs `build-essential cmake ninja-build libgl1-mesa-dev` and GLFW's X11 and Wayland packages
-(`xorg-dev libwayland-dev libxkbcommon-dev`), and your user in the `dialout` group. macOS needs Xcode's
-command line tools and CMake.
-
-The Linux and macOS code is written (POSIX serial, GLFW, miniaudio, per-user data folders) but **has never
-been compiled or run**. Expect some small fixes on first build.
-
-## How it's tested
-
-| Test | What it covers |
+| System | Location |
 |---|---|
-| `test_core` | CI-V bytes, frequency entry, FFT, log files, and the rig thread against a simulated 7300, including refused commands, echo, stale readings, lost links and every transmit guard |
-| `ic7300console --demo --selftest out.txt` | Real clicks and keystrokes through the window, against the simulated 7300 |
-| `ic7300probe COM11` | Reads everything from the real radio and listens to the scope. Never keys. Add `--write-same` to also write the values it already has |
+| Windows | `%APPDATA%\IC7300Console` |
+| Linux | `~/.config/ic7300console` |
+| macOS | `~/Library/Application Support/IC7300Console` |
 
-The simulated rig shares this code's reading of the protocol, so only `ic7300probe` shows the protocol is right.
+| File | Contents |
+|---|---|
+| `settings.ini` | Settings, as `key=value` |
+| `memories.csv` | Memories |
+| `log.csv` | The log |
+| `log.adi` | The log exported as ADIF, for other logging software |
+| `rx-<date>-<time>-<hz>.wav` | Recordings: 16-bit mono, 48 kHz |
 
-## Things the real radio taught us
+Demo mode uses `demo-settings.ini`, `demo-memories.csv` and `demo-log.csv`, so trying it can't disturb a real setup.
 
-- It sends about 4 scope sweeps a second at Fast (some runs measured 8), whatever the polling load. That's the
-  rig's limit, so the band waterfall's rows are drawn tall to compensate.
-- It can ignore a command sent before it has answered the last one. `Rig` always waits for the reply.
-- In Center mode, the sweep may be centred on the filter rather than the dial (a rig setting), so the frame's
-  own edges are used for tuning, never the dial.
+ADIF has no single mode for USB-D and similar, as they could be any digital mode. Those records leave out the MODE field and note what the radio showed in the comment, so you may want to set the mode in your logging software.
+
+## How it works
+
+```
+                 ┌──────────────── IC-7300 ────────────────┐
+                 │  CP210x serial port    USB Audio CODEC  │
+                 └───────┬───────────────────────┬─────────┘
+                    CI-V │ 115200 baud           │ 48 kHz audio
+                         │                       │
+ serial.cpp / sim_rig ── Transport           miniaudio ── demo_audio.h
+                         │                       │
+ rig thread              Rig (rig.cpp)           │        audio callback
+ civ.h encodes/decodes   │                       │
+                         │ RigState, ScopeLine   │ samples
+                         │                       │
+ UI thread (app.cpp)     │ window ── setters     │ FFT (dsp.h)
+                         ▼                       ▼
+                  band waterfall ──────── audio waterfall
+                         └──── waterfall.cpp ────┘
+```
+
+The window never talks to the radio directly. One thread owns the serial port and everything else goes through it, so a slow radio can't stall the display.
+
+### CI-V, the radio's protocol
+
+`src/civ.h` builds and parses CI-V frames: `FE FE <to> <from> <cmd> [data] FD`. The radio is at address `94h` and the PC at `E0h`. Frequencies are little-endian BCD and levels are big-endian BCD. It also holds the meter calibration tables, which turn raw readings into S units, watts, SWR, volts and amps. It's plain C++ with no OS or threading code, so the tests can check it byte by byte.
+
+### The rig thread
+
+`Rig` in `src/rig.cpp` runs a loop on its own thread: read whatever arrived, service transmit safety, then send one thing. It sends only when the last command has been answered, or after a 250 ms timeout, because the radio can ignore a command sent before it has replied to the previous one.
+
+- **Commands** from the window go in a queue. A newer command of the same kind replaces a queued one, so spinning the dial can't build a backlog.
+- **Polling** fills the idle time, always choosing the most overdue reading:
+
+  | Reading | Every |
+  |---|---|
+  | S meter (receive), or power, SWR, ALC, compression and current (transmit) | 100 to 150 ms |
+  | TX state | 200 ms |
+  | Frequency | 250 ms |
+  | Mode, data mode, filter width, other VFO | 500 ms to 1.2 s |
+  | Split, tuner, attenuator, RIT/XIT | 1 to 1.5 s |
+  | All levels and switches, which a knob on the radio might have changed | 2.5 s |
+  | Scope settings, supply voltage, radio ID | 3 to 5 s |
+
+- **Setters return at once** and update `RigState` immediately, so the window never waits on the radio. Replies to reads sent before a change would make the display jump back, so readings of that value are ignored for 400 ms after a write.
+- **The link is watched.** If no frame arrives for 2.5 seconds the radio counts as gone, and queued commands are dropped so a stale one can't move the dial when it returns. A lost port is retried every 2 seconds. On reconnecting, everything is read again and the scope stream is requested again, as a power cycle forgets it.
+- **Power on** sends about 150 `FE` bytes first, as the radio needs them to wake its CI-V at 115200 baud.
+
+### The band waterfall
+
+The radio streams its scope over CI-V using command `27 00`. Each sweep comes in 11 divisions. The first carries the mode and the frequency edges, and together they hold 475 points valued 0 to 160. `Rig` assembles the divisions into a `ScopeLine` and the window scales it to 0 to 255 for the waterfall.
+
+The frame's own edges are used for click-to-tune, never the dial, because in Center mode the sweep may be centred on the filter rather than the dial. Waterfall history is cleared when the span changes or the view moves by more than a quarter of the span, since it would only mislead.
+
+### The audio waterfall
+
+`src/audio.cpp` uses miniaudio to capture the radio's USB sound card in shared mode, as mono 48 kHz floats. `src/dsp.h` applies a Hann window and an FFT, then converts to dBFS and maps -140 to 0 dB onto 0 to 255.
+
+The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384. The rate defaults to 25 lines a second, and the capture reopens by itself if the radio is switched off.
+
+`src/tuning.h` maps an audio tone to its RF frequency. It allows for sideband, CW pitch and the RTTY mark tone, which is how clicking the waterfall knows where to tune. AM and FM don't map a tone to one RF frequency, so clicking doesn't retune in those modes.
+
+### Drawing
+
+`src/waterfall.cpp` keeps each waterfall in one OpenGL texture, used as a ring. A new line overwrites the oldest and only that row is uploaded, however large the window. Raw levels are kept beside the colours, so changing brightness, contrast or palette also applies to the history.
+
+`src/app.cpp` draws the whole interface every frame with Dear ImGui. It embeds its fonts in the executable at build time. The layout needs 1280x720 logical pixels and shrinks to fit if display scaling leaves fewer than that.
+
+### The simulated radio
+
+`src/sim_rig.cpp` implements `Transport`, the same interface as the serial port, so `Rig` can't tell the difference. It answers CI-V, generates scope sweeps and can inject faults: refused commands, echo, silence, lost un-keys and a pulled cable. It drives both `--demo` and the tests.
+
+### What the real radio taught us
+
+- It sends about 4 scope sweeps a second at Fast (some runs measured 8), whatever the polling load. That's the radio's limit, so the band waterfall's rows are drawn tall to compensate.
+- It can ignore a command sent before it has answered the last one, so `Rig` always waits for the reply.
+- In Center mode, the sweep may be centred on the filter rather than the dial (a radio setting), so tuning uses the frame's own edges.
+
+### Source layout
+
+| Path | What |
+|---|---|
+| `src/civ.h` | The CI-V protocol: frames, commands, meter calibration |
+| `src/transport.h` | The byte-pipe interface shared by the serial port and the simulator |
+| `src/rig.h`, `src/rig.cpp` | The rig thread: command queue, polling, state, transmit safety |
+| `src/serial.cpp` | Serial ports for Win32 and POSIX, and finding the radio's port |
+| `src/sim_rig.h`, `src/sim_rig.cpp` | The simulated IC-7300 |
+| `src/audio.h`, `src/audio.cpp` | Sound in and out, through miniaudio |
+| `src/demo_audio.h` | The demo's generated audio |
+| `src/dsp.h` | The FFT and dB scaling |
+| `src/waterfall.h`, `src/waterfall.cpp` | The waterfall texture and palettes |
+| `src/tuning.h` | Frequency entry and audio-to-RF mapping |
+| `src/bands.h` | The band table, presets and band plan |
+| `src/store.h`, `src/store.cpp` | Settings, memories, log, ADIF, WAV |
+| `src/app.h`, `src/app.cpp` | The window and the self-test script |
+| `src/main.cpp` | Command-line options |
+| `tests/test_core.cpp` | The core test suite |
+| `tools/probe.cpp` | The check against a real radio |
+
+## Testing
+
+| Test | Needs | What it covers |
+|---|---|---|
+| `test_core` | Nothing | 408 checks: CI-V bytes, frequency entry, FFT and log files, plus the rig thread against the simulated radio, including refused commands, echo, stale readings, lost links and every transmit guard |
+| `ic7300console --demo --selftest out.txt` | A display | 51 checks: real clicks and keystrokes through the window, against the simulated radio |
+| `ic7300probe` | A real radio | Reads everything from the radio and listens to the scope |
+
+### Core tests
+
+```powershell
+.\build\test_core            # or: ctest --test-dir build
+```
+
+This takes about 25 seconds and ends with `408 checks, 0 failed`.
+
+### GUI self-test
+
+`ic7300console` is a Windows GUI program, so PowerShell doesn't wait for it and it prints nothing. Use `Start-Process -Wait` and read the results file:
+
+```powershell
+Start-Process .\build\ic7300console.exe -ArgumentList '--demo','--selftest','selftest.txt' -Wait
+Get-Content selftest.txt -Tail 1
+```
+
+It takes about a minute, opens a window without taking focus, and exits with code 1 if anything fails.
+
+**Don't click on its window during the run.** If it gets focus, the real cursor position overrides the scripted one and the mouse checks fail, while the keyboard checks still pass. Windows can also hand it focus when you close another program. If you see many mouse-related failures, run it again and leave it alone.
+
+### Checking a real radio
+
+```powershell
+.\build\ic7300probe          # finds the port
+.\build\ic7300probe COM11    # or name it
+```
+
+This is safe on a live station. It **never keys the transmitter or starts the tuner**. Its only writes are turning the scope data on, and off again on the way out. Add `--write-same` to also write back the frequency, mode, AF level and span the radio already has, which proves writes are accepted without changing anything.
+
+It prints `ok` or `FAIL` for each reading and ends with `ALL CHECKS PASSED` or `SOME CHECKS FAILED`.
+
+### What the tests can't show
+
+The simulated radio shares this code's reading of the protocol, so passing against it shows the app is self-consistent and handles faults. **Only `ic7300probe` shows the protocol is right, and since it never keys, it doesn't exercise transmit on a real radio.** The transmit guards are tested against the simulator.
+
+## Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| `COMx is in use by another program` | Close the other CAT program. A port can only have one owner |
+| `COMx isn't there (radio off or unplugged?)` | Turn the radio on and check the cable. If the COM number has changed, choose the new one in **Rig > Settings** |
+| `COMx open, but no answer` | Check that the radio is on, with CI-V USB Baud Rate at 115200 and CI-V Address at 94h |
+| No COM port at all | Install the CP210x driver (see [Setting up the radio](#setting-up-the-radio)) |
+| It connects to the wrong device | It picks the first port that looks like a CP210x. Choose the right one in **Rig > Settings** or use `--port` |
+| Band waterfall is empty, the rest works | Set CI-V USB Port to Unlink from [REMOTE] and the baud rate to 115200. `ic7300probe` checks this too |
+| `The rig's USB audio isn't there` | Turn the radio on, or choose the device in **Rig > Settings**. The app looks for one named USB Audio CODEC |
+| Audio waterfall is dim, or the level bar is red | Adjust USB AF Output Level on the radio |
+| Listen is refused | The chosen output is named USB Audio CODEC. Choose your speakers in **Rig > Settings** |
+| PTT, TUNE or CW does nothing | Press **ARM TX** first. It's off at every start |
+| `The rig wouldn't ...` in the status bar | The radio refused that command, often because of its current mode or band |
+| The window doesn't open | The app needs a graphics driver with OpenGL 3.0 or newer, which some remote desktop sessions and virtual machines don't provide |
 
 ## Third-party code
 
-Bundled in `third_party/`, each under its own licence:
+The command bytes were checked against [Hamlib](https://hamlib.github.io/)'s IC-7300 backend.
+
+These are bundled in `third_party/`, each under its own licence:
 
 | Component | Licence |
 |---|---|
@@ -126,19 +416,4 @@ Bundled in `third_party/`, each under its own licence:
 | Roboto font, by Christian Robertson | Apache 2.0 |
 | Cousine font, by Steve Matteson | SIL Open Font License 1.1 |
 
-The CI-V command bytes were checked against [Hamlib](https://hamlib.github.io/)'s IC-7300 backend.
-
-## Layout
-
-| Path | What |
-|---|---|
-| `src/civ.h` | The CI-V protocol: frames, commands, meter calibration. No OS, no threads |
-| `src/rig.*` | The rig thread: command queue, polling, state, transmit safety |
-| `src/serial.cpp` | Serial ports: Win32 and POSIX |
-| `src/sim_rig.*` | The simulated IC-7300 |
-| `src/audio.*` | Sound in and out, through miniaudio |
-| `src/waterfall.*`, `src/dsp.h` | The waterfall texture and the FFT |
-| `src/tuning.h`, `src/bands.h` | Frequency entry, audio-to-RF mapping, the band table |
-| `src/store.*` | Settings, memories, log, ADIF, WAV |
-| `src/app.cpp` | The window, and the self-test script |
-| `tools/probe.cpp` | The read-only check of a real radio |
+This project is released under the [MIT License](LICENSE).

@@ -7,6 +7,7 @@
 #define MA_NO_RESOURCE_MANAGER
 #define MA_NO_NODE_GRAPH
 #define MA_NO_ENGINE
+#define NOMINMAX  // miniaudio includes windows.h, whose min and max macros would break std::max under MSVC
 #include "miniaudio.h"
 
 #include <math.h>
