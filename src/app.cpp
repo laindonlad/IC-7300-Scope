@@ -1,0 +1,2453 @@
+#include "app.h"
+
+#include <GLFW/glfw3.h>
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+
+#include <algorithm>
+#include <chrono>
+#include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "audio.h"
+#include "bands.h"
+#include "civ.h"
+#include "demo_audio.h"
+#include "dsp.h"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+#include "imgui_internal.h"  // ImRect, for the self-test's map of controls
+#include "rig.h"
+#include "sim_rig.h"
+#include "store.h"
+#include "transport.h"
+#include "tuning.h"
+#include "waterfall.h"
+
+#include "font_cousine.inc"
+#include "font_roboto.inc"
+
+namespace {
+const ImU32 C_BG = IM_COL32(16, 19, 24, 255);
+const ImU32 C_PANEL = IM_COL32(24, 28, 35, 255);
+const ImU32 C_DIM = IM_COL32(125, 135, 150, 255);
+const ImU32 C_TEXT = IM_COL32(222, 228, 235, 255);
+const ImU32 C_ACCENT = IM_COL32(64, 190, 225, 255);
+const ImU32 C_AMBER = IM_COL32(255, 190, 70, 255);
+const ImU32 C_GREEN = IM_COL32(90, 210, 120, 255);
+const ImU32 C_RED = IM_COL32(235, 70, 60, 255);
+const ImVec4 V_ACCENT(0.15f, 0.47f, 0.60f, 1), V_ACCENT_HI(0.20f, 0.56f, 0.70f, 1);
+const ImVec4 V_RED(0.72f, 0.16f, 0.14f, 1), V_RED_HI(0.86f, 0.22f, 0.18f, 1);
+const ImVec4 V_AMBER(0.60f, 0.42f, 0.08f, 1), V_AMBER_HI(0.72f, 0.52f, 0.12f, 1);
+
+const long long kSteps[] = {1, 10, 100, 500, 1000, 2500, 5000, 9000, 10000, 100000, 1000000};
+const char* const kStepNames[] = {"1 Hz", "10 Hz", "100 Hz", "500 Hz", "1 kHz", "2.5 kHz", "5 kHz", "9 kHz", "10 kHz", "100 kHz", "1 MHz"};
+const int kStepCount = 11;
+const int kFftSizes[] = {2048, 4096, 8192, 16384};
+const char* const kFftNames[] = {"2048 (23 Hz)", "4096 (12 Hz)", "8192 (6 Hz)", "16384 (3 Hz)"};
+const float kAudioRanges[] = {3000, 4000, 6000, 12000, 24000};
+const char* const kAudioRangeNames[] = {"0-3 kHz", "0-4 kHz", "0-6 kHz", "0-12 kHz", "0-24 kHz"};
+const char* const kSpanNames[] = {"+/-2.5k", "+/-5k", "+/-10k", "+/-25k", "+/-50k", "+/-100k", "+/-250k", "+/-500k"};
+const int kWaterfallRows = 1024;
+
+std::string utcNow(const char* fmt) {
+  time_t t = time(nullptr);
+  struct tm u;
+#ifdef _WIN32
+  gmtime_s(&u, &t);
+#else
+  gmtime_r(&t, &u);
+#endif
+  char b[64];
+  strftime(b, sizeof b, fmt, &u);
+  return b;
+}
+
+std::string modeLabel(int mode, bool data) {
+  if (mode < 0) return "---";
+  return std::string(civ::modeName(mode)) + (data && civ::hasData(mode) ? "-D" : "");
+}
+
+std::string smeterText(int raw) {
+  if (raw < 0) return "--";
+  double db = civ::smeterDb(raw);
+  char b[32];
+  if (db > 0.5) snprintf(b, sizeof b, "S9+%d", (int)lround(db));
+  else snprintf(b, sizeof b, "S%d", std::max(0, (int)lround(9 + db / 6)));
+  return b;
+}
+
+double niceStep(double span, int wanted) {
+  double raw = span / wanted, mag = pow(10.0, floor(log10(raw))), f = raw / mag;
+  return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * mag;
+}
+
+void glfwError(int code, const char* msg) { fprintf(stderr, "GLFW %d: %s\n", code, msg); }
+
+// The window icon: a tiny waterfall, drawn here so there's no image file to carry about.
+void setIcon(GLFWwindow* w) {
+  static unsigned char px[32 * 32 * 4];
+  for (int y = 0; y < 32; y++)
+    for (int x = 0; x < 32; x++) {
+      unsigned char* p = &px[(y * 32 + x) * 4];
+      double a = exp(-pow((x - 10 - y / 8.0) / 2.2, 2)) + 0.75 * exp(-pow((x - 23) / 1.6, 2));
+      p[0] = (unsigned char)std::min(255.0, 20 + 230 * a);
+      p[1] = (unsigned char)std::min(255.0, 40 + 210 * a);
+      p[2] = (unsigned char)std::min(255.0, 90 + 130 * a);
+      p[3] = 255;
+    }
+  GLFWimage img = {32, 32, px};
+  glfwSetWindowIcon(w, 1, &img);
+}
+
+bool saveBmp(const std::string& path, int w, int h) {
+  std::vector<unsigned char> px((size_t)w * h * 4);
+  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+  for (size_t i = 0; i < px.size(); i += 4) std::swap(px[i], px[i + 2]);
+  FILE* f = fopen(path.c_str(), "wb");
+  if (!f) return false;
+  unsigned int size = (unsigned int)px.size();
+  unsigned char hdr[54] = {'B', 'M'};
+  auto put32 = [&](int at, unsigned int v) {
+    for (int i = 0; i < 4; i++) hdr[at + i] = (unsigned char)(v >> (8 * i));
+  };
+  put32(2, 54 + size);
+  put32(10, 54);
+  put32(14, 40);
+  put32(18, (unsigned int)w);
+  put32(22, (unsigned int)h);
+  hdr[26] = 1, hdr[28] = 32;
+  put32(34, size);
+  fwrite(hdr, 1, 54, f);
+  fwrite(px.data(), 1, px.size(), f);
+  fclose(f);
+  return true;
+}
+
+class App {
+ public:
+  explicit App(const AppOptions& o) : opt_(o) {}
+  int run();
+
+ private:
+  // ---- set-up and what happens every frame ----
+  void setupStyle(float scale);
+  void loadSettings();
+  void saveSettings();
+  void connect();
+  void frame();
+  void pumpAudio();
+  void pumpScope();
+  void keepAudioOpen();
+  void rememberBand();
+  void handleKeys();
+
+  // ---- the window ----
+  void drawMenu();
+  void drawHeader();
+  void drawVfo();
+  void drawFreqDigits(long long hz, bool tx);
+  void drawMeters();
+  void drawTxPanel();
+  void drawBandRow();
+  void drawControls();
+  void drawCentre();
+  void drawScopePane();
+  void drawAudioPane();
+  void drawRightTabs();
+  void drawKeypad();
+  void drawMemories();
+  void drawLog();
+  void drawCwVoice();
+  void drawStatus();
+  void drawSettings();
+  void drawHelp();
+
+  // helpers
+  float S(float v) const { return v * scale_; }
+  bool toggle(const char* label, bool on, ImVec2 size = ImVec2(0, 0), const char* name = nullptr);
+  bool actionButton(const char* label, ImVec2 size, const ImVec4& col, const ImVec4& hi, const char* name = nullptr);
+  void levelRow(const char* label, int level, const char* fmtOverride = nullptr);
+  void switchLevelRow(const char* label, int sw, int level);
+  void radioRow(const char* label, int sw, const std::vector<std::pair<const char*, int>>& opts);
+  void flow(float nextWidth);
+  void note(const std::string& name);
+  void say(const std::string& s) { status_ = s, statusUntil_ = glfwGetTime() + 8; }
+  void tuneTo(long long hz) { rig_.setFreq(hz); }
+  void tuneBy(long long d) { rig_.setFreq(st_.hz + d); }
+  void goBand(int i);
+  void goPreset(const bands::Preset& p);
+  void commitEntry();
+  void setStep(int i) { stepIdx_ = std::max(0, std::min(kStepCount - 1, i)); }
+  void startRecording();
+  void applyFft();
+  void autoAudioLevels();
+  void autoScopeLevels();
+
+  struct PlotArea {
+    ImVec2 p0, p1;     // the whole thing
+    ImVec2 w0, w1;     // the waterfall part
+    bool hovered = false, clicked = false, rclicked = false;
+    double x = 0;      // the domain value under the mouse
+    float wheel = 0;
+  };
+  PlotArea drawPlot(const char* id, double xLo, double xHi, const std::vector<float>& line, double lineLo, double lineHi, float yLo,
+                    float yHi, Waterfall& wf, float u0, float u1, const std::function<std::string(double)>& axisLabel, double axisStep,
+                    float rowHeight);
+
+  // ---- self-test ----
+  struct Step {
+    int waitFrames;
+    std::function<void()> fn;
+  };
+  void buildSelfTest();
+  void runSelfTest();
+  void click(const std::string& name, float fx = 0.5f, float fy = 0.5f, int button = 0);
+  void typeText(const std::string& s);
+  void pressKey(ImGuiKey k);
+  void expect(const std::string& what, bool ok);
+
+  AppOptions opt_;
+  GLFWwindow* win_ = nullptr;
+  float scale_ = 1;
+  ImFont* fText_ = nullptr;
+  ImFont* fSmall_ = nullptr;
+  ImFont* fMid_ = nullptr;
+  ImFont* fFreq_ = nullptr;
+  ImFont* fFreqSmall_ = nullptr;
+  uint64_t frameCount_ = 0;
+
+  Rig rig_;
+  std::unique_ptr<SimRig> sim_;
+  RigState st_;
+  AudioEngine audio_;
+  DemoAudio demoAudio_;
+
+  store::Settings cfg_;
+  std::string cfgPath_, memPath_, logPath_;
+
+  // connection
+  std::string port_;
+  int baud_ = 115200, addr_ = 0x94;
+  std::string audioIn_, audioOut_;
+  std::string audioError_;
+  double audioRetryAt_ = 0;
+
+  // tuning
+  int stepIdx_ = 2;
+  std::string entry_;
+  double entryErrorUntil_ = 0;
+  struct BandMem {
+    bool valid = false;
+    long long hz = 0;
+    int mode = 0, filter = 1;
+    bool data = false;
+  };
+  std::vector<BandMem> bandMem_;
+  int smeterPeak_ = 0;
+
+  // audio view
+  std::unique_ptr<dsp::Spectrum> spectrum_;
+  int fftIdx_ = 2, audioRangeIdx_ = 0, audioLinesPerSec_ = 25;
+  float audioFloorDb_ = -110, audioRangeDb_ = 60;
+  std::vector<float> audioBuf_, fftIn_, audioDb_, audioLine_;
+  size_t audioPos_ = 0;
+  int audioAutoLeft_ = 0, scopeAutoLeft_ = 0;
+  std::vector<uint8_t> rowBuf_;
+  Waterfall wfAudio_;
+  bool monitor_ = false;
+  float monitorGain_ = 0.7f;
+  float peakDb_ = -100, peakHold_ = 0;
+  store::WavWriter rec_;
+
+  // scope view
+  Waterfall wfScope_;
+  std::vector<float> scopeLine_;
+  long long scopeLo_ = 0, scopeHi_ = 0;
+  bool scopeOor_ = false;
+  long long scopeMenuHz_ = 0;
+  double scopeLastAt_ = 0;
+  bool scopeEnabled_ = true;
+  float scopeFloor_ = 12, scopeRange_ = 110;
+  int palette_ = PAL_CLASSIC;
+  bool showScope_ = true, showAudio_ = true;
+  float splitFrac_ = 0.5f;
+
+  // tabs
+  std::vector<store::Memory> memories_;
+  char memName_[64] = "", memFilter_[64] = "";
+  std::vector<store::LogEntry> log_;
+  char logCall_[24] = "", logSent_[8] = "59", logRcvd_[8] = "59", logName_[32] = "", logNotes_[128] = "";
+  bool logFocusCall_ = false;
+  char callsign_[24] = "";
+  char macros_[5][96] = {"CQ CQ CQ DE {CALL} {CALL} K", "{CALL}", "TNX FB QSO 73 DE {CALL} SK", "UR 599 599 BK", "QRZ? DE {CALL} K"};
+  char cwLine_[128] = "";
+
+  // settings and dialogs
+  bool openSettings_ = false, openHelp_ = false, openPowerOff_ = false;
+  std::vector<SerialPortInfo> ports_;
+  std::vector<std::string> inDevs_, outDevs_;
+  char addrText_[8] = "94";
+  int txLimit_ = 180;
+
+  std::string status_;
+  double statusUntil_ = 0;
+  uint64_t lastErrorSeq_ = 0;
+
+  // self-test
+  std::map<std::string, ImRect> rects_;
+  std::vector<Step> steps_;
+  size_t stepAt_ = 0;
+  int stepWait_ = 0;
+  double stepUntil_ = 0;
+  std::vector<std::string> results_;
+  int testFails_ = 0;
+  bool testDone_ = false;
+  // injected input, applied one piece a frame so ImGui sees press then release
+  std::vector<std::function<void(ImGuiIO&)>> inject_;
+};
+
+// ---------------------------------------------------------------- set-up
+
+void App::setupStyle(float scale) {
+  ImGuiStyle& s = ImGui::GetStyle();
+  ImGui::StyleColorsDark();
+  s.WindowRounding = 0, s.ChildRounding = 4, s.FrameRounding = 3, s.GrabRounding = 3, s.PopupRounding = 4, s.TabRounding = 3;
+  s.WindowBorderSize = 0, s.ChildBorderSize = 1, s.FrameBorderSize = 0;
+  s.WindowPadding = ImVec2(8, 6), s.FramePadding = ImVec2(6, 3), s.ItemSpacing = ImVec2(5, 4), s.ItemInnerSpacing = ImVec2(4, 3);
+  s.GrabMinSize = 9, s.ScrollbarSize = 11;
+  ImVec4* c = s.Colors;
+  c[ImGuiCol_WindowBg] = ImGui::ColorConvertU32ToFloat4(C_BG);
+  c[ImGuiCol_ChildBg] = ImGui::ColorConvertU32ToFloat4(C_PANEL);
+  c[ImGuiCol_PopupBg] = ImVec4(0.11f, 0.13f, 0.16f, 0.98f);
+  c[ImGuiCol_Border] = ImVec4(0.21f, 0.25f, 0.30f, 1);
+  c[ImGuiCol_FrameBg] = ImVec4(0.14f, 0.17f, 0.21f, 1);
+  c[ImGuiCol_FrameBgHovered] = ImVec4(0.19f, 0.23f, 0.28f, 1);
+  c[ImGuiCol_FrameBgActive] = ImVec4(0.21f, 0.26f, 0.32f, 1);
+  c[ImGuiCol_Button] = ImVec4(0.17f, 0.20f, 0.25f, 1);
+  c[ImGuiCol_ButtonHovered] = ImVec4(0.24f, 0.29f, 0.35f, 1);
+  c[ImGuiCol_ButtonActive] = V_ACCENT;
+  c[ImGuiCol_SliderGrab] = V_ACCENT_HI;
+  c[ImGuiCol_SliderGrabActive] = ImVec4(0.3f, 0.75f, 0.9f, 1);
+  c[ImGuiCol_CheckMark] = ImVec4(0.3f, 0.75f, 0.9f, 1);
+  c[ImGuiCol_Header] = ImVec4(0.17f, 0.20f, 0.25f, 1);
+  c[ImGuiCol_HeaderHovered] = ImVec4(0.22f, 0.27f, 0.33f, 1);
+  c[ImGuiCol_HeaderActive] = V_ACCENT;
+  c[ImGuiCol_Tab] = ImVec4(0.14f, 0.17f, 0.21f, 1);
+  c[ImGuiCol_TabHovered] = V_ACCENT_HI;
+  c[ImGuiCol_TabSelected] = V_ACCENT;
+  c[ImGuiCol_MenuBarBg] = ImVec4(0.09f, 0.11f, 0.14f, 1);
+  c[ImGuiCol_TitleBgActive] = V_ACCENT;
+  c[ImGuiCol_Text] = ImGui::ColorConvertU32ToFloat4(C_TEXT);
+  c[ImGuiCol_TextDisabled] = ImGui::ColorConvertU32ToFloat4(C_DIM);
+  s.ScaleAllSizes(scale);
+
+  ImGuiIO& io = ImGui::GetIO();
+  ImFontConfig cfg;
+  cfg.FontDataOwnedByAtlas = false;
+  cfg.OversampleH = 2;
+  void* roboto = const_cast<unsigned char*>(kRobotoMedium);
+  void* cousine = const_cast<unsigned char*>(kCousine);
+  fText_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 15.f * scale, &cfg);
+  fSmall_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 12.5f * scale, &cfg);
+  fMid_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 19.f * scale, &cfg);
+  fFreq_ = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 56.f * scale, &cfg);
+  fFreqSmall_ = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 21.f * scale, &cfg);
+}
+
+void App::loadSettings() {
+  std::string dir = store::dataDir();
+  // The demo keeps to its own files, so trying it can't disturb a real set-up.
+  std::string prefix = opt_.demo ? "demo-" : "";
+  cfgPath_ = dir + prefix + "settings.ini";
+  memPath_ = dir + prefix + "memories.csv";
+  logPath_ = dir + prefix + "log.csv";
+  cfg_.load(cfgPath_);
+  port_ = cfg_.get("port");
+  baud_ = cfg_.getInt("baud", 115200);
+  addr_ = cfg_.getInt("addr", 0x94);
+  snprintf(addrText_, sizeof addrText_, "%02X", addr_);
+  audioIn_ = cfg_.get("audio_in");
+  audioOut_ = cfg_.get("audio_out");
+  monitor_ = cfg_.getInt("monitor", 0) != 0;
+  monitorGain_ = (float)cfg_.getDouble("monitor_gain", 0.7);
+  stepIdx_ = std::max(0, std::min(kStepCount - 1, cfg_.getInt("step", 2)));
+  fftIdx_ = std::max(0, std::min(3, cfg_.getInt("fft", 2)));
+  audioRangeIdx_ = std::max(0, std::min(4, cfg_.getInt("audio_range", 0)));
+  audioLinesPerSec_ = std::max(5, std::min(60, cfg_.getInt("audio_lines", 25)));
+  audioFloorDb_ = (float)cfg_.getDouble("audio_floor", -110);
+  audioRangeDb_ = (float)cfg_.getDouble("audio_span", 60);
+  audioAutoLeft_ = cfg_.get("audio_floor").empty() ? 50 : 0;
+  scopeAutoLeft_ = cfg_.get("scope_floor").empty() ? 12 : 0;
+  scopeFloor_ = (float)cfg_.getDouble("scope_floor", 12);
+  scopeRange_ = (float)cfg_.getDouble("scope_span", 110);
+  palette_ = std::max(0, std::min(PAL_COUNT - 1, cfg_.getInt("palette", 0)));
+  scopeEnabled_ = cfg_.getInt("scope", 1) != 0;
+  showScope_ = cfg_.getInt("show_scope", 1) != 0;
+  showAudio_ = cfg_.getInt("show_audio", 1) != 0;
+  splitFrac_ = (float)cfg_.getDouble("split", 0.5);
+  txLimit_ = std::max(5, cfg_.getInt("tx_limit", 180));
+  snprintf(callsign_, sizeof callsign_, "%s", cfg_.get("callsign").c_str());
+  for (int i = 0; i < 5; i++) {
+    std::string m = cfg_.get("macro" + std::to_string(i));
+    if (!m.empty()) snprintf(macros_[i], sizeof macros_[i], "%s", m.c_str());
+  }
+  int n;
+  bands::table(n);
+  bandMem_.assign((size_t)n, BandMem());
+  for (int i = 0; i < n; i++) {
+    auto p = store::splitCsv(cfg_.get("band" + std::to_string(i)));
+    if (p.size() == 4) {
+      BandMem& b = bandMem_[(size_t)i];
+      b.hz = atoll(p[0].c_str()), b.mode = atoi(p[1].c_str()), b.data = p[2] == "1", b.filter = atoi(p[3].c_str());
+      b.valid = b.hz > 0;
+    }
+  }
+  memories_ = store::loadMemories(memPath_);
+  log_ = store::loadLog(logPath_);
+}
+
+void App::saveSettings() {
+  cfg_.set("port", port_);
+  cfg_.setInt("baud", baud_);
+  cfg_.setInt("addr", addr_);
+  cfg_.set("audio_in", audioIn_);
+  cfg_.set("audio_out", audioOut_);
+  cfg_.setInt("monitor", monitor_);
+  cfg_.setDouble("monitor_gain", monitorGain_);
+  cfg_.setInt("step", stepIdx_);
+  cfg_.setInt("fft", fftIdx_);
+  cfg_.setInt("audio_range", audioRangeIdx_);
+  cfg_.setInt("audio_lines", audioLinesPerSec_);
+  cfg_.setDouble("audio_floor", audioFloorDb_);
+  cfg_.setDouble("audio_span", audioRangeDb_);
+  cfg_.setDouble("scope_floor", scopeFloor_);
+  cfg_.setDouble("scope_span", scopeRange_);
+  cfg_.setInt("palette", palette_);
+  cfg_.setInt("scope", scopeEnabled_);
+  cfg_.setInt("show_scope", showScope_);
+  cfg_.setInt("show_audio", showAudio_);
+  cfg_.setDouble("split", splitFrac_);
+  cfg_.setInt("tx_limit", txLimit_);
+  cfg_.set("callsign", callsign_);
+  for (int i = 0; i < 5; i++) cfg_.set("macro" + std::to_string(i), macros_[i]);
+  for (size_t i = 0; i < bandMem_.size(); i++) {
+    const BandMem& b = bandMem_[i];
+    if (b.valid)
+      cfg_.set("band" + std::to_string(i), store::joinCsv({std::to_string(b.hz), std::to_string(b.mode), b.data ? "1" : "0", std::to_string(b.filter)}));
+  }
+  int w, h;
+  glfwGetWindowSize(win_, &w, &h);
+  cfg_.setInt("win_w", w);
+  cfg_.setInt("win_h", h);
+  cfg_.save(cfgPath_);
+}
+
+void App::connect() {
+  rig_.setScope(scopeEnabled_);
+  rig_.setTxLimit(txLimit_);
+  if (opt_.demo) {
+    rig_.start([this] { return sim_->newTransport(); });
+    return;
+  }
+  if (opt_.noRig) return;
+  if (!opt_.port.empty()) port_ = opt_.port;
+  if (port_.empty()) port_ = guessRigPort(listSerialPorts());
+  std::string port = port_;
+  int baud = baud_;
+  rig_.start([port, baud] { return newSerialTransport(port, baud); }, (uint8_t)addr_);
+}
+
+void App::applyFft() {
+  int n = kFftSizes[fftIdx_];
+  spectrum_.reset(new dsp::Spectrum(n));
+  fftIn_.assign((size_t)n, 0.f);
+  audioDb_.assign((size_t)spectrum_->bins(), -140.f);
+  audioLine_.assign((size_t)spectrum_->bins(), -140.f);
+  rowBuf_.assign((size_t)spectrum_->bins(), 0);
+  wfAudio_.init(spectrum_->bins(), kWaterfallRows);
+}
+
+void App::keepAudioOpen() {
+  if (opt_.demo) {
+    if (!audio_.capturing()) {
+      DemoAudio* d = &demoAudio_;
+      audio_.startGenerated([d](float* o, int n) { d->generate(o, n); });
+    }
+    return;
+  }
+  double now = glfwGetTime();
+  if (audio_.capturing() && !audio_.lost()) return;
+  if (now < audioRetryAt_) return;
+  audioRetryAt_ = now + 3;
+  if (audio_.capturing()) audio_.stopCapture();
+  std::string in = audioIn_.empty() ? audio_.guessRigInput() : audioIn_;
+  if (in.empty()) {
+    audioError_ = "The rig's USB audio isn't there (radio off?). Choose a device in Settings.";
+    return;
+  }
+  std::string err;
+  if (audio_.startCapture(in, err)) audioError_.clear();
+  else audioError_ = err;
+}
+
+// ---------------------------------------------------------------- what happens every frame
+
+void App::pumpAudio() {
+  if (!spectrum_) return;
+  float tmp[8192];
+  size_t got;
+  while ((got = audio_.read(tmp, 8192)) > 0) {
+    audioBuf_.insert(audioBuf_.end(), tmp, tmp + got);
+    if (rec_.isOpen()) rec_.write(tmp, got);
+  }
+  float pk = audio_.takePeak();
+  float db = pk > 1e-6f ? 20.f * log10f(pk) : -120.f;
+  peakDb_ = std::max(db, peakDb_ - 0.8f);
+  if (db > -1.f) peakHold_ = 2.f;
+  peakHold_ = std::max(0.f, peakHold_ - ImGui::GetIO().DeltaTime);
+
+  int n = spectrum_->size();
+  int hop = std::max(64, AudioEngine::kRate / std::max(1, audioLinesPerSec_));
+  // Falling more than a second behind (a minimised window, say): start again from now.
+  if (audioBuf_.size() - audioPos_ > (size_t)AudioEngine::kRate + (size_t)n) audioPos_ = audioBuf_.size() - (size_t)n;
+  size_t need = (size_t)std::max(n, hop);
+  while (audioBuf_.size() - audioPos_ >= need) {
+    spectrum_->compute(&audioBuf_[audioPos_], audioDb_.data());
+    audioPos_ += (size_t)hop;
+    const int bins = spectrum_->bins();
+    for (int i = 0; i < bins; i++) {
+      audioLine_[(size_t)i] += 0.4f * (audioDb_[(size_t)i] - audioLine_[(size_t)i]);
+      rowBuf_[(size_t)i] = dsp::dbToLevel(audioDb_[(size_t)i]);
+    }
+    wfAudio_.pushRow(rowBuf_.data(), bins);
+    // The first run has no saved levels: take them from what's actually coming in, once it's settled.
+    if (audioAutoLeft_ > 0 && --audioAutoLeft_ == 0) autoAudioLevels();
+  }
+  if (audioPos_ > 1u << 18) {
+    audioBuf_.erase(audioBuf_.begin(), audioBuf_.begin() + (long)audioPos_);
+    audioPos_ = 0;
+  }
+}
+
+void App::pumpScope() {
+  ScopeLine l;
+  std::vector<uint8_t> row;
+  while (rig_.popScope(l)) {
+    long long oldSpan = scopeHi_ - scopeLo_, span = l.hiHz - l.loHz;
+    long long moved = llabs((l.loHz + l.hiHz) / 2 - (scopeLo_ + scopeHi_) / 2);
+    // History from another span, or from far away, would only mislead.
+    if (span != oldSpan || (span > 0 && moved > span / 4)) wfScope_.clear();
+    scopeLo_ = l.loHz, scopeHi_ = l.hiHz, scopeOor_ = l.outOfRange;
+    scopeLastAt_ = glfwGetTime();
+    scopeLine_.resize(l.levels.size());
+    row.resize(l.levels.size());
+    for (size_t i = 0; i < l.levels.size(); i++) {
+      scopeLine_[i] = l.levels[i];
+      row[i] = (uint8_t)std::min(255, (int)l.levels[i] * 255 / civ::kScopeLevelMax);
+    }
+    wfScope_.pushRow(row.data(), (int)row.size());
+    if (scopeAutoLeft_ > 0 && --scopeAutoLeft_ == 0) autoScopeLevels();
+  }
+}
+
+void App::rememberBand() {
+  if (!st_.connected || st_.tx || st_.hz <= 0 || st_.mode < 0) return;
+  int b = bands::bandOf(st_.hz);
+  if (b < 0) return;
+  BandMem& m = bandMem_[(size_t)b];
+  m.valid = true, m.hz = st_.hz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
+}
+
+void App::goBand(int i) {
+  int n;
+  const bands::Band* t = bands::table(n);
+  const BandMem& m = bandMem_[(size_t)i];
+  if (m.valid) {
+    tuneTo(m.hz);
+    rig_.setMode(m.mode, m.data, m.filter);
+  } else {
+    tuneTo(t[i].homeHz);
+    rig_.setMode(t[i].homeMode, false, st_.filter ? st_.filter : 1);
+  }
+}
+
+void App::goPreset(const bands::Preset& p) {
+  tuneTo(p.hz);
+  rig_.setMode(p.mode, p.data, 1);
+}
+
+void App::commitEntry() {
+  long long hz = tuning::parseFreq(entry_, st_.hz);
+  if (hz < 0) {
+    say("\"" + entry_ + "\" isn't a frequency the rig can tune (30 kHz to 74.8 MHz)");
+    entryErrorUntil_ = glfwGetTime() + 1.5;
+    return;
+  }
+  tuneTo(hz);
+  entry_.clear();
+}
+
+void App::handleKeys() {
+  ImGuiIO& io = ImGui::GetIO();
+  if (io.WantTextInput) return;
+  if (ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel)) return;
+
+  // Typing a frequency works with nothing focused: just start typing.
+  for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
+    ImWchar c = io.InputQueueCharacters[i];
+    bool digit = c >= '0' && c <= '9';
+    bool leading = entry_.empty() && (c == '+' || c == '-');
+    bool punct = !entry_.empty() && (c == '.' || c == ',' || c == 'k' || c == 'K' || c == 'm' || c == 'M');
+    bool dotFirst = entry_.empty() && c == '.';
+    if ((digit || leading || punct || dotFirst) && entry_.size() < 16) entry_ += (char)(c == ',' ? '.' : c);
+  }
+  if (!entry_.empty()) {
+    if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false)) commitEntry();
+    else if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) entry_.clear();
+    else if (ImGui::IsKeyPressed(ImGuiKey_Backspace, true)) entry_.pop_back();
+    return;  // the arrows and F-keys mustn't act behind a half-typed frequency
+  }
+
+  bool ctrl = io.KeyCtrl, shift = io.KeyShift;
+  if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
+    if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
+    else rig_.ptt(!st_.tx);
+  }
+  if (!st_.connected) return;
+  long long step = kSteps[stepIdx_] * (shift ? 10 : 1);
+  if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, true)) tuneTo(tuning::stepFreq(st_.hz, step, 1));
+  if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true)) tuneTo(tuning::stepFreq(st_.hz, step, -1));
+  if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false)) setStep(stepIdx_ + 1);
+  if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false)) setStep(stepIdx_ - 1);
+  int nb;
+  bands::table(nb);
+  int here = bands::bandOf(st_.hz);
+  if (ImGui::IsKeyPressed(ImGuiKey_PageUp, false)) goBand(here < 0 ? 0 : (here + 1) % nb);
+  if (ImGui::IsKeyPressed(ImGuiKey_PageDown, false)) goBand(here < 0 ? 0 : (here + nb - 1) % nb);
+  int f = st_.filter ? st_.filter : 1;
+  static const struct {
+    ImGuiKey key;
+    int mode;
+  } modeKeys[] = {{ImGuiKey_F1, civ::LSB}, {ImGuiKey_F2, civ::USB}, {ImGuiKey_F3, civ::CW}, {ImGuiKey_F4, civ::CW_R},
+                  {ImGuiKey_F5, civ::AM}, {ImGuiKey_F6, civ::FM}, {ImGuiKey_F7, civ::RTTY}, {ImGuiKey_F8, civ::RTTY_R}};
+  for (auto& k : modeKeys)
+    if (ImGui::IsKeyPressed(k.key, false)) rig_.setMode(k.mode, false, f);
+  if (ImGui::IsKeyPressed(ImGuiKey_F9, false) && civ::hasData(st_.mode)) rig_.setMode(st_.mode, !st_.data, f);
+  if (ImGui::IsKeyPressed(ImGuiKey_F10, false)) rig_.setMode(st_.mode, st_.data, f % 3 + 1);
+  if (ImGui::IsKeyPressed(ImGuiKey_F11, false)) rig_.setSplit(st_.split != 1);
+  if (ImGui::IsKeyPressed(ImGuiKey_F12, false)) rig_.vfoSwap();
+}
+
+// ---------------------------------------------------------------- small widgets
+
+void App::note(const std::string& name) {
+  if (!opt_.selfTest.empty()) rects_[name] = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+}
+
+bool App::toggle(const char* label, bool on, ImVec2 size, const char* name) {
+  if (on) {
+    ImGui::PushStyleColor(ImGuiCol_Button, V_ACCENT);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, V_ACCENT_HI);
+  }
+  bool r = ImGui::Button(label, size);
+  if (on) ImGui::PopStyleColor(2);
+  note(name ? name : label);
+  return r;
+}
+
+bool App::actionButton(const char* label, ImVec2 size, const ImVec4& col, const ImVec4& hi, const char* name) {
+  ImGui::PushStyleColor(ImGuiCol_Button, col);
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hi);
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, hi);
+  bool r = ImGui::Button(label, size);
+  ImGui::PopStyleColor(3);
+  note(name ? name : label);
+  return r;
+}
+
+void App::flow(float nextWidth) {
+  float right = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
+  ImGui::SameLine();
+  if (ImGui::GetCursorScreenPos().x + nextWidth > right) ImGui::NewLine();
+}
+
+void App::levelRow(const char* label, int level, const char* fmtOverride) {
+  ImGui::PushID(label);
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted(label);
+  ImGui::SameLine(S(84));
+  int v = std::max(0, st_.level[level]);
+  char fmt[32];
+  if (fmtOverride) snprintf(fmt, sizeof fmt, "%s", fmtOverride);
+  else snprintf(fmt, sizeof fmt, "%d%%%%", (int)lround(v * 100.0 / 255.0));
+  ImGui::SetNextItemWidth(-1);
+  if (ImGui::SliderInt("##v", &v, 0, 255, fmt)) rig_.setLevel(level, v);
+  note(std::string("level:") + label);
+  if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.f)
+    rig_.setLevel(level, std::max(0, std::min(255, v + (int)ImGui::GetIO().MouseWheel * 5)));
+  ImGui::PopID();
+}
+
+void App::switchLevelRow(const char* label, int sw, int level) {
+  ImGui::PushID(label);
+  bool on = st_.sw[sw] > 0;
+  if (toggle(label, on, ImVec2(S(79), 0), (std::string("sw:") + label).c_str())) rig_.setSwitch(sw, on ? 0 : 1);
+  ImGui::SameLine(S(84));
+  int v = std::max(0, st_.level[level]);
+  char fmt[32];
+  snprintf(fmt, sizeof fmt, "%d%%%%", (int)lround(v * 100.0 / 255.0));
+  ImGui::SetNextItemWidth(-1);
+  if (ImGui::SliderInt("##v", &v, 0, 255, fmt)) rig_.setLevel(level, v);
+  if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.f)
+    rig_.setLevel(level, std::max(0, std::min(255, v + (int)ImGui::GetIO().MouseWheel * 5)));
+  ImGui::PopID();
+}
+
+void App::radioRow(const char* label, int sw, const std::vector<std::pair<const char*, int>>& opts) {
+  ImGui::PushID(label);
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted(label);
+  ImGui::SameLine(S(84));
+  float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * (float)(opts.size() - 1)) / (float)opts.size();
+  bool first = true;
+  for (const auto& o : opts) {
+    if (!first) ImGui::SameLine();
+    first = false;
+    if (toggle(o.first, st_.sw[sw] == o.second, ImVec2(w, 0), (std::string(label) + ":" + o.first).c_str())) rig_.setSwitch(sw, o.second);
+  }
+  ImGui::PopID();
+}
+
+// ---------------------------------------------------------------- the header
+
+void App::drawFreqDigits(long long hz, bool tx) {
+  ImGui::PushFont(fFreq_);
+  float dw = ImGui::CalcTextSize("0").x, h = ImGui::GetTextLineHeight(), dotW = dw * 0.5f;
+  ImVec2 p = ImGui::GetCursorScreenPos();
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  ImU32 col = tx ? C_RED : C_AMBER;
+  float x = p.x;
+  long long pow10 = 10000000;
+  for (int i = 0; i < 8; i++, pow10 /= 10) {
+    int d = hz < 0 ? 0 : (int)(hz / pow10 % 10);
+    bool blank = hz >= 0 && i == 0 && hz < 10000000;
+    ImGui::PushID(i);
+    ImGui::SetCursorScreenPos(ImVec2(x, p.y));
+    ImGui::InvisibleButton("##digit", ImVec2(dw, h));
+    note("digit:" + std::to_string(i));
+    bool hovered = ImGui::IsItemHovered(), hit = ImGui::IsItemClicked();
+    if (hovered) {
+      float mid = p.y + h / 2, my = ImGui::GetIO().MousePos.y;
+      dl->AddRectFilled(ImVec2(x, my < mid ? p.y : mid), ImVec2(x + dw, my < mid ? mid : p.y + h), IM_COL32(255, 255, 255, 22), 2);
+      float wheel = ImGui::GetIO().MouseWheel;
+      if (wheel != 0.f && st_.connected) tuneBy(pow10 * (wheel > 0 ? 1 : -1));
+      if (hit && st_.connected) tuneBy(my < mid ? pow10 : -pow10);
+    }
+    if (hz < 0) {
+      dl->AddText(ImVec2(x, p.y), C_DIM, "-");
+    } else if (!blank) {
+      char c[2] = {(char)('0' + d), 0};
+      dl->AddText(ImVec2(x, p.y), col, c);
+    }
+    ImGui::PopID();
+    x += dw;
+    if (i == 1 || i == 4) {
+      dl->AddText(ImVec2(x - dotW * 0.5f, p.y), hz < 0 ? C_DIM : col, ".");
+      x += dotW;
+    }
+  }
+  ImGui::PopFont();
+  ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + h));
+}
+
+void App::drawVfo() {
+  ImGui::BeginChild("vfo", ImVec2(S(405), S(124)), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  if (!entry_.empty()) {
+    // What's being typed, and what it'll be taken to mean.
+    long long hz = tuning::parseFreq(entry_, st_.hz);
+    bool bad = glfwGetTime() < entryErrorUntil_;
+    ImGui::PushFont(fFreq_);
+    ImGui::TextColored(ImColor(bad ? C_RED : C_ACCENT), "%s_", entry_.c_str());
+    ImGui::PopFont();
+    ImGui::PushFont(fMid_);
+    if (hz >= 0) ImGui::TextColored(ImColor(C_GREEN), "Enter: %s MHz", tuning::formatHz(hz).c_str());
+    else ImGui::TextColored(ImColor(C_DIM), "keep typing, or Esc to cancel");
+    ImGui::PopFont();
+  } else {
+    drawFreqDigits(st_.hz, st_.tx);
+    ImGui::PushFont(fMid_);
+    ImGui::TextColored(ImColor(C_ACCENT), "%s", modeLabel(st_.mode, st_.data).c_str());
+    ImGui::PopFont();
+    ImGui::SameLine();
+    int w = civ::widthHz(st_.mode, st_.width);
+    ImGui::AlignTextToFramePadding();
+    if (st_.filter > 0 && w > 0 && st_.mode != civ::FM) ImGui::Text("FIL%d  %.2f kHz", st_.filter, w / 1000.0);
+    else if (st_.filter > 0) ImGui::Text("FIL%d", st_.filter);
+    if (st_.split == 1) {
+      ImGui::SameLine();
+      ImGui::TextColored(ImColor(C_AMBER), "SPLIT");
+    }
+    if (st_.ritOn == 1 || st_.xitOn == 1) {
+      ImGui::SameLine();
+      ImGui::TextColored(ImColor(C_AMBER), "%s %+d", st_.ritOn == 1 ? (st_.xitOn == 1 ? "RIT/XIT" : "RIT") : "XIT", st_.ritHz);
+    }
+    if (st_.sw[civ::S_LOCK] == 1) {
+      ImGui::SameLine();
+      ImGui::TextColored(ImColor(C_RED), "LOCK");
+    }
+  }
+  // The other VFO, always in view: it's where a split transmits.
+  ImGui::TextDisabled("Other VFO");
+  ImGui::SameLine();
+  ImGui::PushFont(fFreqSmall_);
+  ImGui::TextUnformatted(tuning::formatHz(st_.otherHz).c_str());
+  ImGui::PopFont();
+  ImGui::SameLine();
+  ImGui::TextDisabled("%s", modeLabel(st_.otherMode, st_.otherData).c_str());
+  ImGui::EndChild();
+}
+
+void App::drawMeters() {
+  ImGui::BeginChild("meters", ImVec2(S(340), S(124)), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  ImVec2 org = ImGui::GetCursorScreenPos();
+  float w = ImGui::GetContentRegionAvail().x;
+  float labelW = S(40), valW = S(62), barW = w - labelW - valW;
+
+  auto bar = [&](float y, float h, const char* label, float frac, ImU32 col, const std::string& val, float red = 2.f) {
+    float x0 = org.x + labelW, x1 = x0 + barW;
+    dl->AddText(fSmall_, S(12.5f), ImVec2(org.x, y + (h - S(13)) / 2), C_DIM, label);
+    dl->AddRectFilled(ImVec2(x0, y), ImVec2(x1, y + h), IM_COL32(10, 12, 15, 255), 2);
+    frac = frac < 0 ? 0 : frac > 1 ? 1 : frac;
+    if (frac > 0) {
+      float split = x0 + barW * std::min(frac, red);
+      dl->AddRectFilled(ImVec2(x0, y), ImVec2(split, y + h), col, 2);
+      if (frac > red) dl->AddRectFilled(ImVec2(split, y), ImVec2(x0 + barW * frac, y + h), C_RED, 2);
+    }
+    dl->AddText(ImVec2(x1 + S(6), y + (h - S(15)) / 2), C_TEXT, val.c_str());
+  };
+
+  float y = org.y;
+  bool tx = st_.tx;
+  // The top bar is what matters now: signal on receive, power on transmit.
+  if (!tx) {
+    int raw = st_.meter[civ::M_S];
+    smeterPeak_ = std::max(raw, smeterPeak_ - 2);
+    float h = S(28);
+    float red = 120.f / 241.f;
+    bar(y, h, "S", raw < 0 ? 0 : raw / 241.f, C_GREEN, smeterText(raw), red);
+    float x0 = org.x + labelW;
+    if (smeterPeak_ > 0) {
+      float px = x0 + barW * std::min(1.f, smeterPeak_ / 241.f);
+      dl->AddLine(ImVec2(px, y), ImVec2(px, y + h), C_TEXT, 1.5f);
+    }
+    y += h + S(1);
+    static const struct {
+      int raw;
+      const char* t;
+    } ticks[] = {{10, "1"}, {30, "3"}, {60, "5"}, {90, "7"}, {120, "9"}, {158, "+20"}, {195, "+40"}, {233, "+60"}};
+    for (auto& t : ticks) {
+      float px = x0 + barW * t.raw / 241.f;
+      dl->AddText(fSmall_, S(12.5f), ImVec2(px - S(4), y), t.raw > 120 ? C_RED : C_DIM, t.t);
+    }
+    y += S(16);
+  } else {
+    int raw = st_.meter[civ::M_PO];
+    double watts = raw < 0 ? 0 : civ::powerWatts(raw);
+    char b[32];
+    snprintf(b, sizeof b, "%.0f W", watts);
+    bar(y, S(28), "Po", (float)(watts / 100.0), C_AMBER, b, 1.0f);
+    y += S(45);
+  }
+  float h = S(15);
+  char b[32];
+  double swr = st_.meter[civ::M_SWR] < 0 ? 1 : civ::swrRatio(st_.meter[civ::M_SWR]);
+  snprintf(b, sizeof b, "%.1f", swr);
+  bar(y, h, "SWR", tx ? (float)((swr - 1) / 2.0) : 0, C_GREEN, tx ? b : "--", 0.5f);
+  y += h + S(3);
+  int alc = st_.meter[civ::M_ALC];
+  bar(y, h, "ALC", tx && alc > 0 ? alc / 120.f : 0, C_GREEN, tx && alc >= 0 ? std::to_string(alc * 100 / 120) + " %" : "--", 1.0f);
+  y += h + S(3);
+  if (tx) {
+    int comp = st_.meter[civ::M_COMP];
+    snprintf(b, sizeof b, "%.0f dB", comp < 0 ? 0.0 : civ::compDb(comp));
+    bar(y, h, "COMP", comp < 0 ? 0 : comp / 241.f, C_ACCENT, b);
+  } else {
+    int vd = st_.meter[civ::M_VD];
+    if (vd >= 0) snprintf(b, sizeof b, "%.1f V", civ::voltsVd(vd));
+    else snprintf(b, sizeof b, "--");
+    bar(y, h, "Vd", vd < 0 ? 0 : (float)(civ::voltsVd(vd) / 16.0), C_ACCENT, b);
+  }
+  ImGui::EndChild();
+}
+
+void App::drawTxPanel() {
+  ImGui::BeginChild("tx", ImVec2(0, S(124)), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  float gap = ImGui::GetStyle().ItemSpacing.x;
+  float w = (ImGui::GetContentRegionAvail().x - gap * 3) / 4;
+  float h = S(52);
+  bool armed = st_.txArmed;
+  if (actionButton(armed ? "ARMED" : "ARM TX", ImVec2(w, h), armed ? V_AMBER : ImGui::GetStyle().Colors[ImGuiCol_Button],
+                   armed ? V_AMBER_HI : ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered], "arm"))
+    rig_.armTx(!armed);
+  ImGui::SetItemTooltip("Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT.");
+  ImGui::SameLine();
+  if (actionButton(st_.tx ? "TX ON" : "PTT", ImVec2(w, h), st_.tx ? V_RED_HI : (armed ? V_RED : ImGui::GetStyle().Colors[ImGuiCol_Button]), V_RED_HI, "ptt")) {
+    if (!armed) say("Transmit isn't armed. Press ARM TX first.");
+    else if (!st_.connected) say("The rig isn't connected");
+    else rig_.ptt(!st_.tx);
+  }
+  ImGui::SetItemTooltip("Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).", st_.txLimit);
+  ImGui::SameLine();
+  if (actionButton(st_.atu == 2 ? "TUNING" : "TUNE", ImVec2(w, h), st_.atu == 2 ? V_RED_HI : ImGui::GetStyle().Colors[ImGuiCol_Button], V_RED_HI, "tune")) {
+    if (!armed) say("Transmit isn't armed. Press ARM TX first.");
+    else rig_.tuneAtu();
+  }
+  ImGui::SetItemTooltip("Starts the rig's antenna tuner. This transmits a carrier.");
+  ImGui::SameLine();
+  if (toggle("ATU", st_.atu >= 1, ImVec2(w, h))) rig_.setAtu(st_.atu < 1);
+  ImGui::SetItemTooltip("The antenna tuner in or out of line");
+
+  float w5 = (ImGui::GetContentRegionAvail().x - gap * 3) / 4;
+  ImGui::BeginDisabled(!st_.connected);
+  if (toggle("SPLIT", st_.split == 1, ImVec2(w5, 0))) rig_.setSplit(st_.split != 1);
+  ImGui::SetItemTooltip("Receive on this VFO, transmit on the other. Right-click for a quick offset.");
+  if (ImGui::BeginPopupContextItem("splitmenu")) {
+    for (int k : {1, 2, 5, 10, -1, -2, -5}) {
+      char b[32];
+      snprintf(b, sizeof b, "Split %+d kHz", k);
+      if (ImGui::MenuItem(b)) {
+        rig_.setOtherFreq(st_.hz + k * 1000);
+        rig_.setOtherMode(st_.mode, st_.data, st_.filter ? st_.filter : 1);
+        rig_.setSplit(true);
+      }
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("A/B", ImVec2(w5, 0))) rig_.vfoSwap();
+  note("swap");
+  ImGui::SetItemTooltip("Swap the two VFOs");
+  ImGui::SameLine();
+  if (ImGui::Button("A=B", ImVec2(w5, 0))) rig_.vfoEqual();
+  ImGui::SetItemTooltip("Copy this VFO to the other");
+  ImGui::SameLine();
+  if (ImGui::Button("Mem", ImVec2(w5, 0))) {
+    store::Memory m;
+    m.hz = st_.hz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
+    m.name = utcNow("%H%MZ");
+    memories_.push_back(m);
+    store::saveMemories(memPath_, memories_);
+    say("Saved " + tuning::formatHz(m.hz) + " to memories");
+  }
+  note("quickmem");
+  ImGui::SetItemTooltip("Save this frequency and mode to memories");
+  ImGui::EndDisabled();
+
+  if (st_.tx) {
+    ImGui::TextColored(ImColor(C_RED), "TRANSMITTING");
+    if (st_.txSeconds > 0) {
+      ImGui::SameLine();
+      ImGui::Text("%d s of %d s", st_.txSeconds, st_.txLimit);
+    }
+  } else if (armed) {
+    ImGui::TextColored(ImColor(C_AMBER), "Armed: the buttons above will transmit");
+  } else {
+    ImGui::TextDisabled("Transmit locked");
+  }
+  ImGui::EndChild();
+}
+
+void App::drawHeader() {
+  ImGui::BeginDisabled(!st_.connected);
+  drawVfo();
+  ImGui::SameLine();
+  drawMeters();
+  ImGui::EndDisabled();
+  ImGui::SameLine();
+  drawTxPanel();
+}
+
+void App::drawBandRow() {
+  int n;
+  const bands::Band* t = bands::table(n);
+  ImGui::BeginDisabled(!st_.connected);
+  int here = bands::bandOf(st_.hz);
+  float bw = S(37);
+  for (int i = 0; i < n; i++) {
+    if (i) ImGui::SameLine();
+    ImGui::PushID(i);
+    if (toggle(t[i].name, here == i, ImVec2(bw, S(30)), (std::string("band:") + t[i].name).c_str())) goBand(i);
+    ImGui::SetItemTooltip("%s m. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.", t[i].name);
+    if (ImGui::BeginPopupContextItem("presets")) {
+      ImGui::TextDisabled("%s m", t[i].name);
+      for (const bands::Preset& p : t[i].presets)
+        if (p.name) {
+          char b[64];
+          snprintf(b, sizeof b, "%-5s  %s", p.name, tuning::formatHz(p.hz).c_str());
+          if (ImGui::MenuItem(b)) goPreset(p);
+          note(std::string("preset:") + t[i].name + ":" + p.name);
+        }
+      ImGui::EndPopup();
+    }
+    ImGui::PopID();
+  }
+  ImGui::SameLine(0, S(14));
+  static const struct {
+    const char* name;
+    int mode;
+  } modes[] = {{"LSB", civ::LSB}, {"USB", civ::USB}, {"CW", civ::CW}, {"CW-R", civ::CW_R}, {"AM", civ::AM}, {"FM", civ::FM}, {"RTTY", civ::RTTY}, {"RTTY-R", civ::RTTY_R}};
+  int filter = st_.filter ? st_.filter : 1;
+  for (const auto& m : modes) {
+    float mw = S(m.mode == civ::RTTY_R ? 56 : m.mode == civ::RTTY || m.mode == civ::CW_R ? 46 : 38);
+    if (toggle(m.name, st_.mode == m.mode, ImVec2(mw, S(30)), (std::string("mode:") + m.name).c_str())) rig_.setMode(m.mode, false, filter);
+    ImGui::SameLine();
+  }
+  ImGui::BeginDisabled(!civ::hasData(st_.mode));
+  if (toggle("DATA", st_.data, ImVec2(S(46), S(30)), "data")) rig_.setMode(st_.mode, !st_.data, filter);
+  ImGui::SetItemTooltip("Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)");
+  ImGui::EndDisabled();
+  ImGui::SameLine(0, S(14));
+  for (int f = 1; f <= 3; f++) {
+    char b[8];
+    snprintf(b, sizeof b, "FIL%d", f);
+    if (toggle(b, st_.filter == f, ImVec2(S(38), S(30)), b)) rig_.setMode(st_.mode, st_.data, f);
+    ImGui::SameLine();
+  }
+  ImGui::EndDisabled();
+  flow(S(125));
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextDisabled("Step");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(S(80));
+  if (ImGui::BeginCombo("##step", kStepNames[stepIdx_])) {
+    for (int i = 0; i < kStepCount; i++)
+      if (ImGui::Selectable(kStepNames[i], i == stepIdx_)) stepIdx_ = i;
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too.");
+}
+
+// ---------------------------------------------------------------- the left-hand controls
+
+void App::drawControls() {
+  ImGui::BeginChild("controls", ImVec2(S(292), 0), ImGuiChildFlags_Borders);
+  ImGui::BeginDisabled(!st_.connected);
+  auto heading = [&](const char* t) {
+    ImGui::Spacing();
+    ImGui::TextColored(ImColor(C_ACCENT), "%s", t);
+    ImGui::Separator();
+  };
+  heading("RECEIVE");
+  levelRow("AF", civ::L_AF);
+  levelRow("RF gain", civ::L_RF);
+  levelRow("Squelch", civ::L_SQL);
+  radioRow("Preamp", civ::S_PREAMP, {{"OFF", 0}, {"P1", 1}, {"P2", 2}});
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted("Attenuator");
+  ImGui::SameLine(S(84));
+  if (toggle("20 dB", st_.att == 1, ImVec2(-1, 0), "att")) rig_.setAtt(st_.att != 1);
+  radioRow("AGC", civ::S_AGC, {{"FAST", 1}, {"MID", 2}, {"SLOW", 3}});
+
+  heading("FILTER");
+  {
+    int maxCode = civ::widthCodeMax(st_.mode);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Width");
+    ImGui::SameLine(S(84));
+    ImGui::SetNextItemWidth(-1);
+    if (maxCode > 0) {
+      int v = std::max(0, std::min(maxCode, st_.width));
+      char fmt[32];
+      snprintf(fmt, sizeof fmt, "%d Hz", civ::widthHz(st_.mode, v));
+      if (ImGui::SliderInt("##width", &v, 0, maxCode, fmt)) rig_.setWidth(v);
+      note("width");
+      if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.f)
+        rig_.setWidth(std::max(0, std::min(maxCode, v + (int)ImGui::GetIO().MouseWheel)));
+    } else {
+      ImGui::TextDisabled("fixed by the mode");
+    }
+  }
+  radioRow("Shape", civ::S_DSP_FILTER, {{"SHARP", 0}, {"SOFT", 1}});
+  auto pbt = [&](const char* label, int lv) {
+    int v = std::max(0, st_.level[lv]);
+    char fmt[32];
+    snprintf(fmt, sizeof fmt, "%+d", v - 128);
+    levelRow(label, lv, fmt);
+  };
+  pbt("PBT inner", civ::L_PBT_IN);
+  pbt("PBT outer", civ::L_PBT_OUT);
+  ImGui::SetCursorPosX(S(84) + ImGui::GetStyle().WindowPadding.x);
+  if (ImGui::Button("Centre PBT", ImVec2(-1, 0))) {
+    rig_.setLevel(civ::L_PBT_IN, 128);
+    rig_.setLevel(civ::L_PBT_OUT, 128);
+  }
+
+  heading("NOISE");
+  switchLevelRow("NB", civ::S_NB, civ::L_NB);
+  switchLevelRow("NR", civ::S_NR, civ::L_NR);
+  switchLevelRow("Notch", civ::S_MN, civ::L_NOTCH);
+  radioRow("Notch width", civ::S_NOTCH_WIDTH, {{"WIDE", 0}, {"MID", 1}, {"NAR", 2}});
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted("Auto notch");
+  ImGui::SameLine(S(84));
+  if (toggle("AN", st_.sw[civ::S_AN] == 1, ImVec2(-1, 0), "an")) rig_.setSwitch(civ::S_AN, st_.sw[civ::S_AN] == 1 ? 0 : 1);
+
+  heading("RIT / XIT");
+  {
+    float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3;
+    if (toggle("RIT", st_.ritOn == 1, ImVec2(w, 0))) rig_.setRitOn(st_.ritOn != 1);
+    ImGui::SameLine();
+    if (toggle("XIT", st_.xitOn == 1, ImVec2(w, 0))) rig_.setXitOn(st_.xitOn != 1);
+    ImGui::SameLine();
+    if (ImGui::Button("Clear", ImVec2(w, 0))) rig_.setRit(0);
+    int v = st_.ritHz;
+    ImGui::SetNextItemWidth(-1);
+    if (ImGui::SliderInt("##rit", &v, -2000, 2000, "%+d Hz")) rig_.setRit(v);
+    if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.f) rig_.setRit(st_.ritHz + (int)ImGui::GetIO().MouseWheel * 10);
+  }
+
+  heading("TRANSMIT");
+  {
+    int v = std::max(0, st_.level[civ::L_POWER]);
+    char fmt[32];
+    snprintf(fmt, sizeof fmt, "%d W", (int)lround(v * 100.0 / 255.0));
+    levelRow("RF power", civ::L_POWER, fmt);
+  }
+  levelRow("Mic gain", civ::L_MIC);
+  switchLevelRow("Comp", civ::S_COMP, civ::L_COMP);
+  radioRow("SSB TX BW", civ::S_SSB_TX_BW, {{"WIDE", 0}, {"MID", 1}, {"NAR", 2}});
+  switchLevelRow("Monitor", civ::S_MON, civ::L_MONITOR);
+  switchLevelRow("VOX", civ::S_VOX, civ::L_VOX);
+  levelRow("Anti-VOX", civ::L_ANTIVOX);
+
+  heading("CW");
+  radioRow("Break-in", civ::S_BKIN, {{"OFF", 0}, {"SEMI", 1}, {"FULL", 2}});
+  {
+    char fmt[32];
+    snprintf(fmt, sizeof fmt, "%d WPM", tuning::keySpeedWpm(st_.level[civ::L_KEY_SPEED]));
+    levelRow("Key speed", civ::L_KEY_SPEED, fmt);
+    snprintf(fmt, sizeof fmt, "%d Hz", tuning::cwPitchHz(st_.level[civ::L_CW_PITCH]));
+    levelRow("CW pitch", civ::L_CW_PITCH, fmt);
+    levelRow("BK-IN delay", civ::L_BKIN_DELAY);
+  }
+  ImGui::EndDisabled();
+  ImGui::EndChild();
+}
+
+// ---------------------------------------------------------------- the waterfalls
+
+App::PlotArea App::drawPlot(const char* id, double xLo, double xHi, const std::vector<float>& line, double lineLo, double lineHi,
+                            float yLo, float yHi, Waterfall& wf, float u0, float u1, const std::function<std::string(double)>& axisLabel,
+                            double axisStep, float rowHeight) {
+  PlotArea a;
+  ImVec2 avail = ImGui::GetContentRegionAvail();
+  avail.y = std::max(avail.y, S(60));
+  a.p0 = ImGui::GetCursorScreenPos();
+  a.p1 = ImVec2(a.p0.x + avail.x, a.p0.y + avail.y);
+  ImGui::InvisibleButton(id, avail, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+  note(id);
+  a.hovered = ImGui::IsItemHovered();
+  a.clicked = ImGui::IsItemClicked(ImGuiMouseButton_Left);
+  a.rclicked = ImGui::IsItemClicked(ImGuiMouseButton_Right);
+  ImGuiIO& io = ImGui::GetIO();
+  float w = avail.x, h = avail.y;
+  a.x = xLo + (xHi - xLo) * (double)((io.MousePos.x - a.p0.x) / w);
+  a.wheel = a.hovered ? io.MouseWheel : 0.f;
+
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  dl->PushClipRect(a.p0, a.p1, true);
+  float specH = floorf(h * 0.28f), axisH = S(17);
+  ImVec2 s0 = a.p0, s1(a.p1.x, a.p0.y + specH);
+  a.w0 = ImVec2(a.p0.x, s1.y + axisH);
+  a.w1 = a.p1;
+
+  // Spectrum: one column a pixel, each the strongest value it covers.
+  dl->AddRectFilled(s0, s1, IM_COL32(8, 10, 13, 255));
+  float yr = std::max(1.f, yHi - yLo);
+  for (int g = 1; g < 4; g++) {
+    float gy = s0.y + specH * (float)g / 4;
+    dl->AddLine(ImVec2(s0.x, gy), ImVec2(s1.x, gy), IM_COL32(255, 255, 255, 14));
+  }
+  if (!line.empty() && lineHi > lineLo) {
+    int n = (int)line.size();
+    double perPx = (xHi - xLo) / (double)w, perBin = (lineHi - lineLo) / n;
+    static std::vector<ImVec2> pts;
+    pts.clear();
+    for (int px = 0; px < (int)w; px++) {
+      double f0 = xLo + perPx * px, f1 = f0 + perPx;
+      int b0 = (int)((f0 - lineLo) / perBin), b1 = (int)((f1 - lineLo) / perBin);
+      b0 = std::max(0, std::min(n - 1, b0));
+      b1 = std::max(b0, std::min(n - 1, b1));
+      float v = line[(size_t)b0];
+      for (int b = b0 + 1; b <= b1; b++) v = std::max(v, line[(size_t)b]);
+      float t = (v - yLo) / yr;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      float y = s1.y - t * specH;
+      float x = s0.x + (float)px + 0.5f;
+      dl->AddLine(ImVec2(x, y), ImVec2(x, s1.y), IM_COL32(40, 130, 170, 90));
+      pts.push_back(ImVec2(x, y));
+    }
+    if (pts.size() > 1) dl->AddPolyline(pts.data(), (int)pts.size(), IM_COL32(150, 225, 250, 255), ImDrawFlags_None, 1.f);
+  }
+
+  // Axis.
+  dl->AddRectFilled(ImVec2(a.p0.x, s1.y), ImVec2(a.p1.x, a.w0.y), IM_COL32(18, 21, 27, 255));
+  if (axisStep > 0 && xHi > xLo) {
+    for (double v = ceil(xLo / axisStep) * axisStep; v < xHi; v += axisStep) {
+      float x = a.p0.x + (float)((v - xLo) / (xHi - xLo)) * w;
+      dl->AddLine(ImVec2(x, s0.y), ImVec2(x, s1.y), IM_COL32(255, 255, 255, 18));
+      dl->AddLine(ImVec2(x, a.w0.y - S(3)), ImVec2(x, a.w0.y), C_DIM);
+      std::string t = axisLabel(v);
+      float tw = ImGui::CalcTextSize(t.c_str()).x * (S(12.5f) / ImGui::GetFontSize());
+      dl->AddText(fSmall_, S(12.5f), ImVec2(std::max(a.p0.x + S(2), x - tw / 2), s1.y + S(1)), C_TEXT, t.c_str());
+    }
+  }
+  // Waterfall.
+  dl->AddRectFilled(a.w0, a.w1, IM_COL32(0, 0, 10, 255));
+  wf.draw(dl, a.w0, a.w1, u0, u1, std::max(1.f, roundf(scale_ * rowHeight)));
+  dl->PopClipRect();
+  return a;
+}
+
+void App::drawScopePane() {
+  ImGui::BeginChild("scopepane", ImVec2(0, ImGui::GetContentRegionAvail().y * (showAudio_ ? splitFrac_ : 1.f) - (showAudio_ ? S(3) : 0)), ImGuiChildFlags_Borders,
+                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  ImGui::TextColored(ImColor(C_ACCENT), "BAND");
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!st_.connected);
+  bool on = scopeEnabled_;
+  if (toggle(on ? "On" : "Off", on, ImVec2(S(34), 0), "scopeon")) {
+    scopeEnabled_ = !on;
+    rig_.setScope(scopeEnabled_);
+  }
+  ImGui::SetItemTooltip("Streams the rig's own spectrum scope over CI-V");
+  int spanIdx = 4;
+  for (int i = 0; i < 8; i++)
+    if (st_.scopeSpan == civ::kScopeSpans[i]) spanIdx = i;
+  flow(S(80));
+  ImGui::SetNextItemWidth(S(80));
+  if (ImGui::BeginCombo("##span", kSpanNames[spanIdx])) {
+    for (int i = 0; i < 8; i++)
+      if (ImGui::Selectable(kSpanNames[i], i == spanIdx)) rig_.setScopeSpan(civ::kScopeSpans[i]);
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("Span, in Centre mode");
+  flow(S(120));
+  if (toggle("Centre", st_.scopeMode == civ::SCOPE_CENTER, ImVec2(S(52), 0), "scopecentre")) rig_.setScopeMode(civ::SCOPE_CENTER);
+  ImGui::SameLine();
+  if (toggle("Fixed", st_.scopeMode == civ::SCOPE_FIXED, ImVec2(S(46), 0), "scopefixed")) rig_.setScopeMode(civ::SCOPE_FIXED);
+  ImGui::SetItemTooltip("Centre follows the dial. Fixed uses the band edges set on the rig.");
+  flow(S(130));
+  ImGui::TextDisabled("Ref");
+  ImGui::SameLine();
+  float ref = (float)st_.scopeRef;
+  ImGui::SetNextItemWidth(S(90));
+  if (ImGui::SliderFloat("##ref", &ref, -20.f, 20.f, "%+.1f dB")) rig_.setScopeRef(roundf(ref * 2) / 2);
+  ImGui::SetItemTooltip("The rig's scope reference level");
+  flow(S(90));
+  static const char* speedNames[] = {"Fast", "Mid", "Slow"};
+  ImGui::SetNextItemWidth(S(64));
+  if (ImGui::BeginCombo("##speed", st_.scopeSpeed >= 0 && st_.scopeSpeed <= 2 ? speedNames[st_.scopeSpeed] : "Speed")) {
+    for (int i = 0; i < 3; i++)
+      if (ImGui::Selectable(speedNames[i], i == st_.scopeSpeed)) rig_.setScopeSpeed(i);
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("Sweep speed");
+  ImGui::EndDisabled();
+  flow(S(50));
+  if (ImGui::Button("Auto##s")) autoScopeLevels();
+  ImGui::SetItemTooltip("Set the colours from the noise floor");
+  flow(S(60));
+  if (ImGui::Button("Display##s")) ImGui::OpenPopup("scopedisplay");
+  if (ImGui::BeginPopup("scopedisplay")) {
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::SliderFloat("Floor", &scopeFloor_, 0.f, 120.f, "%.0f");
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::SliderFloat("Range", &scopeRange_, 20.f, 160.f, "%.0f");
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::Combo("Colours", &palette_, kPaletteNames, PAL_COUNT);
+    ImGui::EndPopup();
+  }
+
+  float k = 255.f / civ::kScopeLevelMax;
+  wfScope_.setDisplay(scopeFloor_ * k, (scopeFloor_ + scopeRange_) * k, palette_);
+  double span = (double)(scopeHi_ - scopeLo_);
+  double lo = (double)scopeLo_, hi = (double)scopeHi_;
+  if (span <= 0) {
+    // Nothing yet: lay the axis out from what we know, so it doesn't jump when the first sweep lands.
+    double c = st_.hz > 0 ? (double)st_.hz : 14000000.0;
+    double sp = st_.scopeSpan > 0 ? (double)st_.scopeSpan : 100000.0;
+    lo = c - sp / 2, hi = c + sp / 2, span = sp;
+  }
+  double step = niceStep(span, 8);
+  auto label = [&](double v) {
+    char b[32];
+    if (step >= 1000) snprintf(b, sizeof b, "%.3f", v / 1e6);
+    else snprintf(b, sizeof b, "%.4f", v / 1e6);
+    return std::string(b);
+  };
+  // The rig sends only about 4 sweeps a second (measured on a real 7300, polling or not), so each gets a
+  // taller row than the audio's 25 lines a second, or the band waterfall would barely move.
+  PlotArea a = drawPlot("scopeplot", lo, hi, scopeLine_, lo, hi, scopeFloor_, scopeFloor_ + scopeRange_, wfScope_, 0.f, 1.f, label, step, 4.f);
+  auto toX = [&](double f) { return a.p0.x + (float)((f - lo) / (hi - lo)) * (a.p1.x - a.p0.x); };
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  dl->PushClipRect(a.p0, a.p1, true);
+
+  // The band plan, as a strip under the spectrum.
+  {
+    int n;
+    const bands::Band* t = bands::table(n);
+    float y0 = a.w0.y - S(3);
+    for (int b = 0; b < n; b++) {
+      if (t[b].hi < lo || t[b].lo > hi) continue;
+      for (const bands::Segment& s : t[b].segments) {
+        if (!s.hi) continue;
+        ImU32 c = s.use == bands::U_CW ? IM_COL32(70, 170, 240, 255)
+                  : s.use == bands::U_DIGI ? IM_COL32(210, 90, 220, 255)
+                  : s.use == bands::U_SSB ? IM_COL32(90, 210, 120, 255)
+                  : s.use == bands::U_FM ? IM_COL32(240, 160, 60, 255)
+                                         : IM_COL32(150, 150, 150, 255);
+        dl->AddRectFilled(ImVec2(toX((double)s.lo), y0), ImVec2(toX((double)s.hi), y0 + S(3)), c);
+      }
+    }
+  }
+  // The passband and the dial.
+  if (st_.hz > 0 && st_.mode >= 0) {
+    double pl, ph;
+    tuning::rfPassband(st_.hz, st_.mode, civ::widthHz(st_.mode, st_.width), pl, ph);
+    float x0 = toX(pl), x1 = std::max(toX(ph), x0 + 1.f);
+    dl->AddRectFilled(ImVec2(x0, a.p0.y), ImVec2(x1, a.p1.y), IM_COL32(255, 255, 255, 30));
+    float dx = toX((double)st_.hz);
+    dl->AddLine(ImVec2(dx, a.p0.y), ImVec2(dx, a.p1.y), st_.tx ? C_RED : IM_COL32(255, 200, 80, 220), 1.f);
+    if (st_.split == 1 && st_.otherHz > 0) {
+      float tx = toX((double)st_.otherHz);
+      dl->AddLine(ImVec2(tx, a.p0.y), ImVec2(tx, a.p1.y), C_RED, 1.f);
+      dl->AddText(fSmall_, S(12.5f), ImVec2(tx + S(3), a.p0.y + S(2)), C_RED, "TX");
+    }
+  }
+  const char* banner = nullptr;
+  if (!st_.connected) banner = "The rig isn't connected";
+  else if (!scopeEnabled_) banner = "Scope data is off";
+  else if (glfwGetTime() - scopeLastAt_ > 3.0) banner = "No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200";
+  else if (scopeOor_) banner = "Out of the scope's range";
+  if (banner) {
+    ImVec2 ts = ImGui::CalcTextSize(banner);
+    ImVec2 c((a.p0.x + a.p1.x - ts.x) / 2, (a.w0.y + a.w1.y - ts.y) / 2);
+    dl->AddRectFilled(ImVec2(c.x - S(8), c.y - S(4)), ImVec2(c.x + ts.x + S(8), c.y + ts.y + S(4)), IM_COL32(0, 0, 0, 170), 4);
+    dl->AddText(c, C_TEXT, banner);
+  }
+  if (a.hovered) {
+    float mx = ImGui::GetIO().MousePos.x;
+    dl->AddLine(ImVec2(mx, a.p0.y), ImVec2(mx, a.p1.y), IM_COL32(255, 255, 255, 110));
+    std::string t = tuning::formatHz(llround(a.x / 100) * 100);
+    float tw = ImGui::CalcTextSize(t.c_str()).x;
+    float lx = std::min(mx + S(6), a.p1.x - tw - S(6));
+    dl->AddRectFilled(ImVec2(lx - S(3), a.p0.y + S(2)), ImVec2(lx + tw + S(3), a.p0.y + S(20)), IM_COL32(0, 0, 0, 190), 3);
+    dl->AddText(ImVec2(lx, a.p0.y + S(3)), C_AMBER, t.c_str());
+  }
+  dl->PopClipRect();
+
+  if (st_.connected && hi > lo && a.hovered) {
+    // Snapped so a click lands on a tidy frequency: 100 Hz, or 10 Hz when zoomed right in.
+    long long snap = span <= 10000 ? 10 : 100;
+    long long hz = llround(a.x / (double)snap) * snap;
+    if (a.clicked) tuneTo(hz);
+    if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1));
+    if (a.rclicked) {
+      scopeMenuHz_ = hz;
+      ImGui::OpenPopup("scopemenu");
+    }
+  }
+  if (ImGui::BeginPopup("scopemenu")) {
+    long long lastHz = scopeMenuHz_;
+    ImGui::TextDisabled("%s", tuning::formatHz(lastHz).c_str());
+    if (ImGui::MenuItem("Tune here")) tuneTo(lastHz);
+    if (ImGui::MenuItem("Transmit here (split)")) {
+      rig_.setOtherFreq(lastHz);
+      rig_.setOtherMode(st_.mode, st_.data, st_.filter ? st_.filter : 1);
+      rig_.setSplit(true);
+    }
+    if (ImGui::MenuItem("Save to memories")) {
+      store::Memory m;
+      m.hz = lastHz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
+      m.name = utcNow("%H%MZ");
+      memories_.push_back(m);
+      store::saveMemories(memPath_, memories_);
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::EndChild();
+}
+
+void App::startRecording() {
+  std::string path = store::dataDir() + "rx-" + utcNow("%Y%m%d-%H%M%S") + "-" + std::to_string(st_.hz > 0 ? st_.hz : 0) + ".wav";
+  if (rec_.open(path, AudioEngine::kRate)) say("Recording to " + path);
+  else say("Can't write " + path);
+}
+
+// From the sweep itself: the rig's levels vary a lot with band and Ref (a quiet 40m peaked at 29 of 160).
+void App::autoScopeLevels() {
+  if (scopeLine_.empty()) return;
+  std::vector<float> s = scopeLine_;
+  std::sort(s.begin(), s.end());
+  float median = s[s.size() / 2], high = s[s.size() * 99 / 100];
+  scopeFloor_ = std::max(0.f, median - 3.f);
+  scopeRange_ = std::max(25.f, std::min(160.f, (high - scopeFloor_) * 1.4f));
+}
+
+void App::autoAudioLevels() {
+  if (!spectrum_) return;
+  int top = std::max(8, (int)(kAudioRanges[audioRangeIdx_] / (AudioEngine::kRate / 2.f) * (float)audioLine_.size()));
+  std::vector<float> s(audioLine_.begin(), audioLine_.begin() + std::min(top, (int)audioLine_.size()));
+  std::nth_element(s.begin(), s.begin() + (long)s.size() / 2, s.end());
+  audioFloorDb_ = std::max(-140.f, std::min(-30.f, s[s.size() / 2] - 6.f));
+  audioRangeDb_ = 55.f;
+}
+
+void App::drawAudioPane() {
+  ImGui::BeginChild("audiopane", ImVec2(0, 0), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  ImGui::TextColored(ImColor(C_ACCENT), "AUDIO");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(S(76));
+  if (ImGui::BeginCombo("##arange", kAudioRangeNames[audioRangeIdx_])) {
+    for (int i = 0; i < 5; i++)
+      if (ImGui::Selectable(kAudioRangeNames[i], i == audioRangeIdx_)) audioRangeIdx_ = i;
+    ImGui::EndCombo();
+  }
+  flow(S(50));
+  if (ImGui::Button("Auto##a")) autoAudioLevels();
+  ImGui::SetItemTooltip("Set the colours from the noise floor");
+  flow(S(60));
+  if (ImGui::Button("Display##a")) ImGui::OpenPopup("audiodisplay");
+  if (ImGui::BeginPopup("audiodisplay")) {
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::SliderFloat("Floor", &audioFloorDb_, -140.f, -30.f, "%.0f dB");
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::SliderFloat("Range", &audioRangeDb_, 20.f, 110.f, "%.0f dB");
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::Combo("Colours", &palette_, kPaletteNames, PAL_COUNT);
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::SliderInt("Speed", &audioLinesPerSec_, 5, 60, "%d lines/s");
+    ImGui::SetNextItemWidth(S(160));
+    if (ImGui::BeginCombo("FFT size", kFftNames[fftIdx_])) {
+      for (int i = 0; i < 4; i++)
+        if (ImGui::Selectable(kFftNames[i], i == fftIdx_) && i != fftIdx_) {
+          fftIdx_ = i;
+          applyFft();
+        }
+      ImGui::EndCombo();
+    }
+    ImGui::SetItemTooltip("Larger shows finer detail but blurs fast changes");
+    ImGui::EndPopup();
+  }
+  flow(S(40));
+  if (rec_.isOpen()) {
+    char b[32];
+    snprintf(b, sizeof b, "REC %.0fs", rec_.seconds());
+    if (actionButton(b, ImVec2(0, 0), V_RED, V_RED_HI, "rec")) {
+      say("Saved " + rec_.path());
+      rec_.close();
+    }
+  } else if (ImGui::Button("Rec")) {
+    startRecording();
+  }
+  ImGui::SetItemTooltip("Record the receiver to a WAV file");
+  flow(S(120));
+  bool mon = audio_.monitoring();
+  if (toggle("Listen", mon, ImVec2(0, 0), "listen")) {
+    if (mon) {
+      audio_.stopMonitor();
+      monitor_ = false;
+    } else {
+      std::string err;
+      if (audio_.startMonitor(audioOut_, err)) monitor_ = true;
+      else say(err);
+    }
+  }
+  ImGui::SetItemTooltip("Play the receiver through this computer's speakers. Muted while transmitting.");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(S(60));
+  if (ImGui::SliderFloat("##mon", &monitorGain_, 0.f, 1.5f, "%.1f")) audio_.setMonitorGain(monitorGain_);
+  flow(S(90));
+  // The level coming in. The rig's USB AF Output Level sets this; clipping ruins a waterfall.
+  {
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    float w = S(70), h = ImGui::GetFrameHeight();
+    ImGui::Dummy(ImVec2(w, h));
+    ImGui::SetItemTooltip("Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level.", peakDb_);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    float y0 = p.y + h * 0.3f, y1 = p.y + h * 0.7f;
+    dl->AddRectFilled(ImVec2(p.x, y0), ImVec2(p.x + w, y1), IM_COL32(10, 12, 15, 255), 2);
+    float f = std::max(0.f, std::min(1.f, (peakDb_ + 60.f) / 60.f));
+    dl->AddRectFilled(ImVec2(p.x, y0), ImVec2(p.x + w * f, y1), peakHold_ > 0 ? C_RED : C_GREEN, 2);
+  }
+
+  wfAudio_.setDisplay((audioFloorDb_ + 140.f) * (255.f / 140.f), (audioFloorDb_ + audioRangeDb_ + 140.f) * (255.f / 140.f), palette_);
+  double top = kAudioRanges[audioRangeIdx_];
+  double nyq = AudioEngine::kRate / 2.0;
+  double step = niceStep(top, 10);
+  auto label = [&](double v) {
+    char b[32];
+    if (top > 6000) snprintf(b, sizeof b, "%.0fk", v / 1000);
+    else snprintf(b, sizeof b, "%.0f", v);
+    return std::string(b);
+  };
+  PlotArea a = drawPlot("audioplot", 0, top, audioLine_, 0, nyq, audioFloorDb_, audioFloorDb_ + audioRangeDb_, wfAudio_, 0.f, (float)(top / nyq), label, step, 1.f);
+  auto toX = [&](double f) { return a.p0.x + (float)(f / top) * (a.p1.x - a.p0.x); };
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  dl->PushClipRect(a.p0, a.p1, true);
+  int pitch = tuning::cwPitchHz(st_.level[civ::L_CW_PITCH]);
+  if (st_.mode >= 0 && st_.width >= 0) {
+    double pl, ph;
+    tuning::audioPassband(st_.mode, civ::widthHz(st_.mode, st_.width), pitch, pl, ph);
+    dl->AddRectFilled(ImVec2(toX(pl), a.p0.y), ImVec2(toX(ph), a.p1.y), IM_COL32(255, 255, 255, 22));
+    dl->AddLine(ImVec2(toX(pl), a.p0.y), ImVec2(toX(pl), a.p1.y), IM_COL32(255, 200, 80, 150));
+    dl->AddLine(ImVec2(toX(ph), a.p0.y), ImVec2(toX(ph), a.p1.y), IM_COL32(255, 200, 80, 150));
+  }
+  if (st_.mode == civ::CW || st_.mode == civ::CW_R) {
+    float x = toX(pitch);
+    dl->AddLine(ImVec2(x, a.p0.y), ImVec2(x, a.p1.y), C_AMBER, 1.f);
+  }
+  bool haveAudio = audio_.capturing() && !audio_.lost();
+  if (!haveAudio && !audioError_.empty()) {
+    ImVec2 ts = ImGui::CalcTextSize(audioError_.c_str());
+    ImVec2 c((a.p0.x + a.p1.x - ts.x) / 2, (a.w0.y + a.w1.y - ts.y) / 2);
+    dl->AddRectFilled(ImVec2(c.x - S(8), c.y - S(4)), ImVec2(c.x + ts.x + S(8), c.y + ts.y + S(4)), IM_COL32(0, 0, 0, 170), 4);
+    dl->AddText(c, C_TEXT, audioError_.c_str());
+  }
+  // Where a click would take the dial, in plain terms: data modes keep theirs still.
+  double target = -1;
+  if (st_.mode == civ::CW || st_.mode == civ::CW_R) target = pitch;
+  else if (st_.mode == civ::RTTY || st_.mode == civ::RTTY_R) target = 2125 + 85;
+  else if ((st_.mode == civ::USB || st_.mode == civ::LSB) && !st_.data) target = 1500;
+  if (a.hovered) {
+    float mx = ImGui::GetIO().MousePos.x;
+    dl->AddLine(ImVec2(mx, a.p0.y), ImVec2(mx, a.p1.y), IM_COL32(255, 255, 255, 110));
+    long long rf = st_.hz > 0 ? tuning::rfFromAudio(st_.hz, st_.mode, a.x, pitch) : -1;
+    char b[64];
+    if (rf > 0) snprintf(b, sizeof b, "%.0f Hz  =  %s", a.x, tuning::formatHz(rf).c_str());
+    else snprintf(b, sizeof b, "%.0f Hz", a.x);
+    float tw = ImGui::CalcTextSize(b).x;
+    float lx = std::min(mx + S(6), a.p1.x - tw - S(6));
+    dl->AddRectFilled(ImVec2(lx - S(3), a.p0.y + S(2)), ImVec2(lx + tw + S(3), a.p0.y + S(20)), IM_COL32(0, 0, 0, 190), 3);
+    dl->AddText(ImVec2(lx, a.p0.y + S(3)), C_AMBER, b);
+  }
+  dl->PopClipRect();
+  if (a.hovered && st_.connected) {
+    if (a.clicked && target > 0) tuneTo(tuning::dialToCentre(st_.hz, st_.mode, a.x, target));
+    else if (a.clicked && st_.data) say("Data mode: the dial stays put, so your digital program keeps its place");
+    if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1));
+  }
+  ImGui::EndChild();
+}
+
+void App::drawCentre() {
+  ImGui::BeginChild("centre", ImVec2(-S(297), 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  float total = ImGui::GetContentRegionAvail().y;
+  if (showScope_) {
+    drawScopePane();
+    if (showAudio_) {
+      // The grab bar between them.
+      ImVec2 p = ImGui::GetCursorScreenPos();
+      float w = ImGui::GetContentRegionAvail().x;
+      ImGui::InvisibleButton("##splitter", ImVec2(w, S(5)));
+      if (ImGui::IsItemHovered() || ImGui::IsItemActive()) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+      if (ImGui::IsItemActive()) splitFrac_ = std::max(0.15f, std::min(0.85f, splitFrac_ + ImGui::GetIO().MouseDelta.y / total));
+      ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x + w / 2 - S(20), p.y + S(1.5f)), ImVec2(p.x + w / 2 + S(20), p.y + S(3.5f)), C_DIM, 1);
+    }
+  }
+  if (showAudio_) drawAudioPane();
+  ImGui::EndChild();
+}
+
+// ---------------------------------------------------------------- the right-hand tabs
+
+void App::drawKeypad() {
+  ImGui::TextDisabled("Or just start typing, anywhere:");
+  ImGui::TextDisabled("14.074  14074  7  198k  +5");
+  ImGui::PushFont(fMid_);
+  float gap = ImGui::GetStyle().ItemSpacing.x;
+  float w = (ImGui::GetContentRegionAvail().x - gap * 3) / 4, h = S(32);
+  const char* rows[4][4] = {{"7", "8", "9", "<"}, {"4", "5", "6", "kHz"}, {"1", "2", "3", "MHz"}, {".", "0", "+/-", "Clr"}};
+  for (int r = 0; r < 4; r++)
+    for (int c = 0; c < 4; c++) {
+      if (c) ImGui::SameLine();
+      const char* k = rows[r][c];
+      if (ImGui::Button(k, ImVec2(w, h))) {
+        if (!strcmp(k, "<")) {
+          if (!entry_.empty()) entry_.pop_back();
+        } else if (!strcmp(k, "Clr")) {
+          entry_.clear();
+        } else if (!strcmp(k, "kHz")) {
+          if (!entry_.empty()) {
+            entry_ += "k";
+            commitEntry();
+          }
+        } else if (!strcmp(k, "MHz")) {
+          if (!entry_.empty()) {
+            entry_ += "m";
+            commitEntry();
+          }
+        } else if (!strcmp(k, "+/-")) {
+          if (entry_.empty() || entry_[0] == '-') entry_ = "+" + (entry_.empty() ? "" : entry_.substr(1));
+          else if (entry_[0] == '+') entry_[0] = '-';
+          else entry_ = "+" + entry_;
+        } else {
+          entry_ += k;
+        }
+      }
+      note(std::string("key:") + k);
+    }
+  ImGui::BeginDisabled(entry_.empty() || !st_.connected);
+  if (actionButton("ENTER", ImVec2(-1, S(34)), V_ACCENT, V_ACCENT_HI, "key:enter")) commitEntry();
+  ImGui::EndDisabled();
+  ImGui::PopFont();
+  ImGui::Spacing();
+
+  int here = bands::bandOf(st_.hz);
+  int n;
+  const bands::Band* t = bands::table(n);
+  if (here >= 0) {
+    ImGui::TextColored(ImColor(C_ACCENT), "ON %s m", t[here].name);
+    ImGui::Separator();
+    ImGui::BeginDisabled(!st_.connected);
+    for (const bands::Preset& p : t[here].presets)
+      if (p.name) {
+        char b[64];
+        snprintf(b, sizeof b, "%-5s  %s", p.name, tuning::formatHz(p.hz).c_str());
+        if (ImGui::Button(b, ImVec2(-1, 0))) goPreset(p);
+      }
+    ImGui::EndDisabled();
+  } else if (st_.hz > 0) {
+    ImGui::TextDisabled("Outside the amateur bands");
+  }
+}
+
+void App::drawMemories() {
+  ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - S(56));
+  ImGui::InputTextWithHint("##memname", "Name", memName_, sizeof memName_);
+  note("memname");
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!st_.connected);
+  if (ImGui::Button("Save", ImVec2(-1, 0))) {
+    store::Memory m;
+    m.name = memName_[0] ? memName_ : utcNow("%H%MZ");
+    m.hz = st_.hz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
+    memories_.push_back(m);
+    store::saveMemories(memPath_, memories_);
+    memName_[0] = 0;
+  }
+  note("memsave");
+  ImGui::EndDisabled();
+  ImGui::SetNextItemWidth(-1);
+  ImGui::InputTextWithHint("##memfilter", "Filter", memFilter_, sizeof memFilter_);
+  int del = -1;
+  if (ImGui::BeginTable("mems", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
+    ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("MHz", ImGuiTableColumnFlags_WidthFixed, S(72));
+    ImGui::TableSetupColumn("Mode", ImGuiTableColumnFlags_WidthFixed, S(44));
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, S(14));
+    ImGui::TableSetupScrollFreeze(0, 1);
+    ImGui::TableHeadersRow();
+    std::string filter = memFilter_;
+    for (char& c : filter) c = (char)tolower((unsigned char)c);
+    for (int i = 0; i < (int)memories_.size(); i++) {
+      const store::Memory& m = memories_[(size_t)i];
+      if (!filter.empty()) {
+        std::string hay = m.name;
+        for (char& c : hay) c = (char)tolower((unsigned char)c);
+        if (hay.find(filter) == std::string::npos) continue;
+      }
+      ImGui::PushID(i);
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      if (ImGui::Selectable(m.name.c_str(), m.hz == st_.hz, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap) && st_.connected) {
+        tuneTo(m.hz);
+        rig_.setMode(m.mode, m.data, m.filter);
+      }
+      note("mem:" + std::to_string(i));
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(tuning::formatHz(m.hz).c_str());
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(modeLabel(m.mode, m.data).c_str());
+      ImGui::TableNextColumn();
+      if (ImGui::SmallButton("x")) del = i;
+      ImGui::PopID();
+    }
+    ImGui::EndTable();
+  }
+  if (del >= 0) {
+    memories_.erase(memories_.begin() + del);
+    store::saveMemories(memPath_, memories_);
+  }
+}
+
+void App::drawLog() {
+  // Upper-case as you type: callsigns always are.
+  for (char* p = logCall_; *p; p++) *p = (char)toupper((unsigned char)*p);
+  ImGui::SetNextItemWidth(-1);
+  if (logFocusCall_) {
+    ImGui::SetKeyboardFocusHere();
+    logFocusCall_ = false;
+  }
+  bool enter = ImGui::InputTextWithHint("##call", "Callsign", logCall_, sizeof logCall_, ImGuiInputTextFlags_EnterReturnsTrue);
+  if (logCall_[0]) {
+    int worked = 0;
+    for (const store::LogEntry& e : log_) worked += e.call == logCall_;
+    if (worked) ImGui::TextColored(ImColor(C_AMBER), "Worked %d time%s before", worked, worked == 1 ? "" : "s");
+  }
+  float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) / 2;
+  ImGui::SetNextItemWidth(w);
+  ImGui::InputTextWithHint("##sent", "RST sent", logSent_, sizeof logSent_);
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(w);
+  ImGui::InputTextWithHint("##rcvd", "RST rcvd", logRcvd_, sizeof logRcvd_);
+  ImGui::SetNextItemWidth(-1);
+  ImGui::InputTextWithHint("##lname", "Name", logName_, sizeof logName_);
+  ImGui::SetNextItemWidth(-1);
+  enter |= ImGui::InputTextWithHint("##lnotes", "Notes", logNotes_, sizeof logNotes_, ImGuiInputTextFlags_EnterReturnsTrue);
+  ImGui::TextDisabled("%s  %s  %s UTC", tuning::formatHz(st_.hz).c_str(), modeLabel(st_.mode, st_.data).c_str(), utcNow("%H:%M").c_str());
+  ImGui::BeginDisabled(!logCall_[0]);
+  bool add = ImGui::Button("Log it", ImVec2(w, 0));
+  ImGui::EndDisabled();
+  if ((add || enter) && logCall_[0]) {
+    store::LogEntry e;
+    e.utc = utcNow("%Y-%m-%d %H:%M");
+    e.call = logCall_, e.hz = st_.hz > 0 ? st_.hz : 0, e.mode = modeLabel(st_.mode, st_.data);
+    e.rstSent = logSent_, e.rstRcvd = logRcvd_, e.name = logName_, e.notes = logNotes_;
+    log_.push_back(e);
+    if (!store::appendLog(logPath_, e)) say("Couldn't save the log entry to " + logPath_);
+    logCall_[0] = logName_[0] = logNotes_[0] = 0;
+    logFocusCall_ = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Export ADIF", ImVec2(w, 0))) {
+    std::string path = store::dataDir() + "log.adi";
+    if (store::exportAdif(path, log_, callsign_)) say("Exported " + std::to_string(log_.size()) + " QSOs to " + path);
+    else say("Couldn't write " + path);
+  }
+  if (ImGui::BeginTable("log", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
+    ImGui::TableSetupColumn("UTC", ImGuiTableColumnFlags_WidthFixed, S(92));
+    ImGui::TableSetupColumn("Call", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("kHz", ImGuiTableColumnFlags_WidthFixed, S(58));
+    ImGui::TableSetupScrollFreeze(0, 1);
+    ImGui::TableHeadersRow();
+    for (int i = (int)log_.size() - 1; i >= 0; i--) {
+      const store::LogEntry& e = log_[(size_t)i];
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(e.utc.size() > 5 ? e.utc.c_str() + 5 : e.utc.c_str());
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(e.call.c_str());
+      if (ImGui::IsItemHovered() && (!e.notes.empty() || !e.name.empty())) ImGui::SetTooltip("%s %s  %s/%s  %s", e.name.c_str(), e.mode.c_str(), e.rstSent.c_str(), e.rstRcvd.c_str(), e.notes.c_str());
+      ImGui::TableNextColumn();
+      ImGui::Text("%.1f", (double)e.hz / 1000.0);
+    }
+    ImGui::EndTable();
+  }
+}
+
+void App::drawCwVoice() {
+  auto expand = [&](std::string s) {
+    size_t at;
+    while ((at = s.find("{CALL}")) != std::string::npos) s.replace(at, 6, callsign_);
+    return s;
+  };
+  auto send = [&](const std::string& text) {
+    if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
+    else if (text.find("{CALL}") == std::string::npos && expand(text).empty()) say("Nothing to send");
+    else if (st_.sw[civ::S_BKIN] == 0) {
+      rig_.sendCw(expand(text));
+      say("Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit.");
+    } else rig_.sendCw(expand(text));
+  };
+  ImGui::TextColored(ImColor(C_ACCENT), "CW KEYER");
+  ImGui::Separator();
+  ImGui::TextDisabled("Mode must be CW. Sends through the rig's keyer.");
+  ImGui::SetNextItemWidth(-1);
+  if (ImGui::InputTextWithHint("##cw", "Type and press Enter to send", cwLine_, sizeof cwLine_, ImGuiInputTextFlags_EnterReturnsTrue) && cwLine_[0]) {
+    send(cwLine_);
+    cwLine_[0] = 0;
+    ImGui::SetKeyboardFocusHere(-1);
+  }
+  for (int i = 0; i < 5; i++) {
+    ImGui::PushID(i);
+    char label[8];
+    snprintf(label, sizeof label, "M%d", i + 1);
+    if (ImGui::Button(label, ImVec2(S(34), 0))) send(macros_[i]);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputText("##m", macros_[i], sizeof macros_[i]);
+    ImGui::PopID();
+  }
+  if (actionButton("STOP SENDING", ImVec2(-1, 0), V_RED, V_RED_HI)) rig_.stopCw();
+  ImGui::TextDisabled("{CALL} is your callsign, from Settings.");
+
+  ImGui::Spacing();
+  ImGui::TextColored(ImColor(C_ACCENT), "VOICE MEMORY");
+  ImGui::Separator();
+  ImGui::TextDisabled("Plays what's recorded on the rig. Mode must be SSB, AM or FM.");
+  float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 3) / 4;
+  for (int i = 1; i <= 8; i++) {
+    if ((i - 1) % 4) ImGui::SameLine();
+    char b[8];
+    snprintf(b, sizeof b, "T%d", i);
+    if (ImGui::Button(b, ImVec2(w, 0))) {
+      if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
+      else rig_.playVoice(i);
+    }
+  }
+  if (actionButton("STOP PLAYING", ImVec2(-1, 0), V_RED, V_RED_HI)) rig_.playVoice(0);
+}
+
+void App::drawRightTabs() {
+  ImGui::BeginChild("right", ImVec2(0, 0), ImGuiChildFlags_Borders);
+  if (ImGui::BeginTabBar("tabs")) {
+    auto tab = [&](const char* name, int i) {
+      return ImGui::BeginTabItem(name, nullptr, frameCount_ == 1 && opt_.tab == i ? ImGuiTabItemFlags_SetSelected : 0);
+    };
+    if (tab("Keypad", 0)) {
+      drawKeypad();
+      ImGui::EndTabItem();
+    }
+    if (tab("Memories", 1)) {
+      drawMemories();
+      ImGui::EndTabItem();
+    }
+    if (tab("Log", 2)) {
+      drawLog();
+      ImGui::EndTabItem();
+    }
+    if (tab("CW / Voice", 3)) {
+      drawCwVoice();
+      ImGui::EndTabItem();
+    }
+    ImGui::EndTabBar();
+  }
+  ImGui::EndChild();
+}
+
+// ---------------------------------------------------------------- the rest of the window
+
+void App::drawStatus() {
+  ImGui::AlignTextToFramePadding();
+  ImU32 dot = st_.connected ? C_GREEN : st_.portOpen ? C_AMBER : C_RED;
+  ImVec2 p = ImGui::GetCursorScreenPos();
+  ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(p.x + S(5), p.y + ImGui::GetFrameHeight() / 2), S(4), dot);
+  ImGui::Dummy(ImVec2(S(10), 1));
+  ImGui::SameLine();
+  ImGui::AlignTextToFramePadding();
+  if (opt_.demo) {
+    ImGui::TextColored(ImColor(C_AMBER), "DEMO: a simulated radio. Nothing is connected.");
+  } else if (opt_.noRig) {
+    ImGui::TextDisabled("Audio only: leaving the serial port alone");
+  } else if (st_.connected) {
+    ImGui::Text("%s  %d baud", port_.c_str(), baud_);
+  } else if (!st_.portError.empty()) {
+    bool busy = st_.portError.find("in use") != std::string::npos;
+    ImGui::TextColored(ImColor(C_RED), "%s%s", st_.portError.c_str(), busy ? ". Close it (Station, MorseRx...): a port has one owner." : "");
+  } else if (st_.portOpen) {
+    ImGui::TextColored(ImColor(C_AMBER), "%s open, but no answer: is the rig on? CI-V address %02Xh, %d baud?", port_.c_str(), addr_, baud_);
+  } else {
+    ImGui::TextDisabled("Connecting...");
+  }
+  double now = glfwGetTime();
+  if (st_.lastErrorSeq != lastErrorSeq_) {
+    lastErrorSeq_ = st_.lastErrorSeq;
+    if (!st_.lastError.empty()) say(st_.lastError);
+  }
+  if (now < statusUntil_) {
+    ImGui::SameLine(0, S(20));
+    ImGui::TextColored(ImColor(C_AMBER), "%s", status_.c_str());
+  }
+  std::string right = utcNow("%H:%M:%S UTC");
+  float rw = ImGui::CalcTextSize(right.c_str()).x;
+  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - rw);
+  ImGui::TextUnformatted(right.c_str());
+}
+
+void App::drawMenu() {
+  if (!ImGui::BeginMenuBar()) return;
+  if (ImGui::BeginMenu("Rig")) {
+    if (ImGui::MenuItem("Settings...")) openSettings_ = true;
+    ImGui::Separator();
+    if (ImGui::MenuItem("Power on")) rig_.powerOn();
+    if (ImGui::MenuItem("Power off...", nullptr, false, st_.connected)) openPowerOff_ = true;
+    ImGui::Separator();
+    if (ImGui::MenuItem("Open data folder")) store::openFolder(store::dataDir());
+    if (ImGui::MenuItem("Quit")) glfwSetWindowShouldClose(win_, 1);
+    ImGui::EndMenu();
+  }
+  if (ImGui::BeginMenu("View")) {
+    ImGui::MenuItem("Band scope", nullptr, &showScope_);
+    ImGui::MenuItem("Audio waterfall", nullptr, &showAudio_);
+    ImGui::EndMenu();
+  }
+  if (ImGui::BeginMenu("Help")) {
+    if (ImGui::MenuItem("Keys and rig set-up...")) openHelp_ = true;
+    ImGui::EndMenu();
+  }
+  ImGui::EndMenuBar();
+}
+
+void App::drawSettings() {
+  if (openSettings_) {
+    ports_ = listSerialPorts();
+    inDevs_ = audio_.captureDevices();
+    outDevs_ = audio_.playbackDevices();
+    ImGui::OpenPopup("Settings");
+    openSettings_ = false;
+  }
+  ImGui::SetNextWindowSize(ImVec2(S(560), 0));
+  if (!ImGui::BeginPopupModal("Settings", nullptr, ImGuiWindowFlags_NoResize)) return;
+  ImGui::TextColored(ImColor(C_ACCENT), "THE RIG");
+  ImGui::Separator();
+  ImGui::SetNextItemWidth(S(380));
+  if (ImGui::BeginCombo("Port", port_.empty() ? "(choose)" : port_.c_str())) {
+    for (const SerialPortInfo& p : ports_) {
+      std::string l = p.name + (p.desc.empty() ? "" : "  " + p.desc);
+      if (ImGui::Selectable(l.c_str(), p.name == port_)) port_ = p.name;
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::SetNextItemWidth(S(120));
+  if (ImGui::BeginCombo("Baud", std::to_string(baud_).c_str())) {
+    for (int b : {115200, 57600, 38400, 19200, 9600, 4800})
+      if (ImGui::Selectable(std::to_string(b).c_str(), b == baud_)) baud_ = b;
+    ImGui::EndCombo();
+  }
+  ImGui::SetNextItemWidth(S(60));
+  ImGui::InputText("CI-V address (hex)", addrText_, sizeof addrText_, ImGuiInputTextFlags_CharsHexadecimal);
+  ImGui::TextDisabled("The scope stream needs 115200.");
+
+  ImGui::Spacing();
+  ImGui::TextColored(ImColor(C_ACCENT), "SOUND");
+  ImGui::Separator();
+  ImGui::SetNextItemWidth(S(380));
+  if (ImGui::BeginCombo("From the rig", audioIn_.empty() ? "(find the USB Audio CODEC)" : audioIn_.c_str())) {
+    if (ImGui::Selectable("(find the USB Audio CODEC)", audioIn_.empty())) audioIn_.clear();
+    for (const std::string& d : inDevs_)
+      if (ImGui::Selectable(d.c_str(), d == audioIn_)) audioIn_ = d;
+    ImGui::EndCombo();
+  }
+  ImGui::SetNextItemWidth(S(380));
+  if (ImGui::BeginCombo("Listen on", audioOut_.empty() ? "(system default)" : audioOut_.c_str())) {
+    if (ImGui::Selectable("(system default)", audioOut_.empty())) audioOut_.clear();
+    for (const std::string& d : outDevs_)
+      if (ImGui::Selectable(d.c_str(), d == audioOut_)) audioOut_ = d;
+    ImGui::EndCombo();
+  }
+
+  ImGui::Spacing();
+  ImGui::TextColored(ImColor(C_ACCENT), "YOU");
+  ImGui::Separator();
+  ImGui::SetNextItemWidth(S(160));
+  ImGui::InputText("Callsign", callsign_, sizeof callsign_, ImGuiInputTextFlags_CharsUppercase);
+  ImGui::SetNextItemWidth(S(160));
+  ImGui::SliderInt("PTT time limit", &txLimit_, 5, 600, "%d s");
+  ImGui::SetItemTooltip("PTT from this program lets go by itself after this long");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  if (ImGui::Button("Apply and reconnect", ImVec2(S(170), 0))) {
+    addr_ = (int)strtol(addrText_, nullptr, 16);
+    if (addr_ <= 0 || addr_ > 0xDF) addr_ = 0x94;
+    snprintf(addrText_, sizeof addrText_, "%02X", addr_);
+    rig_.setTxLimit(txLimit_);
+    if (!opt_.demo && !opt_.noRig) connect();
+    audio_.stopCapture();
+    audioRetryAt_ = 0;
+    saveSettings();
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Close", ImVec2(S(90), 0))) {
+    rig_.setTxLimit(txLimit_);
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::EndPopup();
+}
+
+void App::drawHelp() {
+  if (openHelp_) {
+    ImGui::OpenPopup("Keys and rig set-up");
+    openHelp_ = false;
+  }
+  ImGui::SetNextWindowSize(ImVec2(S(640), 0));
+  if (ImGui::BeginPopupModal("Keys and rig set-up", nullptr, ImGuiWindowFlags_NoResize)) {
+    ImGui::TextColored(ImColor(C_ACCENT), "ON THE RIG  (MENU > SET > Connectors > CI-V)");
+    ImGui::Separator();
+    ImGui::BulletText("CI-V USB Port: Unlink from [REMOTE]");
+    ImGui::BulletText("CI-V USB Baud Rate: 115200");
+    ImGui::BulletText("CI-V USB Echo Back: OFF  (ON works too)");
+    ImGui::BulletText("CI-V Address: 94h");
+    ImGui::BulletText("USB AF Output Level (Connectors): raise it until the level bar sits below red");
+    ImGui::BulletText("USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF");
+    ImGui::Spacing();
+    ImGui::TextColored(ImColor(C_ACCENT), "KEYS");
+    ImGui::Separator();
+    if (ImGui::BeginTable("keys", 2)) {
+      static const char* rows[][2] = {
+          {"Digits", "Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels."},
+          {"Left, Right", "Tune by the step. Hold Shift for ten times that."},
+          {"Up, Down", "Change the step"},
+          {"Page Up, Page Down", "Next or previous band"},
+          {"F1 to F8", "LSB, USB, CW, CW-R, AM, FM, RTTY, RTTY-R"},
+          {"F9, F10", "Data mode, next filter"},
+          {"F11, F12", "Split, swap VFOs"},
+          {"Ctrl+Space", "PTT on or off, once armed"},
+          {"Wheel", "On a digit tunes that digit. On a waterfall, by the step. On a slider, moves it."},
+          {"Click a digit", "Top half up, bottom half down"},
+          {"Click the band scope", "Tune there. Right-click for split and memories."},
+          {"Click the audio waterfall", "Moves that signal to the pitch (not in data modes)"},
+          {"Right-click a band", "CW, FT8, FT4, WSPR, SSB frequencies"},
+      };
+      ImGui::TableSetupColumn("k", ImGuiTableColumnFlags_WidthFixed, S(170));
+      for (auto& r : rows) {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(r[0]);
+        ImGui::TableNextColumn();
+        ImGui::TextWrapped("%s", r[1]);
+      }
+      ImGui::EndTable();
+    }
+    ImGui::Spacing();
+    if (ImGui::Button("Close", ImVec2(S(90), 0))) ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
+
+  if (openPowerOff_) {
+    ImGui::OpenPopup("Power off the rig?");
+    openPowerOff_ = false;
+  }
+  if (ImGui::BeginPopupModal("Power off the rig?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::TextUnformatted("The rig will switch off. Rig > Power on brings it back while its USB stays powered.");
+    if (actionButton("Power off", ImVec2(S(110), 0), V_RED, V_RED_HI)) {
+      rig_.powerOff();
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2(S(90), 0))) ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
+}
+
+void App::frame() {
+  frameCount_++;
+  st_ = rig_.state();
+  if (opt_.demo) {
+    demoAudio_.dialHz = st_.hz > 0 ? st_.hz : 14074000;
+    demoAudio_.mode = st_.mode >= 0 ? st_.mode : civ::USB;
+    demoAudio_.pitch = tuning::cwPitchHz(st_.level[civ::L_CW_PITCH]);
+  }
+  keepAudioOpen();
+  audio_.setMonitorMuted(st_.tx);
+  pumpAudio();
+  pumpScope();
+  rememberBand();
+
+  ImGuiViewport* vp = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(vp->WorkPos);
+  ImGui::SetNextWindowSize(vp->WorkSize);
+  ImGui::Begin("##main", nullptr,
+               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar |
+                   ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollWithMouse);
+  drawMenu();
+  handleKeys();
+  drawHeader();
+  drawBandRow();
+  float statusH = ImGui::GetFrameHeightWithSpacing();
+  ImGui::BeginChild("middle", ImVec2(0, -statusH), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  drawControls();
+  ImGui::SameLine();
+  drawCentre();
+  ImGui::SameLine();
+  drawRightTabs();
+  ImGui::EndChild();
+  drawStatus();
+  drawSettings();
+  drawHelp();
+  ImGui::End();
+}
+
+// ---------------------------------------------------------------- self-test: real clicks and keys, through ImGui
+
+void App::expect(const std::string& what, bool ok) {
+  results_.push_back(std::string(ok ? "ok    " : "FAIL  ") + what);
+  if (!ok) testFails_++;
+}
+
+void App::click(const std::string& name, float fx, float fy, int button) {
+  inject_.push_back([this, name, fx, fy](ImGuiIO& io) {
+    auto it = rects_.find(name);
+    if (it == rects_.end()) {
+      expect("no such control: " + name, false);
+      return;
+    }
+    ImVec2 a = it->second.Min, b = it->second.Max;
+    io.AddMousePosEvent(a.x + (b.x - a.x) * fx, a.y + (b.y - a.y) * fy);
+  });
+  inject_.push_back([](ImGuiIO&) {});  // a frame to hover
+  inject_.push_back([button](ImGuiIO& io) { io.AddMouseButtonEvent(button, true); });
+  inject_.push_back([button](ImGuiIO& io) { io.AddMouseButtonEvent(button, false); });
+}
+
+void App::typeText(const std::string& s) {
+  for (char c : s) inject_.push_back([c](ImGuiIO& io) { io.AddInputCharacter((unsigned int)c); });
+}
+
+void App::pressKey(ImGuiKey k) {
+  inject_.push_back([k](ImGuiIO& io) { io.AddKeyEvent(k, true); });
+  inject_.push_back([k](ImGuiIO& io) { io.AddKeyEvent(k, false); });
+}
+
+void App::buildSelfTest() {
+  auto step = [&](int wait, std::function<void()> fn) { steps_.push_back({wait, std::move(fn)}); };
+  const int settle = 45;  // frames for a command to reach the sim and come back
+  auto hoverOut = [this] { inject_.push_back([](ImGuiIO& io) { io.AddMousePosEvent(-1000, -1000); }); };
+
+  step(120, [this] { expect("rig connected", st_.connected && st_.hz > 0); });
+
+  // ---- punching in frequencies, as MHz, kHz, Hz, relative
+  step(1, [this] { typeText("7074"); pressKey(ImGuiKey_Enter); });
+  step(settle, [this] { expect("typed 7074 + Enter goes to 7.074 MHz", sim_->hz() == 7074000); });
+  step(1, [this] { typeText("14.2"); pressKey(ImGuiKey_Enter); });
+  step(settle, [this] { expect("typed 14.2 + Enter goes to 14.2 MHz", sim_->hz() == 14200000); });
+  step(1, [this] { typeText("+5"); pressKey(ImGuiKey_KeypadEnter); });
+  step(settle, [this] { expect("typed +5 goes up 5 kHz", sim_->hz() == 14205000); });
+  step(1, [this] { typeText("999999999"); pressKey(ImGuiKey_Enter); });
+  step(settle, [this] {
+    expect("impossible frequency refused", sim_->hz() == 14205000 && !entry_.empty());
+    pressKey(ImGuiKey_Escape);
+  });
+  step(10, [this] { expect("Esc clears the entry", entry_.empty()); });
+  step(1, [this] { typeText("5"); pressKey(ImGuiKey_Escape); });
+  step(settle, [this] { expect("Esc cancels without tuning", sim_->hz() == 14205000); });
+
+  // ---- keypad
+  step(1, [this] { click("key:3"); click("key:."); click("key:5"); click("key:7"); click("key:3"); click("key:MHz"); });
+  step(settle, [this] { expect("keypad 3.573 MHz", sim_->hz() == 3573000); });
+  step(1, [this] { click("key:7"); click("key:0"); click("key:7"); click("key:4"); click("key:enter"); });
+  step(settle, [this] { expect("keypad 7074 ENTER", sim_->hz() == 7074000); });
+
+  // ---- bands: first visit goes home; coming back returns to where you were
+  step(1, [this] { click("band:20"); });
+  step(settle, [this] { expect("band 20 goes to the band", bands::bandOf(sim_->hz()) == 5); });
+  step(1, [this] { click("band:40"); });
+  step(settle, [this] { expect("band 40 returns to 7.074", sim_->hz() == 7074000); });
+  step(1, [this] { click("band:15"); });
+  step(settle, [this] {
+    expect("band 15 first visit: 21.25 USB", sim_->hz() == 21250000 && sim_->mode() == civ::USB);
+    pressKey(ImGuiKey_PageDown);
+  });
+  step(settle, [this] {
+    expect("Page Down goes to the next band down", bands::bandOf(sim_->hz()) == 6);
+    pressKey(ImGuiKey_PageUp);
+  });
+  step(settle, [this] { expect("Page Up comes back", sim_->hz() == 21250000); });
+  step(1, [this] { click("band:20", 0.5f, 0.5f, 1); });
+  step(12, [this] { click("preset:20:FT8"); });
+  step(settle, [this] { expect("20 m right-click FT8: 14.074 USB-D", sim_->hz() == 14074000 && sim_->mode() == civ::USB && sim_->data()); });
+
+  // ---- modes and filters
+  step(1, [this] { click("data"); });
+  step(settle, [this] { expect("DATA turns off", !sim_->data()); });
+  step(1, [this] { click("mode:CW"); });
+  step(settle, [this] { expect("mode CW", sim_->mode() == civ::CW); });
+  step(1, [this] { click("mode:LSB"); });
+  step(settle, [this] { expect("mode LSB", sim_->mode() == civ::LSB); });
+  step(1, [this] { click("FIL2"); });
+  step(settle, [this] { expect("FIL2", sim_->filter() == 2); });
+  step(1, [this] { pressKey(ImGuiKey_F2); });
+  step(settle, [this] { expect("F2 is USB", sim_->mode() == civ::USB); });
+  step(1, [this] { pressKey(ImGuiKey_F10); });
+  step(settle, [this] { expect("F10 cycles the filter", sim_->filter() == 3); });
+
+  // ---- tuning controls
+  step(1, [this] { typeText("14000"); pressKey(ImGuiKey_Enter); stepIdx_ = 4; });
+  step(settle, [this] { pressKey(ImGuiKey_RightArrow); });
+  step(settle, [this] { expect("Right arrow: up a 1 kHz step", sim_->hz() == 14001000); pressKey(ImGuiKey_LeftArrow); });
+  step(settle, [this] { expect("Left arrow: down a step", sim_->hz() == 14000000); });
+  step(1, [this] { pressKey(ImGuiKey_UpArrow); });
+  step(5, [this] { expect("Up arrow raises the step", stepIdx_ == 5); stepIdx_ = 4; });
+  step(1, [this] { click("digit:4", 0.5f, 0.25f); });  // the 1kHz digit, top half
+  step(settle, [this] { expect("clicking the top of a digit tunes up", sim_->hz() == 14001000); click("digit:4", 0.5f, 0.75f); });
+  step(settle, [this] { expect("the bottom tunes down", sim_->hz() == 14000000); });
+  step(1, [this] {
+    inject_.push_back([this](ImGuiIO& io) {
+      const ImRect& r = rects_["digit:3"];
+      io.AddMousePosEvent((r.Min.x + r.Max.x) / 2, (r.Min.y + r.Max.y) / 2);
+    });
+    inject_.push_back([](ImGuiIO&) {});
+    inject_.push_back([](ImGuiIO& io) { io.AddMouseWheelEvent(0, 1); });
+  });
+  step(settle, [this] { expect("wheel on a digit tunes that digit", sim_->hz() == 14010000); });
+
+  // ---- waterfalls
+  step(1, [this] { typeText("14100"); pressKey(ImGuiKey_Enter); });
+  step(60, [this] { expect("scope sweeps arriving", !scopeLine_.empty() && scopeHi_ > scopeLo_); click("scopeplot", 0.75f, 0.7f); });
+  step(settle, [this] {
+    // The sweep is centred on the dial, so 3/4 across is a quarter of the span up.
+    long long want = 14100000 + (scopeHi_ - scopeLo_) / 4;
+    expect("click on the band scope tunes there", llabs(sim_->hz() - want) < 400);
+    typeText("14100");
+    pressKey(ImGuiKey_Enter);
+    pressKey(ImGuiKey_F2);
+  });
+  step(settle, [this] {
+    // USB, not data: a signal at 3/4 of 0-3kHz (2250Hz) moves to 1500Hz: the dial goes up 750Hz.
+    expect("USB for the audio click", sim_->mode() == civ::USB && !sim_->data());
+    click("audioplot", 0.75f, 0.7f);
+  });
+  step(settle, [this] { expect("click on the audio waterfall centres the signal", llabs(sim_->hz() - 14100750) < 30); });
+  step(1, [this] { click("mode:CW"); typeText("14100"); pressKey(ImGuiKey_Enter); });
+  step(settle, [this] {
+    // A signal at 1/2 of 0-3k (1500Hz) must move to the pitch.
+    click("audioplot", 0.5f, 0.7f);
+  });
+  step(settle, [this] {
+    int pitch = tuning::cwPitchHz(st_.level[civ::L_CW_PITCH]);
+    expect("in CW it moves to the pitch", llabs(sim_->hz() - (14100000 + (1500 - pitch))) < 30);
+  });
+  step(1, [this] { click("mode:USB"); click("data"); typeText("14100"); pressKey(ImGuiKey_Enter); });
+  step(settle, [this] {
+    expect("back to USB-D", sim_->data());
+    click("audioplot", 0.5f, 0.7f);
+  });
+  step(settle, [this] { expect("data mode: audio click leaves the dial alone", sim_->hz() == 14100000); });
+  step(1, [this] { rig_.setScopeSpan(10000); });
+  step(30, [this] { expect("span change reaches the rig", !sim_->received(0x27).empty()); });
+  step(30, [this] { expect("the scope follows the span", scopeHi_ - scopeLo_ == 10000); rig_.setScopeSpan(100000); });
+
+  // ---- the receive controls reach the rig
+  step(1, [this] { click("sw:NB"); });
+  step(settle, [this] {
+    expect("NB button sets 16 22 01", [&] { for (auto& d : sim_->received(0x16)) if (d.size() == 2 && d[0] == 0x22 && d[1] == 1) return true; return false; }());
+    click("Preamp:P2");
+  });
+  step(settle, [this] {
+    expect("preamp P2 sets 16 02 02", [&] { for (auto& d : sim_->received(0x16)) if (d.size() == 2 && d[0] == 0x02 && d[1] == 2) return true; return false; }());
+    click("att");
+  });
+  step(settle, [this] {
+    expect("attenuator sets 11 20", [&] { for (auto& d : sim_->received(0x11)) if (d.size() == 1 && d[0] == 0x20) return true; return false; }());
+    click("level:AF", 0.25f, 0.5f);
+  });
+  step(settle, [this] {
+    expect("dragging AF to a quarter sets about 64", st_.level[civ::L_AF] > 40 && st_.level[civ::L_AF] < 90);
+    click("swap");
+  });
+  step(settle, [this] { expect("A/B swaps the VFOs", sim_->hz() != 14100000 && st_.otherHz == 14100000); click("swap"); });
+
+  // ---- transmit stays locked until armed
+  step(settle, [this] { click("ptt"); click("tune"); });
+  step(settle, [this] {
+    expect("PTT and TUNE do nothing unarmed", !sim_->tx() && !st_.tx);
+    expect("tuner not started unarmed", [&] { for (auto& d : sim_->received(0x1C)) if (d.size() == 2 && d[0] == 1 && d[1] == 2) return false; return true; }());
+    inject_.push_back([](ImGuiIO& io) { io.AddKeyEvent(ImGuiMod_Ctrl, true); });
+    inject_.push_back([](ImGuiIO& io) { io.AddKeyEvent(ImGuiKey_Space, true); });
+    inject_.push_back([](ImGuiIO& io) { io.AddKeyEvent(ImGuiKey_Space, false); });
+    inject_.push_back([](ImGuiIO& io) { io.AddKeyEvent(ImGuiMod_Ctrl, false); });
+  });
+  step(settle, [this] { expect("Ctrl+Space does nothing unarmed", !sim_->tx()); click("arm"); });
+  step(10, [this] { expect("ARM arms", st_.txArmed); click("ptt"); });
+  step(settle, [this] { expect("PTT keys once armed", sim_->tx() && st_.tx); click("ptt"); });
+  step(settle, [this] { expect("PTT again releases", !sim_->tx()); click("ptt"); });
+  step(settle, [this] { expect("keyed again", sim_->tx()); click("arm"); });
+  step(settle, [this] { expect("disarming releases", !sim_->tx() && !st_.txArmed); });
+
+  // ---- memories
+  step(1, [this, hoverOut] {
+    hoverOut();
+    typeText("7030");
+    pressKey(ImGuiKey_Enter);
+  });
+  step(settle, [this] { snprintf(memName_, sizeof memName_, "Test"); opt_.tab = 1; frameCount_ = 0; });
+  step(10, [this] { click("memsave"); });
+  step(10, [this] {
+    expect("memory saved", !memories_.empty() && memories_.back().hz == 7030000);
+    typeText("14100");
+    pressKey(ImGuiKey_Enter);
+  });
+  step(settle, [this] { click("mem:" + std::to_string((int)memories_.size() - 1)); });
+  step(settle, [this] {
+    expect("clicking a memory recalls it", sim_->hz() == 7030000);
+    if (!memories_.empty()) memories_.pop_back();
+    store::saveMemories(memPath_, memories_);
+  });
+  step(5, [this] { testDone_ = true; });
+}
+
+void App::runSelfTest() {
+  ImGuiIO& io = ImGui::GetIO();
+  // Injected input first, one piece a frame, as a person's hand would.
+  if (!inject_.empty()) {
+    auto fn = inject_.front();
+    inject_.erase(inject_.begin());
+    fn(io);
+    return;
+  }
+  // Waits are counted at 60 frames a second but measured by the clock: the rig's replies take real time,
+  // and a covered window can draw far faster or slower than its display.
+  if (stepWait_ > 0) {
+    stepUntil_ = glfwGetTime() + stepWait_ / 60.0;
+    stepWait_ = 0;
+  }
+  if (glfwGetTime() < stepUntil_) return;
+  if (stepAt_ < steps_.size()) {
+    steps_[stepAt_].fn();
+    stepAt_++;
+    if (stepAt_ < steps_.size()) stepWait_ = steps_[stepAt_].waitFrames;
+  }
+}
+
+int App::run() {
+  loadSettings();
+  if (opt_.demo) sim_.reset(new SimRig);
+
+  glfwSetErrorCallback(glfwError);
+  if (!glfwInit()) return 1;
+#ifdef __APPLE__
+  const char* glsl = "#version 150";
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+#else
+  const char* glsl = "#version 130";
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#endif
+  bool automated = !opt_.selfTest.empty() || !opt_.screenshot.empty();
+  if (automated) {
+    // A scripted run mustn't take the keyboard from whoever's using the machine.
+    glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
+  }
+  // The layout is designed in logical pixels and needs 1280x720 of them. Window sizes are real pixels on
+  // Windows and X11 (macOS and Wayland handle scaling themselves). If the display's scaling leaves fewer
+  // than that, the whole interface shrinks to fit rather than hanging its controls off the edge.
+  float sx = 1, sy = 1;
+  int waX = 0, waY = 0, waW = 1920, waH = 1080;
+  if (GLFWmonitor* m = glfwGetPrimaryMonitor()) {
+    glfwGetMonitorContentScale(m, &sx, &sy);
+    glfwGetMonitorWorkarea(m, &waX, &waY, &waW, &waH);
+  }
+#ifdef __APPLE__
+  sx = 1;
+#endif
+  scale_ = std::max(0.75f, std::min({sx, (float)waW / 1280.f, (float)waH / 720.f}));
+  int w = opt_.width ? opt_.width : cfg_.getInt("win_w", (int)(1560 * scale_));
+  int h = opt_.height ? opt_.height : cfg_.getInt("win_h", (int)(960 * scale_));
+  if (!opt_.width) {
+    w = std::min(w, waW);
+    h = std::min(h, waH - (int)(40 * scale_));  // room for the title bar
+  }
+  std::string title = opt_.demo ? "IC-7300 Console  [DEMO: simulated radio]" : "IC-7300 Console";
+  win_ = glfwCreateWindow(w, h, title.c_str(), nullptr, nullptr);
+  if (!win_) {
+    glfwTerminate();
+    return 1;
+  }
+  glfwMakeContextCurrent(win_);
+  glfwSwapInterval(1);
+  glfwSetWindowSizeLimits(win_, std::min((int)(1280 * scale_), waW), std::min((int)(700 * scale_), waH), GLFW_DONT_CARE, GLFW_DONT_CARE);
+  setIcon(win_);
+
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO& io = ImGui::GetIO();
+  io.IniFilename = nullptr;
+  setupStyle(scale_);
+  // A scripted run gets no real mouse or keyboard at all: only what the script injects.
+  ImGui_ImplGlfw_InitForOpenGL(win_, opt_.selfTest.empty());
+  ImGui_ImplOpenGL3_Init(glsl);
+
+  wfScope_.init(civ::kScopePoints, kWaterfallRows);
+  applyFft();
+  audio_.setMonitorGain(monitorGain_);
+  connect();
+  keepAudioOpen();
+  if (monitor_ && !opt_.demo) {
+    std::string err;
+    if (!audio_.startMonitor(audioOut_, err)) say(err);
+  }
+  if (!opt_.selfTest.empty()) {
+    buildSelfTest();
+    stepWait_ = steps_.empty() ? 0 : steps_[0].waitFrames;
+  }
+
+  uint64_t frames = 0;
+  double lastFrameAt = glfwGetTime();
+  while (!glfwWindowShouldClose(win_)) {
+    glfwPollEvents();
+    if (glfwGetWindowAttrib(win_, GLFW_ICONIFIED)) std::this_thread::sleep_for(std::chrono::milliseconds(15));
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    if (!opt_.selfTest.empty()) runSelfTest();
+    ImGui::NewFrame();
+    frame();
+    ImGui::Render();
+    int fw, fh;
+    glfwGetFramebufferSize(win_, &fw, &fh);
+    glViewport(0, 0, fw, fh);
+    glClearColor(0.06f, 0.07f, 0.09f, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    frames++;
+    if (!opt_.screenshot.empty() && (int)frames == opt_.screenshotFrames) {
+      saveBmp(opt_.screenshot, fw, fh);
+      glfwSetWindowShouldClose(win_, 1);
+    }
+    glfwSwapBuffers(win_);
+    // Vsync stops holding us back while the window's covered or minimised, on some drivers. Without this
+    // a hidden window would spin a CPU core flat out.
+    {
+      double now = glfwGetTime();
+      if (now - lastFrameAt < 1.0 / 120) std::this_thread::sleep_for(std::chrono::milliseconds(6));
+      lastFrameAt = glfwGetTime();
+    }
+    if (!opt_.selfTest.empty() && testDone_) {
+      FILE* f = fopen(opt_.selfTest.c_str(), "w");
+      if (f) {
+        for (const std::string& r : results_) fprintf(f, "%s\n", r.c_str());
+        fprintf(f, "\n%d checks, %d failed\n", (int)results_.size(), testFails_);
+        fclose(f);
+      }
+      glfwSetWindowShouldClose(win_, 1);
+    }
+  }
+
+  if (!automated) saveSettings();
+  rec_.close();
+  rig_.stop();
+  audio_.stopMonitor();
+  audio_.stopCapture();
+  int rc = testFails_ ? 1 : 0;
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
+  return rc;  // the waterfalls' textures go with App, while the GL context is still alive
+}
+}  // namespace
+
+int runApp(const AppOptions& opt) {
+  int rc;
+  {
+    App app(opt);
+    rc = app.run();
+  }
+  glfwTerminate();
+  return rc;
+}
