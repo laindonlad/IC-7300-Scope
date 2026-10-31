@@ -1,0 +1,2 @@
+// The first icon is what Explorer shows for the .exe. GLFW looks for this name and uses it for the window too.
+GLFW_ICON ICON "ic7300console.ico"

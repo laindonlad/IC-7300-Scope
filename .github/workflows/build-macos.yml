@@ -1,0 +1,47 @@
+# Builds the macOS binaries, which can't be cross-compiled from Windows or Linux,
+# and commits them to bin/macos. Run it by hand: Actions > Build macOS binaries > Run workflow.
+name: Build macOS binaries
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Core tests
+        run: ./build/test_core
+
+      # The runner's graphics may not support this, so a failure here is shown but doesn't block the build.
+      - name: GUI self-test
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          ./build/ic7300console --demo --selftest selftest.txt
+          tail -n 20 selftest.txt
+
+      - name: Commit the binaries
+        run: |
+          mkdir -p bin/macos
+          cp build/ic7300console build/ic7300probe build/test_core bin/macos/
+          lipo -info bin/macos/ic7300console
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bin/macos
+          git diff --cached --quiet || git commit -m "Update the macOS binaries"
+          git push

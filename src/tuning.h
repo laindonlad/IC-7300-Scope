@@ -107,6 +107,86 @@ inline int cwPitchHz(int raw) { return raw < 0 ? 600 : 300 + (int)llround(raw * 
 inline int keySpeedWpm(int raw) { return raw < 0 ? 0 : 6 + (int)llround(raw * 42.0 / 255.0); }
 inline int keySpeedRaw(int wpm) { return (int)llround((wpm - 6) * 255.0 / 42.0); }
 
+// The tuning dial, behaving as a rig's weighted VFO knob does. It turns where the pointer is, seen from the
+// dial's centre, into clicks. Screen coordinates, so y runs down and clockwise is positive, which tunes up.
+// It only follows how far the pointer has moved round, so grabbing it anywhere doesn't make it jump.
+//
+// Turned slowly, every click is the same size. Spun fast, the clicks are multiplied, as a rig's automatic
+// tuning step does. Let go while it's spinning fast and it runs on for a moment, like a flywheel. A slow
+// turn stops dead, so fine tuning never drifts.
+class Dial {
+ public:
+  static constexpr int kClicksPerTurn = 100;
+  static constexpr int kClicksPerStep = 10;  // so one turn is ten of the tuning step
+  static constexpr double kClick = 2.0 * M_PI / kClicksPerTurn;
+  static constexpr double kTurn = 2.0 * M_PI;
+
+  // How far the dial moves for a click, given the tuning step.
+  static long long clickHz(long long stepHz) { return stepHz >= kClicksPerStep ? stepHz / kClicksPerStep : 1; }
+
+  // Call every frame while the dial is held. Near the centre the angle swings wildly for a tiny movement,
+  // so inside deadRadius it lets go and picks up again from wherever the pointer comes back out.
+  int spin(double dx, double dy, double deadRadius, double dt) {
+    held_ = true;
+    if (dx * dx + dy * dy < deadRadius * deadRadius) {
+      grabbed_ = false;
+      speed_ = 0;
+      return 0;
+    }
+    double a = atan2(dy, dx);
+    if (!grabbed_) {
+      grabbed_ = true;
+      last_ = a;
+      speed_ = 0;  // catching it stops any coasting
+      pending_ = 0;
+      return 0;
+    }
+    double d = a - last_;
+    last_ = a;
+    if (d > M_PI) d -= kTurn;
+    else if (d <= -M_PI) d += kTurn;
+    if (dt > 0) speed_ += (d / dt - speed_) * (1.0 - exp(-dt / 0.08));  // smoothed, radians a second
+    return advance(d);
+  }
+
+  // Call every frame while it isn't held. Returns what the flywheel turned it by.
+  int idle(double dt) {
+    if (held_) {
+      held_ = grabbed_ = false;
+      if (fabs(speed_) < 0.75 * kTurn) stop();
+    }
+    if (speed_ == 0 || dt <= 0) return 0;
+    speed_ *= exp(-dt / 0.35);
+    if (fabs(speed_) < 0.25 * kTurn) {
+      stop();
+      return 0;
+    }
+    return advance(speed_ * dt);
+  }
+
+  void stop() {
+    speed_ = 0;
+    pending_ = 0;
+  }
+  // Clicks from elsewhere, as the mouse wheel: the dial is drawn turning with them.
+  void nudge(int clicks) { angle_ += clicks * kClick; }
+  double angle() const { return angle_; }  // radians turned so far, for drawing
+
+ private:
+  int advance(double rad) {
+    angle_ += rad;
+    // Up to 1.5 turns a second is plain tuning, then it builds to 8 times at 4 turns a second.
+    double t = (fabs(speed_) / kTurn - 1.5) / 2.5;
+    double rate = t <= 0 ? 1.0 : t >= 1 ? 8.0 : 1.0 + 7.0 * t;
+    pending_ += rad * rate;
+    int clicks = (int)(pending_ / kClick);
+    pending_ -= clicks * kClick;
+    return clicks;
+  }
+  bool held_ = false, grabbed_ = false;
+  double last_ = 0, pending_ = 0, angle_ = 0, speed_ = 0;
+};
+
 // The filter's passband in the audio, for shading the waterfall. Approximate: the rig's own edges move
 // with Twin PBT and the SSB filter's low cut.
 inline void audioPassband(int mode, int widthHz, int cwPitch, double& lo, double& hi) {

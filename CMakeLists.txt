@@ -46,6 +46,7 @@ if(BUILD_GUI)
   set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
   add_subdirectory(third_party/glfw EXCLUDE_FROM_ALL)
+  set(OpenGL_GL_PREFERENCE LEGACY)  # libGL.so.1 is on nearly every Linux desktop; libOpenGL.so.0 often isn't
   find_package(OpenGL REQUIRED)
 
   set(IMGUI third_party/imgui)
@@ -69,6 +70,8 @@ if(BUILD_GUI)
   embed_font(${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI}/fonts/Cousine-Regular.ttf kCousine ${CMAKE_CURRENT_BINARY_DIR}/font_cousine.inc)
 
   if(WIN32)
+    enable_language(RC)
+    target_sources(ic7300console PRIVATE res/ic7300console.rc)
     set_target_properties(ic7300console PROPERTIES WIN32_EXECUTABLE TRUE)
     target_link_libraries(ic7300console PRIVATE ole32 winmm)
   endif()

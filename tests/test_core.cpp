@@ -202,6 +202,112 @@ static void testTuning() {
   }
 }
 
+static void testDial() {
+  auto at = [](double deg) { return std::pair<double, double>(100 * cos(deg * M_PI / 180), 100 * sin(deg * M_PI / 180)); };
+  // Walks the pointer round from one angle to another, adding up the clicks. The default pace is slow.
+  auto walk = [&](tuning::Dial& d, double from, double to, int n = 40, double dt = 0.05) {
+    int clicks = 0;
+    for (int i = 0; i <= n; i++) {
+      auto p = at(from + (to - from) * i / n);
+      clicks += d.spin(p.first, p.second, 10, dt);
+    }
+    return clicks;
+  };
+  const double frame = 1.0 / 60;
+  {
+    tuning::Dial d;  // grabbing it does nothing, wherever it's grabbed
+    auto p = at(123);
+    CHECK(d.spin(p.first, p.second, 10, frame) == 0);
+    CHECK(d.spin(p.first, p.second, 10, frame) == 0);
+    CHECK(d.angle() == 0);
+  }
+  {
+    tuning::Dial d;  // clockwise is up, at 100 clicks a turn. 365 degrees is 101.4 clicks
+    CHECK(walk(d, 0, 365) == 101);
+    d.idle(frame);
+    CHECK(walk(d, 365, 0) == -101);
+  }
+  {
+    tuning::Dial d;  // both ways across the wrap at 180 degrees: 60 degrees is 16.7 clicks
+    CHECK(walk(d, 150, 210) == 16);
+    d.idle(frame);
+    CHECK(walk(d, 210, 150) == -16);
+  }
+  {
+    tuning::Dial d;  // under one click only builds up, and nothing's lost across calls
+    CHECK(walk(d, 0, 2) == 0);
+    CHECK(walk(d, 2, 4) == 1);
+  }
+  {
+    tuning::Dial d;  // through the middle: no jump, however far round it comes back out
+    auto p = at(0);
+    d.spin(p.first, p.second, 10, frame);
+    CHECK(d.spin(1, 1, 10, frame) == 0);
+    p = at(180);
+    CHECK(d.spin(p.first, p.second, 10, frame) == 0);
+    CHECK(d.angle() == 0);
+  }
+  {
+    tuning::Dial d;  // letting go forgets a part-click, and a slow turn stops dead
+    CHECK(walk(d, 0, 3) == 0);
+    double was = d.angle();
+    int coasted = 0;
+    for (int i = 0; i < 120; i++) coasted += d.idle(frame);
+    CHECK(coasted == 0);
+    CHECK(d.angle() == was);
+    CHECK(walk(d, 0, 3) == 0);
+  }
+  {
+    tuning::Dial d;  // spun fast, a turn is worth more than a hundred clicks
+    int fast = 0;
+    for (int turn = 0; turn < 4; turn++) fast += walk(d, 0, 359, 60, 0.002);
+    CHECK(fast > 4 * 100 * 3);
+    CHECK(fast <= 4 * 100 * 8);
+  }
+  {
+    tuning::Dial d;  // let go at speed, it runs on the same way, slows, and stops by itself
+    CHECK(walk(d, 0, 359, 60, 0.002) > 0);
+    int coasted = 0, steps = 0;
+    double was = d.angle();
+    while (steps < 2000 && (d.idle(frame), d.angle() != was)) {
+      was = d.angle();
+      steps++;
+    }
+    tuning::Dial e;
+    walk(e, 0, 359, 60, 0.002);
+    for (int i = 0; i < 2000; i++) coasted += e.idle(frame);
+    CHECK(coasted > 0);
+    CHECK(steps < 2000);
+    CHECK(e.idle(frame) == 0);
+    tuning::Dial back;
+    walk(back, 359, 0, 60, 0.002);
+    CHECK(back.idle(frame) < 0);
+  }
+  {
+    tuning::Dial d;  // catching it stops the coast at once, and so does stop()
+    walk(d, 0, 359, 60, 0.002);
+    d.idle(frame);
+    auto p = at(10);
+    d.spin(p.first, p.second, 10, frame);
+    d.spin(p.first, p.second, 10, frame);
+    double was = d.angle();
+    d.idle(frame);
+    d.idle(frame);
+    CHECK(d.angle() == was);
+    walk(d, 0, 359, 60, 0.002);
+    d.idle(frame);
+    d.stop();
+    was = d.angle();
+    d.idle(frame);
+    CHECK(d.angle() == was);
+  }
+  CHECK(tuning::Dial::clickHz(100) == 10);
+  CHECK(tuning::Dial::clickHz(1000) == 100);
+  CHECK(tuning::Dial::clickHz(1) == 1);
+  CHECK(tuning::stepFreq(14074123, 100, 3) == 14074400);   // several clicks in one frame
+  CHECK(tuning::stepFreq(14074123, 100, -3) == 14073900);
+}
+
 static void testDsp() {
   int n = 4096;
   dsp::Spectrum sp(n);
@@ -544,7 +650,7 @@ int main() {
     const char* name;
     void (*fn)();
   } tests[] = {
-      {"CI-V bytes", testBytes}, {"frame reader", testReader}, {"frequency entry", testTuning}, {"FFT", testDsp},
+      {"CI-V bytes", testBytes}, {"frame reader", testReader}, {"frequency entry", testTuning}, {"tuning dial", testDial}, {"FFT", testDsp},
       {"log and CSV", testStore}, {"rig basics", testRigBasics}, {"dial spin", testCoalesce},
       {"stale readings", testStaleReadings}, {"echo back", testEcho}, {"refused commands", testRefused},
       {"scope", testScope}, {"TX guards", testTxGuards}, {"TX watchdog", testWatchdog}, {"un-key retry", testUnkeyRetry},

@@ -12,8 +12,8 @@ It's written in C++17 with Dear ImGui, GLFW and miniaudio. It builds to a single
 
 ## Contents
 
+- [Download](#download)
 - [Tested on](#tested-on)
-- [Quick start](#quick-start)
 - [Building](#building)
 - [Setting up the radio](#setting-up-the-radio)
 - [Running it](#running-it)
@@ -24,6 +24,63 @@ It's written in C++17 with Dear ImGui, GLFW and miniaudio. It builds to a single
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 - [Third-party code](#third-party-code)
+
+## Download
+
+You don't need to compile anything. Ready-to-run programs are in the [`bin`](bin) folder:
+
+| System | Folder | Needs |
+|---|---|---|
+| Windows 10 or 11, x64 | [`bin/windows-x64`](bin/windows-x64) | Nothing else |
+| Linux, x64 | [`bin/linux-x64`](bin/linux-x64) | glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35 or later) and a graphics driver with OpenGL |
+| macOS 11 or newer, Apple Silicon or Intel | [`bin/macos`](bin/macos) | Nothing else. If this folder isn't there, the macOS build hasn't been published yet, so [build it from source](#linux-and-macos) |
+
+To get them, [download the project as a ZIP](https://github.com/laindonlad/IC-7300-Scope/archive/refs/heads/main.zip) and unzip it, or clone it with Git. Each folder holds the same three programs, and only `ic7300console` is needed to use the radio:
+
+| File | What it is |
+|---|---|
+| `ic7300console` | The application |
+| `ic7300probe` | A console tool that checks the protocol against a real radio ([details](#testing)) |
+| `test_core` | The core test suite |
+
+Start with `--demo` to try it with a simulated radio. When you're ready to use a real radio, [set it up](#setting-up-the-radio), then run it without `--demo`. It finds the serial port and sound card itself.
+
+The programs aren't code-signed, so your system may warn you the first time. Check how far each system has been tested in [Tested on](#tested-on).
+
+### Windows
+
+In PowerShell, from the unzipped folder:
+
+```powershell
+.\bin\windows-x64\ic7300console.exe --demo
+```
+
+To use a real radio, double-click `ic7300console.exe`. If SmartScreen stops it, choose **More info**, then **Run anyway**.
+
+### Linux
+
+```sh
+cd bin/linux-x64
+chmod +x ic7300console ic7300probe test_core
+./ic7300console --demo
+```
+
+To open the radio's serial port, your user must be in the `dialout` group:
+
+```sh
+sudo usermod -aG dialout "$USER"     # then log out and back in
+```
+
+### macOS
+
+```sh
+cd bin/macos
+chmod +x ic7300console ic7300probe test_core
+xattr -d com.apple.quarantine ic7300console ic7300probe test_core   # stops Gatekeeper blocking a downloaded file
+./ic7300console --demo
+```
+
+The `xattr` command reports an error for a file that isn't marked as downloaded, which is harmless.
 
 ## Tested on
 
@@ -36,28 +93,13 @@ It's written in C++17 with Dear ImGui, GLFW and miniaudio. It builds to a single
 Other setups:
 
 - **Other versions of Windows**: not tested.
-- **Linux and macOS**: the code is written (POSIX serial, GLFW, miniaudio, per-user data folders) but **has never been compiled or run**. Expect to make some small fixes on the first build.
+- **Linux**: the binaries in `bin/linux-x64` were built on Ubuntu 22.04 with GCC 11. They pass the core tests and the GUI self-test in a container, on a virtual X11 display with software OpenGL and the simulated radio. **They have never been run on a real desktop, on Wayland, or with a real radio or sound card.**
+- **macOS**: **not tested.** The binaries come from an automated build, and nobody has tried them on a real Mac desktop or with a real radio.
 - **IC-7300 MK2**: not tested.
 
-## Quick start
-
-On Windows 11, in PowerShell:
-
-```powershell
-winget install BrechtSanders.WinLibs.POSIX.UCRT   # GCC, CMake and Ninja; open a new terminal afterwards
-winget install Git.Git                            # if you don't already have Git
-
-git clone https://github.com/laindonlad/IC-7300-Scope.git
-cd IC-7300-Scope
-cmake -S . -B build -G Ninja
-cmake --build build
-
-.\build\ic7300console.exe --demo     # try it with a simulated radio
-```
-
-When you're ready to use a real radio, [set it up](#setting-up-the-radio), then run `.\build\ic7300console.exe`. It finds the COM port and sound card itself.
-
 ## Building
+
+You only need this if you want to change the code, or if there's no [ready-made program](#download) for your system.
 
 You need CMake 3.16 or newer and a C++17 compiler. All the libraries are already in `third_party/` at pinned versions, so there's nothing else to download and there are no submodules:
 
@@ -70,9 +112,15 @@ You need CMake 3.16 or newer and a C++17 compiler. All the libraries are already
 ### Windows with MinGW-w64
 
 ```powershell
+winget install BrechtSanders.WinLibs.POSIX.UCRT   # GCC, CMake and Ninja; open a new terminal afterwards
+winget install Git.Git                            # if you don't already have Git
+
+git clone https://github.com/laindonlad/IC-7300-Scope.git
+cd IC-7300-Scope
 cmake -S . -B build -G Ninja
 cmake --build build
 .\build\test_core
+.\build\ic7300console.exe --demo
 ```
 
 The executables are statically linked, so `ic7300console.exe` can be copied to another PC and run on its own.
@@ -93,24 +141,26 @@ For an older Visual Studio, change the generator name. `cmake --help` lists them
 
 ### Build outputs
 
-| File | What it is |
-|---|---|
-| `ic7300console` | The application |
-| `ic7300probe` | A console tool that checks the protocol against a real radio ([details](#testing)) |
-| `test_core` | The core test suite |
+A build makes the same three programs as the [download](#download), in `build`. The default build type is Release. To build only the core library, the tests and the probe, without the window, add `-DBUILD_GUI=OFF` to the first `cmake` command.
 
-The default build type is Release. To build only the core library, the tests and the probe, without the window, add `-DBUILD_GUI=OFF` to the first `cmake` command.
-
-### Linux and macOS (untested)
+### Linux and macOS
 
 Linux needs these packages, and your user must be in the `dialout` group to open the serial port:
 
 ```sh
-sudo apt install build-essential cmake ninja-build libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+sudo apt install build-essential cmake ninja-build pkg-config libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
 sudo usermod -aG dialout "$USER"     # then log out and back in
 ```
 
 macOS needs Xcode's command line tools and CMake. On both, the build commands are the same as above, using `./build/ic7300console` to run it.
+
+### Updating `bin`
+
+The programs in `bin` are copied in by hand, so they only change when someone rebuilds them. After changing the code, update each one:
+
+- **Windows**: do the MinGW-w64 build, copy the three `.exe` files to `bin/windows-x64`, and run `strip` on them.
+- **Linux**: do the build on Ubuntu 22.04, so the programs run on as many distributions as possible. Add `-DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"` to the first `cmake` command, and copy the three programs to `bin/linux-x64`. Docker can provide Ubuntu 22.04 on any system. If you commit from Windows, add new files with `git add --chmod=+x` to keep them executable.
+- **macOS**: run **Build macOS binaries** from the repository's Actions tab. It builds for Apple Silicon and Intel on a Mac that GitHub provides, runs the tests and commits the result to `bin/macos`.
 
 ## Setting up the radio
 
@@ -162,8 +212,18 @@ Port, baud rate, CI-V address, sound devices, your callsign and the PTT time lim
 | **Below that** | Band, mode, data mode, filter and tuning step |
 | **Left** | Receive, filter and noise controls, including AF, RF gain, preamp, attenuator, AGC, Twin PBT, NB, NR and notch |
 | **Centre** | The band scope and the audio waterfall. Drag the bar between them to resize. Either can be hidden from **View** |
-| **Right** | Tabs for Keypad, Memories, Log and CW / Voice |
+| **Right** | Tabs for Keypad (with the tuning dial), Memories, Log and CW / Voice |
 | **Bottom** | Connection status and UTC. The dot is green when connected, amber when the port is open but the radio isn't answering, and red when the port can't be opened |
+
+### The tuning dial
+
+The knob at the top of the Keypad tab works like a radio's main tuning control. Click it anywhere and spin it, and it follows your hand even if the pointer leaves the knob. Clockwise tunes up.
+
+- **Turn it slowly to fine tune.** One full turn is ten tuning steps, as the label below it shows: at the 100 Hz step, one turn is 1 kHz, in 10 Hz clicks.
+- **Spin it fast to move further.** Above 1.5 turns a second the rate builds up, reaching eight times at 4 turns a second.
+- **Let go while spinning fast and it runs on** for a moment, like a weighted knob. Click it to stop it. After a slow turn it stops dead, and it never runs on while transmitting.
+- **Hold Shift** for ten times the rate.
+- **The mouse wheel** moves it one tuning step at a time.
 
 ### Entering a frequency
 
@@ -195,7 +255,7 @@ Just start typing, anywhere. Enter goes there and Esc cancels. You can also use 
 ### Mouse
 
 - **Digits**: the wheel tunes that digit. Click the top half to go up, the bottom half to go down.
-- **Waterfalls**: the wheel tunes by the step.
+- **Waterfalls and the tuning dial**: the wheel tunes by the step.
 - **Sliders**: the wheel moves them.
 - **Band scope**: click to tune there. Right-click for split and memories.
 - **Audio waterfall**: click to move that signal to the pitch, which is 1500 Hz on SSB and your CW pitch on CW. In data modes the dial stays put, so a digital program keeps its place.
@@ -304,6 +364,10 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 
 `src/tuning.h` maps an audio tone to its RF frequency. It allows for sideband, CW pitch and the RTTY mark tone, which is how clicking the waterfall knows where to tune. AM and FM don't map a tone to one RF frequency, so clicking doesn't retune in those modes.
 
+### The tuning dial
+
+`tuning::Dial` in `src/tuning.h` measures how far the pointer has moved round the knob's centre, so grabbing it anywhere doesn't make it jump. It converts that into clicks, 100 to the turn, and applies the speed-up and the run-on. It ignores the pointer very close to the centre, where a tiny movement would swing the angle wildly. It has no GUI code, so `test_core` can check it directly. `App::drawDial` draws the knob, with the light fixed while the flutes and dimple turn.
+
 ### Drawing
 
 `src/waterfall.cpp` keeps each waterfall in one OpenGL texture, used as a ring. A new line overwrites the oldest and only that row is uploaded, however large the window. Raw levels are kept beside the colours, so changing brightness, contrast or palette also applies to the history.
@@ -333,20 +397,26 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 | `src/demo_audio.h` | The demo's generated audio |
 | `src/dsp.h` | The FFT and dB scaling |
 | `src/waterfall.h`, `src/waterfall.cpp` | The waterfall texture and palettes |
-| `src/tuning.h` | Frequency entry and audio-to-RF mapping |
+| `src/tuning.h` | Frequency entry, audio-to-RF mapping and the tuning dial's behaviour |
 | `src/bands.h` | The band table, presets and band plan |
 | `src/store.h`, `src/store.cpp` | Settings, memories, log, ADIF, WAV |
 | `src/app.h`, `src/app.cpp` | The window and the self-test script |
 | `src/main.cpp` | Command-line options |
 | `tests/test_core.cpp` | The core test suite |
 | `tools/probe.cpp` | The check against a real radio |
+| `res/` | The Windows icon and the resource file that embeds it |
+| `tools/make_icon.py` | Draws the icon. Only needed to change it |
+| `bin/` | The ready-to-run programs for each system |
+| `.github/workflows/build-macos.yml` | The automated build behind `bin/macos` |
 
 ## Testing
 
+The commands below use the `build` folder. If you downloaded the programs, use your system's folder in `bin` instead.
+
 | Test | Needs | What it covers |
 |---|---|---|
-| `test_core` | Nothing | 408 checks: CI-V bytes, frequency entry, FFT and log files, plus the rig thread against the simulated radio, including refused commands, echo, stale readings, lost links and every transmit guard |
-| `ic7300console --demo --selftest out.txt` | A display | 51 checks: real clicks and keystrokes through the window, against the simulated radio |
+| `test_core` | Nothing | 438 checks: CI-V bytes, frequency entry, the tuning dial, FFT and log files, plus the rig thread against the simulated radio, including refused commands, echo, stale readings, lost links and every transmit guard |
+| `ic7300console --demo --selftest out.txt` | A display | 55 checks: real clicks and keystrokes through the window, against the simulated radio |
 | `ic7300probe` | A real radio | Reads everything from the radio and listens to the scope |
 
 ### Core tests
@@ -355,7 +425,7 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 .\build\test_core            # or: ctest --test-dir build
 ```
 
-This takes about 25 seconds and ends with `408 checks, 0 failed`.
+This takes about 25 seconds and ends with `438 checks, 0 failed`.
 
 ### GUI self-test
 
@@ -410,10 +480,12 @@ These are bundled in `third_party/`, each under its own licence:
 
 | Component | Licence |
 |---|---|
-| [Dear ImGui](https://github.com/ocornut/imgui) | MIT |
-| [GLFW](https://www.glfw.org/) | zlib/libpng |
-| [miniaudio](https://miniaud.io/) | Public domain or MIT-0 |
-| Roboto font, by Christian Robertson | Apache 2.0 |
-| Cousine font, by Steve Matteson | SIL Open Font License 1.1 |
+| [Dear ImGui](https://github.com/ocornut/imgui) | [MIT](third_party/imgui/LICENSE.txt) |
+| [GLFW](https://www.glfw.org/) | [zlib/libpng](third_party/glfw/LICENSE.md) |
+| [miniaudio](https://miniaud.io/) | [Public domain or MIT-0](third_party/miniaudio/LICENSE) |
+| Roboto font, by Christian Robertson | [Apache 2.0](third_party/imgui/fonts/LICENSE-Roboto.txt) |
+| Cousine font, by Steve Matteson | [SIL Open Font License 1.1](third_party/imgui/fonts/LICENSE-Cousine.txt) |
+
+All of these are compiled into the programs in `bin`, so keep these licence files with them if you pass the programs on.
 
 This project is released under the [MIT License](LICENSE).
