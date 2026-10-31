@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
   if (!s.connected) {
     printf("FAIL: no answer from the rig. %s\n", s.portError.empty() ? "The port opened but nothing replied." : s.portError.c_str());
     printf("Check: rig powered on; CI-V USB Baud Rate 115200; CI-V Address 94h.\n");
-    printf("If the port's in use, close Station or MorseRx first: a port can only have one owner.\n");
+    printf("If the port's in use, close the other program first: a port can only have one owner.\n");
     return 1;
   }
 

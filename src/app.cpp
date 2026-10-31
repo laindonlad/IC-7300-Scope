@@ -92,6 +92,7 @@ double niceStep(double span, int wanted) {
 void glfwError(int code, const char* msg) { fprintf(stderr, "GLFW %d: %s\n", code, msg); }
 
 // The window icon: a tiny waterfall, drawn here so there's no image file to carry about.
+#ifndef _WIN32  // on Windows the icon is in the executable: see res/ic7300console.rc
 void setIcon(GLFWwindow* w) {
   static unsigned char px[32 * 32 * 4];
   for (int y = 0; y < 32; y++)
@@ -106,6 +107,7 @@ void setIcon(GLFWwindow* w) {
   GLFWimage img = {32, 32, px};
   glfwSetWindowIcon(w, 1, &img);
 }
+#endif
 
 bool saveBmp(const std::string& path, int w, int h) {
   std::vector<unsigned char> px((size_t)w * h * 4);
@@ -163,6 +165,7 @@ class App {
   void drawScopePane();
   void drawAudioPane();
   void drawRightTabs();
+  void drawDial();
   void drawKeypad();
   void drawMemories();
   void drawLog();
@@ -243,6 +246,7 @@ class App {
 
   // tuning
   int stepIdx_ = 2;
+  tuning::Dial dial_;
   std::string entry_;
   double entryErrorUntil_ = 0;
   struct BandMem {
@@ -1572,12 +1576,132 @@ void App::drawCentre() {
 
 // ---------------------------------------------------------------- the right-hand tabs
 
+// A disc whose shade depends on the direction from its centre, which is how a turned metal surface catches
+// the light. ImGui has no gradients of this kind, so it's a fan of triangles with a colour at each vertex.
+template <typename Shade>
+static void shadedDisc(ImDrawList* dl, ImVec2 c, float r, Shade shade) {
+  const int n = 96;
+  const ImVec2 uv = ImGui::GetFontTexUvWhitePixel();
+  dl->PrimReserve(n * 3, n + 1);
+  const ImDrawIdx base = (ImDrawIdx)dl->_VtxCurrentIdx;
+  float sum = 0;
+  for (int i = 0; i < n; i++) sum += shade((float)(i * 2.0 * M_PI / n));
+  int mid = (int)(sum / n);
+  dl->PrimWriteVtx(c, uv, IM_COL32(mid, mid, mid, 255));
+  for (int i = 0; i < n; i++) {
+    float t = (float)(i * 2.0 * M_PI / n);
+    int v = std::max(0, std::min(255, (int)shade(t)));
+    dl->PrimWriteVtx(ImVec2(c.x + cosf(t) * r, c.y + sinf(t) * r), uv, IM_COL32(v, v, v, 255));
+  }
+  for (int i = 0; i < n; i++) {
+    dl->PrimWriteIdx(base);
+    dl->PrimWriteIdx((ImDrawIdx)(base + 1 + i));
+    dl->PrimWriteIdx((ImDrawIdx)(base + 1 + (i + 1) % n));
+  }
+}
+
+static std::string hzName(long long hz) {
+  char b[32];
+  if (hz >= 1000000) snprintf(b, sizeof b, "%g MHz", (double)hz / 1e6);
+  else if (hz >= 1000) snprintf(b, sizeof b, "%g kHz", (double)hz / 1e3);
+  else snprintf(b, sizeof b, "%lld Hz", hz);
+  return b;
+}
+
+void App::drawDial() {
+  // It takes what the pane has left, so the keypad and the band's presets below it still fit.
+  const float d = std::max(S(84), std::min(S(170), ImGui::GetWindowHeight() - S(385)));
+  const float r = d / 2;
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetContentRegionAvail().x - d) / 2);
+  ImGui::BeginDisabled(!st_.connected);
+  ImGui::InvisibleButton("##dial", ImVec2(d, d));
+  ImGui::EndDisabled();
+  note("dial");
+  const ImVec2 a = ImGui::GetItemRectMin();
+  const ImVec2 c(a.x + r, a.y + r);
+  ImGuiIO& io = ImGui::GetIO();
+  const bool active = ImGui::IsItemActive(), hovered = ImGui::IsItemHovered();
+  const bool live = st_.connected;
+  const long long step = kSteps[stepIdx_] * (io.KeyShift ? 10 : 1);
+  const long long clickHz = tuning::Dial::clickHz(step);
+
+  // Held, it follows the pointer even off the dial, so a wide circle of the arm keeps tuning. A coast
+  // ends if the link goes or the rig starts transmitting: the dial mustn't wander on its own then.
+  int clicks = 0;
+  if (active) {
+    clicks = dial_.spin(io.MousePos.x - c.x, io.MousePos.y - c.y, r * 0.1f, io.DeltaTime);
+  } else {
+    if (!live || st_.tx) dial_.stop();
+    clicks = dial_.idle(io.DeltaTime);
+  }
+  if (clicks && live) tuneTo(tuning::stepFreq(st_.hz, clickHz, clicks));
+  if (hovered && live && io.MouseWheel != 0.f) {
+    int notch = io.MouseWheel > 0 ? 1 : -1;
+    dial_.nudge(notch * tuning::Dial::kClicksPerStep);
+    tuneTo(tuning::stepFreq(st_.hz, step, notch));
+  }
+  if ((hovered || active) && live) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+  ImGui::SetItemTooltip("Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.");
+
+  // Lit from the top left, and that light stays put as the knob turns: only the flutes and dimple move.
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  const float lightAt = (float)(-0.75 * M_PI);
+  auto lit = [lightAt](float t) { return 0.5f + 0.5f * cosf(t - lightAt); };
+  const float turned = (float)dial_.angle();
+  const float skirt = r * 0.97f, cap = r * 0.70f;
+
+  // The shadow it casts on the panel.
+  dl->AddCircleFilled(ImVec2(c.x + r * 0.03f, c.y + r * 0.05f), skirt, IM_COL32(0, 0, 0, 120), 96);
+  // The rubber grip.
+  shadedDisc(dl, c, skirt, [&](float t) { return 22.f + 34.f * lit(t); });
+  const int flutes = 44;
+  for (int i = 0; i < flutes; i++) {
+    float t = turned + (float)(i * 2.0 * M_PI / flutes);
+    ImVec2 u(cosf(t), sinf(t));
+    ImVec2 from(c.x + u.x * r * 0.79f, c.y + u.y * r * 0.79f), to(c.x + u.x * skirt, c.y + u.y * skirt);
+    // A groove: its dark floor, and a lit edge beside it that's brighter facing the light.
+    dl->AddLine(from, to, IM_COL32(6, 6, 7, 255), S(2.2f));
+    ImVec2 side(-u.y * S(1.6f), u.x * S(1.6f));
+    int e = 44 + (int)(70 * lit(t));
+    dl->AddLine(ImVec2(from.x + side.x, from.y + side.y), ImVec2(to.x + side.x, to.y + side.y), IM_COL32(e, e, e + 3, 255), S(1));
+  }
+  dl->AddCircle(c, skirt, IM_COL32(10, 10, 11, 255), 96, S(1.5f));
+  // The shoulder between grip and cap.
+  shadedDisc(dl, c, r * 0.78f, [&](float t) { return 18.f + 74.f * lit(t); });
+  shadedDisc(dl, c, r * 0.74f, [&](float t) { return 92.f - 72.f * lit(t); });
+  // The cap: spun aluminium, whose fine circular grain shows two bright wedges opposite each other.
+  shadedDisc(dl, c, cap, [&](float t) {
+    float sheen = powf(fabsf(cosf(t - lightAt)), 7.f);
+    float second = powf(fabsf(cosf(t - lightAt - 1.1f)), 18.f);
+    return 104.f + 108.f * sheen + 34.f * second;
+  });
+  dl->AddCircle(c, cap, IM_COL32(236, 238, 240, 150), 96, S(1));
+  dl->AddCircle(c, cap - S(1.5f), IM_COL32(40, 42, 46, 110), 96, S(1));
+
+  // The finger dimple, starting at the top. It's a hollow, so it's lit the opposite way to the rest.
+  const float t = turned - (float)M_PI / 2;
+  const float well = r * 0.17f;
+  const ImVec2 dimple(c.x + cosf(t) * r * 0.45f, c.y + sinf(t) * r * 0.45f);
+  shadedDisc(dl, dimple, well, [&](float a2) { return 150.f - 118.f * lit(a2); });
+  shadedDisc(dl, dimple, well * 0.72f, [&](float a2) { return 66.f + 44.f * (1.f - lit(a2)); });
+  dl->AddCircle(dimple, well, IM_COL32(30, 31, 34, 170), 40, S(1));
+
+  // Pressed, it sits a little darker in the hand. Off the air, it's dimmed like any other disabled control.
+  if (!live) dl->AddCircleFilled(c, r, IM_COL32(16, 18, 23, 150), 96);
+  else if (active) dl->AddCircleFilled(c, cap, IM_COL32(0, 0, 0, 26), 96);
+
+  std::string rate = "1 turn = " + hzName(step * tuning::Dial::kClicksPerStep);
+  ImVec2 ts = ImGui::CalcTextSize(rate.c_str());
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetContentRegionAvail().x - ts.x) / 2);
+  ImGui::TextDisabled("%s", rate.c_str());
+}
+
 void App::drawKeypad() {
-  ImGui::TextDisabled("Or just start typing, anywhere:");
-  ImGui::TextDisabled("14.074  14074  7  198k  +5");
+  drawDial();
+  ImGui::TextDisabled("Or just type: 14.074  7  198k  +5");
   ImGui::PushFont(fMid_);
   float gap = ImGui::GetStyle().ItemSpacing.x;
-  float w = (ImGui::GetContentRegionAvail().x - gap * 3) / 4, h = S(32);
+  float w = (ImGui::GetContentRegionAvail().x - gap * 3) / 4, h = S(28);
   const char* rows[4][4] = {{"7", "8", "9", "<"}, {"4", "5", "6", "kHz"}, {"1", "2", "3", "MHz"}, {".", "0", "+/-", "Clr"}};
   for (int r = 0; r < 4; r++)
     for (int c = 0; c < 4; c++) {
@@ -1609,7 +1733,7 @@ void App::drawKeypad() {
       note(std::string("key:") + k);
     }
   ImGui::BeginDisabled(entry_.empty() || !st_.connected);
-  if (actionButton("ENTER", ImVec2(-1, S(34)), V_ACCENT, V_ACCENT_HI, "key:enter")) commitEntry();
+  if (actionButton("ENTER", ImVec2(-1, S(30)), V_ACCENT, V_ACCENT_HI, "key:enter")) commitEntry();
   ImGui::EndDisabled();
   ImGui::PopFont();
   ImGui::Spacing();
@@ -1855,7 +1979,7 @@ void App::drawStatus() {
     ImGui::Text("%s  %d baud", port_.c_str(), baud_);
   } else if (!st_.portError.empty()) {
     bool busy = st_.portError.find("in use") != std::string::npos;
-    ImGui::TextColored(ImColor(C_RED), "%s%s", st_.portError.c_str(), busy ? ". Close it (Station, MorseRx...): a port has one owner." : "");
+    ImGui::TextColored(ImColor(C_RED), "%s%s", st_.portError.c_str(), busy ? ". Close the other program: a port has one owner." : "");
   } else if (st_.portOpen) {
     ImGui::TextColored(ImColor(C_AMBER), "%s open, but no answer: is the rig on? CI-V address %02Xh, %d baud?", port_.c_str(), addr_, baud_);
   } else {
@@ -2006,7 +2130,8 @@ void App::drawHelp() {
           {"F9, F10", "Data mode, next filter"},
           {"F11, F12", "Split, swap VFOs"},
           {"Ctrl+Space", "PTT on or off, once armed"},
-          {"Wheel", "On a digit tunes that digit. On a waterfall, by the step. On a slider, moves it."},
+          {"Tuning dial", "Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on."},
+          {"Wheel", "On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it."},
           {"Click a digit", "Top half up, bottom half down"},
           {"Click the band scope", "Tune there. Right-click for split and memories."},
           {"Click the audio waterfall", "Moves that signal to the pitch (not in data modes)"},
@@ -2194,6 +2319,41 @@ void App::buildSelfTest() {
   });
   step(settle, [this] { expect("wheel on a digit tunes that digit", sim_->hz() == 14010000); });
 
+  // ---- the tuning dial: a drag round its rim, in the small moves a hand makes
+  auto spinDial = [this](float fromDeg, float toDeg) {
+    inject_.push_back([this, fromDeg](ImGuiIO& io) {
+      ImRect r = rects_["dial"];
+      float rad = fromDeg * (float)M_PI / 180, c = r.GetWidth() / 2;
+      io.AddMousePosEvent(r.Min.x + c + cosf(rad) * c * 0.7f, r.Min.y + c + sinf(rad) * c * 0.7f);
+    });
+    inject_.push_back([](ImGuiIO&) {});
+    inject_.push_back([](ImGuiIO& io) { io.AddMouseButtonEvent(0, true); });
+    inject_.push_back([](ImGuiIO&) {});
+    const int moves = 90;  // unhurried, whatever the frame rate, so it's plain tuning with no speed-up
+    for (int i = 1; i <= moves; i++) {
+      float deg = fromDeg + (toDeg - fromDeg) * (float)i / moves;
+      inject_.push_back([this, deg](ImGuiIO& io) {
+        ImRect r = rects_["dial"];
+        float rad = deg * (float)M_PI / 180, c = r.GetWidth() / 2;
+        io.AddMousePosEvent(r.Min.x + c + cosf(rad) * c * 0.7f, r.Min.y + c + sinf(rad) * c * 0.7f);
+      });
+    }
+    inject_.push_back([](ImGuiIO&) {});
+    inject_.push_back([](ImGuiIO& io) { io.AddMouseButtonEvent(0, false); });
+  };
+  step(1, [this] { typeText("14100"); pressKey(ImGuiKey_Enter); setStep(4); });  // 1 kHz
+  step(settle, [this] { click("dial", 0.85f, 0.5f); });
+  step(settle, [this] { expect("clicking the dial without spinning it stays put", sim_->hz() == 14100000); });
+  // A click is a tenth of the step, 100 Hz, every 3.6 degrees. So 95 degrees is 26 clicks, and the part-click
+  // left over is forgotten on release.
+  step(1, [spinDial] { spinDial(0, 95); });
+  step(settle, [this] { expect("spinning the dial clockwise tunes up", sim_->hz() == 14102600); });
+  step(1, [spinDial] { spinDial(95, 0); });
+  step(settle, [this] { expect("spinning it anticlockwise tunes down", sim_->hz() == 14100000); });
+  // Across the point where the angle wraps, which mustn't read as most of a turn the other way.
+  step(1, [spinDial] { spinDial(170, 265); });
+  step(settle, [this] { expect("spinning across the wrap tunes the right way", sim_->hz() == 14102600); setStep(2); });
+
   // ---- waterfalls
   step(1, [this] { typeText("14100"); pressKey(ImGuiKey_Enter); });
   step(60, [this] { expect("scope sweeps arriving", !scopeLine_.empty() && scopeHi_ > scopeLo_); click("scopeplot", 0.75f, 0.7f); });
@@ -2363,7 +2523,9 @@ int App::run() {
   glfwMakeContextCurrent(win_);
   glfwSwapInterval(1);
   glfwSetWindowSizeLimits(win_, std::min((int)(1280 * scale_), waW), std::min((int)(700 * scale_), waH), GLFW_DONT_CARE, GLFW_DONT_CARE);
+#ifndef _WIN32
   setIcon(win_);
+#endif
 
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
