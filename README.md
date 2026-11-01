@@ -563,7 +563,7 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 
 `src/waterfall.cpp` keeps each waterfall in one OpenGL texture, used as a ring. A new line overwrites the oldest and only that row is uploaded, however large the window. Raw levels are kept beside the colours, so changing brightness, contrast or palette also applies to the history.
 
-`src/app.cpp` draws the whole interface every frame with Dear ImGui. It embeds its fonts in the executable at build time. The layout needs 1280x720 logical pixels and shrinks to fit if display scaling leaves fewer than that.
+`src/app.cpp` draws the whole interface every frame with Dear ImGui. It embeds its fonts in the executable at build time. The layout is comfortable at 1560x960 logical pixels. It follows the display's scaling, and shrinks to fit if that leaves fewer than this, down to 75%. It rescales when the window moves to a screen that wants a different scale, so a window dragged from a 4K screen at 200% to a 1080p one at 100% keeps the same layout.
 
 ### The simulated radio
 

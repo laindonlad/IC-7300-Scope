@@ -176,6 +176,9 @@ class App {
  private:
   // ---- set-up and what happens every frame ----
   void setupStyle(float scale);
+  float monitorScale(GLFWmonitor* m) const;
+  void setSizeLimits(GLFWmonitor* m);
+  void followMonitor();
   void loadSettings();
   void saveSettings();
   void connect();
@@ -304,6 +307,9 @@ class App {
   AppOptions opt_;
   GLFWwindow* win_ = nullptr;
   float scale_ = 1;
+  double nextMonitorCheck_ = 0;
+  int lastWinX_ = 0, lastWinY_ = 0;
+  bool searchSizeStale_ = false;  // the station search keeps its size, so it's reset after a change of scale
   ImFont* fText_ = nullptr;
   ImFont* fSmall_ = nullptr;
   ImFont* fMid_ = nullptr;
@@ -461,6 +467,7 @@ class App {
 
 void App::setupStyle(float scale) {
   ImGuiStyle& s = ImGui::GetStyle();
+  s = ImGuiStyle();  // ScaleAllSizes multiplies what's there, and this runs again when the scale changes
   ImGui::StyleColorsDark();
   s.WindowRounding = 0, s.ChildRounding = 4, s.FrameRounding = 3, s.GrabRounding = 3, s.PopupRounding = 4, s.TabRounding = 3;
   s.WindowBorderSize = 0, s.ChildBorderSize = 1, s.FrameBorderSize = 0;
@@ -493,6 +500,7 @@ void App::setupStyle(float scale) {
   s.ScaleAllSizes(scale);
 
   ImGuiIO& io = ImGui::GetIO();
+  io.Fonts->Clear();
   ImFontConfig cfg;
   cfg.FontDataOwnedByAtlas = false;
   cfg.OversampleH = 2;
@@ -503,6 +511,82 @@ void App::setupStyle(float scale) {
   fMid_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 19.f * scale, &cfg);
   fFreq_ = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 56.f * scale, &cfg);
   fFreqSmall_ = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 21.f * scale, &cfg);
+}
+
+// The layout is designed in logical pixels and is comfortable at 1560x960 of them. Window sizes are real
+// pixels on Windows and X11 (macOS and Wayland handle scaling themselves). The interface follows the display's
+// scaling unless that would leave less room than this, and then it shrinks to fit.
+float App::monitorScale(GLFWmonitor* m) const {
+  float sx = 1, sy = 1;
+  int waX = 0, waY = 0, waW = 1920, waH = 1080;
+  if (m) {
+    glfwGetMonitorContentScale(m, &sx, &sy);
+    glfwGetMonitorWorkarea(m, &waX, &waY, &waW, &waH);
+  }
+#ifdef __APPLE__
+  sx = 1;
+#endif
+  return std::max(0.75f, std::min({sx, (float)waW / 1560.f, (float)waH / 960.f}));
+}
+
+void App::setSizeLimits(GLFWmonitor* m) {
+  int waX = 0, waY = 0, waW = 1920, waH = 1080;
+  if (m) glfwGetMonitorWorkarea(m, &waX, &waY, &waW, &waH);
+  glfwSetWindowSizeLimits(win_, std::min((int)(1280 * scale_), waW), std::min((int)(700 * scale_), waH), GLFW_DONT_CARE, GLFW_DONT_CARE);
+}
+
+// Screens side by side can want quite different scales, so the window rescales when it's moved to another one:
+// the same layout then fills a 1080p screen at 100% as fills a 4K one at 200%. Runs between frames, as it
+// replaces the fonts.
+void App::followMonitor() {
+  if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) return;  // Wayland won't say where the window is
+  double now = glfwGetTime();
+  if (now < nextMonitorCheck_) return;
+  nextMonitorCheck_ = now + 0.25;
+  int x, y, w, h;
+  glfwGetWindowPos(win_, &x, &y);
+  glfwGetWindowSize(win_, &w, &h);
+  // Not while it's being dragged, where the window manager lets us run during one.
+  bool still = x == lastWinX_ && y == lastWinY_;
+  lastWinX_ = x, lastWinY_ = y;
+  if (!still || w <= 0 || h <= 0 || glfwGetWindowAttrib(win_, GLFW_ICONIFIED)) return;
+
+  // The screen holding most of the window, which is also how Windows decides.
+  int count = 0;
+  GLFWmonitor** monitors = glfwGetMonitors(&count);
+  GLFWmonitor* best = nullptr;
+  long long bestArea = 0;
+  int waX = 0, waY = 0, waW = 0, waH = 0;
+  for (int i = 0; i < count; i++) {
+    int mx, my, mw, mh;
+    glfwGetMonitorWorkarea(monitors[i], &mx, &my, &mw, &mh);
+    long long ow = std::min(x + w, mx + mw) - std::max(x, mx), oh = std::min(y + h, my + mh) - std::max(y, my);
+    if (ow > 0 && oh > 0 && ow * oh > bestArea) {
+      bestArea = ow * oh;
+      best = monitors[i];
+      waX = mx, waY = my, waW = mw, waH = mh;
+    }
+  }
+  if (!best) return;
+  float want = monitorScale(best);
+  if (fabsf(want - scale_) < 0.01f) return;
+
+  float ratio = want / scale_;
+  scale_ = want;
+  setupStyle(scale_);
+  ImGui_ImplOpenGL3_DestroyFontsTexture();  // the next frame makes a new one from the new fonts
+  searchSizeStale_ = true;
+  setSizeLimits(best);
+  if (glfwGetWindowAttrib(win_, GLFW_MAXIMIZED)) return;  // Windows has already fitted it to the new screen
+
+  // Keep its logical size, and bring it wholly onto the new screen.
+  int left, top, right, bottom;
+  glfwGetWindowFrameSize(win_, &left, &top, &right, &bottom);
+  int nw = std::min((int)(w * ratio), waW - left - right), nh = std::min((int)(h * ratio), waH - top - bottom);
+  int nx = std::max(waX + left, std::min(x, waX + waW - nw - right)), ny = std::max(waY + top, std::min(y, waY + waH - nh - bottom));
+  glfwSetWindowSize(win_, nw, nh);
+  glfwSetWindowPos(win_, nx, ny);
+  lastWinX_ = nx, lastWinY_ = ny;
 }
 
 void App::loadSettings() {
@@ -663,6 +747,7 @@ void App::saveSettings() {
   glfwGetWindowSize(win_, &w, &h);
   cfg_.setInt("win_w", w);
   cfg_.setInt("win_h", h);
+  cfg_.setInt("win_scale_pct", (int)roundf(scale_ * 100));
   cfg_.save(cfgPath_);
 }
 
@@ -2290,7 +2375,8 @@ void App::drawStationsMenu() {
 
 void App::drawStationSearch() {
   if (!stationSearchOpen_) return;
-  ImGui::SetNextWindowSize(ImVec2(S(560), S(420)), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(S(560), S(420)), searchSizeStale_ ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+  searchSizeStale_ = false;
   if (stationSearchFocus_) ImGui::SetNextWindowFocus();
   if (!ImGui::Begin("Find a station", &stationSearchOpen_, ImGuiWindowFlags_NoCollapse)) {
     ImGui::End();
@@ -4257,21 +4343,14 @@ int App::run() {
     glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
   }
-  // The layout is designed in logical pixels and needs 1280x720 of them. Window sizes are real pixels on
-  // Windows and X11 (macOS and Wayland handle scaling themselves). If the display's scaling leaves fewer
-  // than that, the whole interface shrinks to fit rather than hanging its controls off the edge.
-  float sx = 1, sy = 1;
   int waX = 0, waY = 0, waW = 1920, waH = 1080;
-  if (GLFWmonitor* m = glfwGetPrimaryMonitor()) {
-    glfwGetMonitorContentScale(m, &sx, &sy);
-    glfwGetMonitorWorkarea(m, &waX, &waY, &waW, &waH);
-  }
-#ifdef __APPLE__
-  sx = 1;
-#endif
-  scale_ = std::max(0.75f, std::min({sx, (float)waW / 1280.f, (float)waH / 720.f}));
-  int w = opt_.width ? opt_.width : cfg_.getInt("win_w", (int)(1560 * scale_));
-  int h = opt_.height ? opt_.height : cfg_.getInt("win_h", (int)(960 * scale_));
+  GLFWmonitor* primary = glfwGetPrimaryMonitor();
+  if (primary) glfwGetMonitorWorkarea(primary, &waX, &waY, &waW, &waH);
+  scale_ = monitorScale(primary);
+  // The saved size is in real pixels, so it's converted if it was saved at another scale.
+  float savedScale = std::max(25, cfg_.getInt("win_scale_pct", (int)roundf(scale_ * 100))) / 100.f;
+  int w = opt_.width ? opt_.width : (int)(cfg_.getInt("win_w", (int)(1560 * savedScale)) * scale_ / savedScale);
+  int h = opt_.height ? opt_.height : (int)(cfg_.getInt("win_h", (int)(960 * savedScale)) * scale_ / savedScale);
   if (!opt_.width) {
     w = std::min(w, waW);
     h = std::min(h, waH - (int)(40 * scale_));  // room for the title bar
@@ -4283,7 +4362,8 @@ int App::run() {
   }
   glfwMakeContextCurrent(win_);
   glfwSwapInterval(1);
-  glfwSetWindowSizeLimits(win_, std::min((int)(1280 * scale_), waW), std::min((int)(700 * scale_), waH), GLFW_DONT_CARE, GLFW_DONT_CARE);
+  setSizeLimits(primary);
+  glfwGetWindowPos(win_, &lastWinX_, &lastWinY_);
 #ifndef _WIN32
   setIcon(win_);
 #endif
@@ -4324,6 +4404,7 @@ int App::run() {
   while (!glfwWindowShouldClose(win_)) {
     glfwPollEvents();
     if (glfwGetWindowAttrib(win_, GLFW_ICONIFIED)) std::this_thread::sleep_for(std::chrono::milliseconds(15));
+    if (!automated) followMonitor();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     if (!opt_.selfTest.empty()) runSelfTest();
