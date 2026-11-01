@@ -468,7 +468,8 @@ static void testStations() {
   CHECK(lib.search("  8040  ")[0].station && lib.search("8040")[0].station->hz == 8040000);
   {
     auto hits = lib.search("buzzer");
-    CHECK(hits.size() == 1 && hits[0].station->hz == 4625000 && hits[0].named);
+    // Its group is "Buzzers and markers", so the rest of the group is found too, after the one the search names.
+    CHECK(hits.size() == 6 && hits[0].station->hz == 4625000 && hits[0].named && !hits[1].named);
     hits = lib.search("31 m");
     CHECK(!hits.empty() && hits[0].range && hits[0].range->lo == 9400000);
     // GYA's label names it, and comes first although lower ones only mention the word.
