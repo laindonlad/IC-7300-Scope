@@ -49,7 +49,7 @@ struct SimRig::Shared {
   int ritHz = 0, ritOn = 0, xitOn = 0;
   int ant = 0, ipPlus = 0;
   int refusals = 0;
-  int level[civ::L_COUNT], sw[civ::S_COUNT];
+  int level[civ::L_COUNT], sw[civ::S_COUNT], tone[civ::TONE_COUNT];
   int scopeOn = 1, scopeOut = 0, scopeMode = civ::SCOPE_CENTER, scopeSpeed = 1;
   long long scopeSpan = 100000;
   int refCenti = 0;
@@ -68,6 +68,7 @@ struct SimRig::Shared {
     lv[civ::L_ANTIVOX] = 128;
     for (int i = 0; i < civ::L_COUNT; i++) level[i] = lv[i];
     for (int& v : sw) v = 0;
+    for (int& v : tone) v = 5;
     sw[civ::S_AGC] = 2;
     sw[civ::S_PREAMP] = 1;
     sw[civ::S_BKIN] = 1;
@@ -84,6 +85,13 @@ struct SimRig::Shared {
   void ng() {
     refusals++;
     reply(civ::kNg, {});
+  }
+  // 1A 05 setting this radio's date, time or UTC offset. Nothing reads them back, so they aren't kept.
+  bool clockWrite(const civ::Bytes& d) const {
+    const civ::ClockRows* r = civ::clockRows(id);
+    if (!r || d.size() < 3) return false;
+    const auto is = [&](const uint8_t* row, size_t size) { return d[1] == row[0] && d[2] == row[1] && d.size() == size; };
+    return is(r->date, 7) || is(r->time, 5) || is(r->offset, 6);
   }
   // What a receiver has no such command for, going by its CI-V guide.
   bool absent(const civ::Frame& f, uint8_t sub) const {
@@ -234,6 +242,16 @@ struct SimRig::Shared {
         } else if (sub == 0x07 && radio->hasIpPlus) {
           if (d.size() >= 2) ipPlus = d[1], ok();
           else reply(0x1A, {0x07, (uint8_t)ipPlus});
+        } else if (sub == 0x05 && clockWrite(d)) {
+          ok();
+        } else if (sub == 0x05 && radio->hasToneMenu() && d.size() >= 3 && d[1] == 0x00) {
+          for (int t = 0; t < civ::TONE_COUNT; t++)
+            if (civ::toneAddr(t) == d[2]) {
+              if (d.size() >= 4) tone[t] = civ::fromBcdBE(&d[3], 1), ok();
+              else reply(0x1A, {0x05, 0x00, d[2], civ::bcdBE(tone[t], 1)[0]});
+              return;
+            }
+          ng();
         } else {
           ng();
         }

@@ -7,6 +7,7 @@
 //
 // Deliberately absent: 1A 05 menu writes. Their addresses differ between the 7300 and the 7300 MK2
 // (see ic7300.c's two extcmds tables), and a wrong address silently changes some other menu item.
+// The exceptions are the tone and clock rows further down, with what makes them safe set out beside them.
 #include <stdint.h>
 #include <stddef.h>
 
@@ -16,7 +17,7 @@
 namespace civ {
 using Bytes = std::vector<uint8_t>;
 
-constexpr uint8_t kPc = 0xE0, kIc7300 = 0x94, kIc9700 = 0xA2, kIcR8600 = 0x96, kBroadcast = 0x00;
+constexpr uint8_t kPc = 0xE0, kIc7300 = 0x94, kIc7300Mk2 = 0xB6, kIc9700 = 0xA2, kIcR8600 = 0x96, kBroadcast = 0x00;
 constexpr uint8_t kOk = 0xFB, kNg = 0xFA;
 
 // What differs from one radio to the next. Everything else is the same CI-V.
@@ -70,6 +71,7 @@ struct Radio {
     const HzRange& r = nearest(hz);
     return hz < r.lo ? r.lo : hz > r.hi ? r.hi : hz;
   }
+  bool hasToneMenu() const { return addr == kIc7300; }  // the bass and treble rows below; see toneWritable too
   long long topHz() const { return ranges[rangeCount - 1].hi; }
   int maxWattsAt(long long hz) const { return nearest(hz).maxWatts; }
 };
@@ -194,6 +196,49 @@ inline uint8_t switchSub(int s) {
   return subs[s];
 }
 inline bool switchIsTx(int s) { return s == S_TONE || s == S_COMP || s == S_MON || s == S_VOX || s == S_BKIN || s == S_SSB_TX_BW; }
+// 1A 05 00 xx: MENU > SET > Tone Control, 00-10 in BCD for -5 to +5, so 05 is flat. Each is a bass row followed
+// by its treble row. CW and RTTY have neither. From the IC-7300 Full Manual and the MK2's CI-V Reference Guide.
+enum Tone { TONE_RX_SSB_BASS, TONE_RX_SSB_TREBLE, TONE_RX_AM_BASS, TONE_RX_AM_TREBLE, TONE_RX_FM_BASS, TONE_RX_FM_TREBLE,
+            TONE_TX_SSB_BASS, TONE_TX_SSB_TREBLE, TONE_TX_AM_BASS, TONE_TX_AM_TREBLE, TONE_TX_FM_BASS, TONE_TX_FM_TREBLE, TONE_COUNT };
+inline uint8_t toneAddr(int t) {
+  static const uint8_t rows[TONE_COUNT] = {0x02, 0x03, 0x05, 0x06, 0x08, 0x09, 0x12, 0x13, 0x17, 0x18, 0x19, 0x20};
+  return rows[t];
+}
+// Whether a row may be written, given what the radio itself says it is in 19 00. Up to SSB TX the 7300 and the MK2
+// agree. After that the MK2 has one more row, so what's AM TX bass here is its SSB-D transmit width. Anything
+// else that answers is treated as a 7300 for the rest of CI-V, but its menu is its own and gets no writes.
+inline bool toneWritable(int t, int rigId) {
+  if (rigId == kIc7300) return true;
+  return rigId == kIc7300Mk2 && t < TONE_TX_AM_BASS;
+}
+// The bass row for a mode, or -1 if the rig has none for it.
+inline int toneRow(int mode, bool tx) {
+  switch (mode) {
+    case LSB: case USB: return tx ? TONE_TX_SSB_BASS : TONE_RX_SSB_BASS;
+    case AM: return tx ? TONE_TX_AM_BASS : TONE_RX_AM_BASS;
+    case FM: return tx ? TONE_TX_FM_BASS : TONE_RX_FM_BASS;
+  }
+  return -1;
+}
+// 1A 05 xx xx: the radio's own clock, which holds local time and how far that is from UTC. Every radio keeps these
+// rows somewhere else, so as with the tone rows it goes by what the radio itself says it is in 19 00, and anything
+// else gets no writes. From each radio's manual or CI-V Reference Guide, except the MK2's, from Hamlib's ic7300.c.
+struct ClockRows {
+  uint8_t date[2], time[2], offset[2];
+};
+inline const ClockRows* clockRows(int rigId) {
+  static const ClockRows k7300 = {{0x00, 0x94}, {0x00, 0x95}, {0x00, 0x96}};
+  static const ClockRows k7300Mk2 = {{0x01, 0x32}, {0x01, 0x33}, {0x01, 0x36}};
+  static const ClockRows k9700 = {{0x01, 0x79}, {0x01, 0x80}, {0x01, 0x84}};
+  static const ClockRows kR8600 = {{0x01, 0x31}, {0x01, 0x32}, {0x01, 0x35}};
+  switch (rigId) {
+    case kIc7300: return &k7300;
+    case kIc7300Mk2: return &k7300Mk2;
+    case kIc9700: return &k9700;
+    case kIcR8600: return &kR8600;
+  }
+  return nullptr;
+}
 // 15 xx: meters, read-only.
 enum Meter { M_S, M_PO, M_SWR, M_ALC, M_COMP, M_VD, M_ID, M_COUNT };
 inline uint8_t meterSub(int m) {
@@ -247,6 +292,21 @@ inline Bytes ritOn(uint8_t rig, bool on) { return frame(rig, 0x21, {0x01, (uint8
 inline Bytes xitOn(uint8_t rig, bool on) { return frame(rig, 0x21, {0x02, (uint8_t)(on ? 1 : 0)}); }
 inline Bytes setWidth(uint8_t rig, int code) {
   return frame(rig, 0x1A, {0x03, bcdBE(code, 1)[0]});
+}
+inline Bytes readTone(uint8_t rig, int t) { return frame(rig, 0x1A, {0x05, 0x00, toneAddr(t)}); }
+inline Bytes setTone(uint8_t rig, int t, int v) { return frame(rig, 0x1A, {0x05, 0x00, toneAddr(t), bcdBE(v, 1)[0]}); }
+// 2026-11-01 is 20 26 11 01, and 23:59 is 23 59. It has no seconds to set.
+inline Bytes setClockDate(uint8_t rig, const ClockRows& r, int year, int month, int day) {
+  const Bytes y = bcdBE(year, 2);
+  return frame(rig, 0x1A, {0x05, r.date[0], r.date[1], y[0], y[1], bcdBE(month, 1)[0], bcdBE(day, 1)[0]});
+}
+inline Bytes setClockTime(uint8_t rig, const ClockRows& r, int hour, int minute) {
+  return frame(rig, 0x1A, {0x05, r.time[0], r.time[1], bcdBE(hour, 1)[0], bcdBE(minute, 1)[0]});
+}
+// Hours, minutes and then the sign: 01 is behind UTC.
+inline Bytes setClockOffset(uint8_t rig, const ClockRows& r, int minutes) {
+  const int a = minutes < 0 ? -minutes : minutes;
+  return frame(rig, 0x1A, {0x05, r.offset[0], r.offset[1], bcdBE(a / 60, 1)[0], bcdBE(a % 60, 1)[0], (uint8_t)(minutes < 0 ? 1 : 0)});
 }
 inline Bytes powerOn(uint8_t rig) { return frame(rig, 0x18, {0x01}); }
 inline Bytes powerOff(uint8_t rig) { return frame(rig, 0x18, {0x00}); }

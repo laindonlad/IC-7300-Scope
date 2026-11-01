@@ -23,6 +23,7 @@
 #include "sim_rig.h"
 #include "store.h"
 #include "tuning.h"
+#include "update_check.h"
 
 static int failures = 0, checks = 0;
 #define CHECK(c)                                          \
@@ -85,6 +86,28 @@ static void testBytes() {
   CHECK_HEX(civ::setRit(r, -125), "FE FE 94 E0 21 00 25 01 01 FD");
   CHECK_HEX(civ::setRit(r, 1234), "FE FE 94 E0 21 00 34 12 00 FD");
   CHECK_HEX(civ::setWidth(r, 34), "FE FE 94 E0 1A 03 34 FD");
+  // Tone rows, against the IC-7300 Full Manual's table. 10 is BCD, for +5.
+  CHECK_HEX(civ::setTone(r, civ::TONE_RX_SSB_BASS, 5), "FE FE 94 E0 1A 05 00 02 05 FD");
+  CHECK_HEX(civ::setTone(r, civ::TONE_TX_SSB_TREBLE, 10), "FE FE 94 E0 1A 05 00 13 10 FD");
+  CHECK_HEX(civ::setTone(r, civ::TONE_TX_FM_TREBLE, 0), "FE FE 94 E0 1A 05 00 20 00 FD");
+  CHECK_HEX(civ::readTone(r, civ::TONE_RX_FM_TREBLE), "FE FE 94 E0 1A 05 00 09 FD");
+  CHECK(civ::toneWritable(civ::TONE_TX_FM_TREBLE, civ::kIc7300));
+  CHECK(civ::toneWritable(civ::TONE_TX_SSB_TREBLE, civ::kIc7300Mk2));
+  CHECK(!civ::toneWritable(civ::TONE_TX_AM_BASS, civ::kIc7300Mk2));  // its SSB-D transmit width
+  CHECK(!civ::toneWritable(civ::TONE_RX_SSB_BASS, -1));
+  CHECK(!civ::toneWritable(civ::TONE_RX_SSB_BASS, 0xA4));  // another radio at a chosen address
+  CHECK(civ::toneRow(civ::CW, true) == -1 && civ::toneRow(civ::RTTY, false) == -1);
+  // The radio's clock, whose rows are somewhere else on each radio.
+  const civ::ClockRows& clock7300 = *civ::clockRows(civ::kIc7300);
+  CHECK_HEX(civ::setClockDate(r, clock7300, 2026, 11, 1), "FE FE 94 E0 1A 05 00 94 20 26 11 01 FD");
+  CHECK_HEX(civ::setClockTime(r, clock7300, 23, 59), "FE FE 94 E0 1A 05 00 95 23 59 FD");
+  CHECK_HEX(civ::setClockOffset(r, clock7300, 60), "FE FE 94 E0 1A 05 00 96 01 00 00 FD");
+  CHECK_HEX(civ::setClockOffset(r, clock7300, -210), "FE FE 94 E0 1A 05 00 96 03 30 01 FD");
+  CHECK_HEX(civ::setClockTime(r, *civ::clockRows(civ::kIc7300Mk2), 1, 2), "FE FE 94 E0 1A 05 01 33 01 02 FD");
+  CHECK_HEX(civ::setClockOffset(r, *civ::clockRows(civ::kIc7300Mk2), 0), "FE FE 94 E0 1A 05 01 36 00 00 00 FD");
+  CHECK_HEX(civ::setClockDate(r, *civ::clockRows(civ::kIc9700), 2026, 1, 2), "FE FE 94 E0 1A 05 01 79 20 26 01 02 FD");
+  CHECK_HEX(civ::setClockOffset(r, *civ::clockRows(civ::kIcR8600), 0), "FE FE 94 E0 1A 05 01 35 00 00 00 FD");
+  CHECK(civ::clockRows(-1) == nullptr && civ::clockRows(0xA4) == nullptr);  // not said yet, and a radio it doesn't know
   CHECK_HEX(civ::voiceMemory(r, 3), "FE FE 94 E0 28 00 03 FD");
   CHECK_HEX(civ::setOtherFreq(r, 14200000), "FE FE 94 E0 25 01 00 00 20 14 00 FD");
   CHECK_HEX(civ::setOtherMode(r, civ::USB, true, 2), "FE FE 94 E0 26 01 01 01 02 FD");
@@ -1853,6 +1876,19 @@ static void testLogFields() {
   std::filesystem::remove(adi);
 }
 
+static void testUpdateCheck() {
+  CHECK(update::validStamp("2026-11-01 14:05"));
+  CHECK(!update::validStamp("2026-11-01"));
+  CHECK(!update::validStamp("404: Not Found"));
+  CHECK(!update::validStamp(""));
+  CHECK(update::isNewer("2026-11-02 09:00", "2026-11-01 14:05"));
+  CHECK(update::isNewer("2026-11-01 14:06", "2026-11-01 14:05"));
+  CHECK(!update::isNewer("2026-11-01 14:05", "2026-11-01 14:05"));
+  CHECK(!update::isNewer("2026-10-31 23:59", "2026-11-01 14:05"));
+  CHECK(!update::isNewer("", "2026-11-01 14:05"));
+  CHECK(!update::isNewer("<html>", "2026-11-01 14:05"));
+}
+
 int main() {
   struct {
     const char* name;
@@ -1863,7 +1899,7 @@ int main() {
       {"stale readings", testStaleReadings}, {"echo back", testEcho}, {"refused commands", testRefused},
       {"scope", testScope}, {"TX guards", testTxGuards}, {"TX watchdog", testWatchdog}, {"un-key retry", testUnkeyRetry},
       {"un-key across an outage", testUnkeyAcrossOutage}, {"un-key at shutdown", testShutdownUnkeys},
-      {"link loss", testLinkLoss}, {"port errors", testPortBusyMessage}, {"setting the clock", testClockSync},
+      {"link loss", testLinkLoss}, {"port errors", testPortBusyMessage}, {"setting the clock", testClockSync}, {"newer build", testUpdateCheck},
   };
   for (auto& t : tests) {
     int before = failures;

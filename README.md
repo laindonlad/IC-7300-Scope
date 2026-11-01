@@ -114,6 +114,8 @@ You only need these folders to change a list or add your own. The buttons in **R
 - **To change one**: edit the copy in the folder and press **Reload**. A copy with the same name as a built-in file is used instead of it. If it has a mistake, Settings names the file and the line, and the built-in version is used until it's fixed.
 - **To undo your changes**: use **Reset this plan** or **Reset station list** in Settings, which keeps your file as `<name>.json.bak`. You can also delete the file, and the program writes a fresh copy the next time it starts.
 
+**New versions:** each time it starts, the program reads one small file from GitHub, and the bottom line says if a newer build is available for your system. Click the message to open the download page. The version is the date it was built, shown in the title bar and the **Help** menu. Nothing about you or your radio is sent, and nothing downloads or installs by itself. To turn it off, untick **Check GitHub for a new version at start** in **Rig > Settings**. On Linux and macOS it needs `curl`, and without it you just won't see the message.
+
 **After installing a new version**, the program doesn't overwrite the copies in these folders, so you keep your edits but also keep the old data. To get the new data, use the reset buttons, or delete the files before starting it. Settings tells you when a newer copy of the chosen band plan is available, but it doesn't do this for the station list.
 
 ## Tested on
@@ -195,8 +197,10 @@ macOS needs Xcode's command line tools and CMake. On both, the build commands ar
 
 The programs in `bin` are copied in by hand, so they only change when someone rebuilds them. After changing the code, update each one:
 
-- **Windows**: do the MinGW-w64 build, copy the three `.exe` files to `bin/windows-x64`, and run `strip` on them.
-- **Linux**: do the build on Ubuntu 22.04, so the programs run on as many distributions as possible. Add `-DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"` to the first `cmake` command, and copy the three programs to `bin/linux-x64`. Docker can provide Ubuntu 22.04 on any system. If you commit from Windows, add new files with `git add --chmod=+x` to keep them executable.
+The program's version is the date `ic7300console` was built, and the `BUILD_DATE` file that each build writes beside it is how copies people have downloaded find out there's a newer one. Each folder has its own, so nobody is told about a build that isn't there yet for their system. Only `ic7300console` counts: a new `BUILD_DATE` on `main` tells everyone on that system to update, so copy it together with `ic7300console`, and leave it alone if you're only updating `ic7300probe` or `test_core`. **Build macOS binaries** always rebuilds `ic7300console`, so every run of it counts as a new version.
+
+- **Windows**: do the MinGW-w64 build, copy the three `.exe` files and `BUILD_DATE` to `bin/windows-x64`, and run `strip` on the `.exe` files.
+- **Linux**: do the build on Ubuntu 22.04, so the programs run on as many distributions as possible. Add `-DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"` to the first `cmake` command, and copy the three programs and `BUILD_DATE` to `bin/linux-x64`. Docker can provide Ubuntu 22.04 on any system. If you commit from Windows, add new files with `git add --chmod=+x` to keep them executable.
 - **macOS**: run **Build macOS binaries** from the repository's Actions tab. It builds for Apple Silicon and Intel on a Mac that GitHub provides, runs the tests and commits the result to `bin/macos`.
 
 ## Setting up the radio
@@ -219,7 +223,7 @@ And under **Connectors**:
 | USB AF Output Level | Raise it until the level bar in the AUDIO toolbar sits below red | Sets the level of the audio waterfall and recordings |
 | USB SEND and USB Keying | OFF | Otherwise a serial line left high could key the radio |
 
-The app can't change these for you, by design. Menu writes use addresses that differ between the IC-7300 and the MK2, and a wrong address silently changes some other setting, so the app never sends them.
+The app can't change these for you, by design. Menu writes use addresses that differ between the IC-7300 and the MK2, and a wrong address silently changes some other setting, so the app doesn't send them. There are two exceptions. **Sync** [sets the radio's clock](#setting-the-clock), using the addresses for the radio it reports itself as. The other is bass and treble, which **RX EQ** and **TX EQ** after the filter buttons set from **MENU > SET > Tone Control** for the mode in use. Those are only written to a radio that reports itself as an IC-7300 or MK2, and an MK2 gets them for receive and SSB transmit, the rows the two have in common. CW and RTTY have no bass or treble. Setting an RX HPF/LPF on the radio puts that mode's RX bass and treble back to 0.
 
 Only one program can own a COM port, so close any other CAT software first. The sound card can be shared. To run this app alongside something that needs the COM port, such as WSJT-X, use `--no-rig` for the audio waterfall alone.
 
@@ -291,7 +295,7 @@ Port, baud rate, CI-V address, sound devices, your callsign and the PTT time lim
 | Area | What's there |
 |---|---|
 | **Top** | Frequency and mode of both VFOs; S, SWR, ALC and Vd meters (click them to swap the bars for a backlit needle meter, and click again to go back); ARM TX, PTT, TUNE, ATU, SPLIT, A/B, A=B |
-| **Below that** | Band, mode, data mode, filter and tuning step |
+| **Below that** | Band, mode, data mode, filter, RX and TX EQ, and tuning step |
 | **Left** | Receive, filter and noise controls, including AF, RF gain, preamp, attenuator, AGC, Twin PBT, NB, NR and notch |
 | **Centre** | The band scope and the audio waterfall, which can share its space with a [decoder](#decoding). Drag the bar between them to resize. Either can be hidden from **View** |
 | **Right** | Tabs for Keypad (with the tuning dial), Memories, Log, CW / Voice and Scan, with [DX spots](#dx-spots) under them |
@@ -308,7 +312,7 @@ The panel also opens by itself. Putting the rig in CW, CW-R, RTTY or RTTY-R, fro
 | CW, RTTY, NAVTEX | Decoded text, tagged by signal when there are several. Signals found are marked on the audio spectrum | `received/YYYY-MM-DD-cw.txt`, `-rtty.txt` or `-navtex.txt`, one file a day, added to |
 | WEFAX | The chart as it comes in. It starts by itself on a start tone or phasing, or press **Start now** for one already under way | `received/YYYY-MM-DD-HHMMSS.bmp`, one picture a chart |
 
-The `received` folder is beside the program, or in [your data folder](#your-data) if the program's folder can't be written to. **Rig > Open received folder** takes you there. Dates and times are UTC, like the rest of the program. Each text file notes the dial frequency and mode above what was heard there.
+The `received` folder is beside the program, or in [your data folder](#your-data) if the program's folder can't be written to. **Rig > Open received folder** takes you there. Dates and times are UTC, like the rest of the program. Each text file notes the dial frequency and mode above what was heard there. Recordings made with **Rec** in the AUDIO toolbar go in the same folder, as `rx-<date>-<time>-<hz>.wav`: 16-bit mono, 48 kHz.
 
 Decoding carries on while you transmit, but it hears silence, so your own signal isn't logged as received. Demo mode decodes without saving anything.
 
@@ -360,13 +364,16 @@ Its **World map** tab puts a pin on a world map for each place you've worked, fr
 
 ### Setting the clock
 
-FT8, FT4 and similar modes only decode if the computer's clock is within about a second of everyone else's. **Sync**, next to the time at the bottom of the window, sets it from internet time and says in the status bar how far out it was.
+FT8, FT4 and similar modes only decode if the computer's clock is within about a second of everyone else's. **Sync**, next to the time at the bottom of the window, sets it from internet time and says in the status bar how far out it was. It then sets the radio's clock from the computer's.
 
+- The radio gets the computer's local date and time and its UTC offset, so both its local and UTC displays come out right. A radio you keep on UTC will change to local time, unless the computer is on UTC too.
+- The radio's clock has no seconds, so **Sync** shows **Wait** until the next minute starts, up to a minute, and sends it then.
+- The radio's clock is left alone if the computer's time couldn't be confirmed or corrected, such as with no internet connection, or if the permission below is refused. The status bar says so.
 - The program asks NTP servers (`pool.ntp.org`, `time.cloudflare.com`, then `time.google.com`) itself, over UDP port 123, and only when you press the button. It uses the first two that answer.
 - It leaves the clock alone if it's within 0.02 s, if it's more than an hour out (check your date and time settings instead), or if the servers disagree by more than half a second.
 - **Windows asks for permission each time**, as setting the clock needs administrator rights. To stop it asking, give your account the right: in `secpol.msc`, under Local Policies > User Rights Assignment, add yourself to **Change the system time**, then sign out and back in. Windows Home doesn't have `secpol.msc`.
 - On Linux and macOS, it tells you how far out the clock is, and setting it needs `sudo ic7300console --sync-clock`.
-- In `--demo`, it only reports how far out the clock is.
+- In `--demo`, it only reports how far out the computer's clock is, and the simulated radio is the only one set.
 
 ### The tuning dial
 
@@ -532,7 +539,6 @@ Everything is stored as plain text files in a per-user folder. **Rig > Open data
 | `log.adi`, `log-CALLSIGN.adi` | The log exported as ADIF, for other logging software: all callsigns, or one |
 | `bandplans/*.json` | Band plans, which you can edit ([details](#band-plan)). Written the first time the program runs, and never overwritten |
 | `stations/*.json` | Station lists, which you can edit ([details](#stations)). Written the first time the program runs, and never overwritten |
-| `rx-<date>-<time>-<hz>.wav` | Recordings: 16-bit mono, 48 kHz |
 
 Demo mode uses `demo-settings.ini`, `demo-memories.csv` and `demo-log.csv`, so trying it can't disturb a real setup.
 
@@ -642,6 +648,7 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 | `stations/*.json` | The built-in station lists, compiled into the program |
 | `src/store.h`, `src/store.cpp` | Settings, memories, log, ADIF, WAV |
 | `src/clock_sync.h`, `src/clock_sync.cpp` | Asking NTP servers the time and setting the computer's clock |
+| `src/update_check.h`, `src/update_check.cpp`, `src/build_stamp.cpp`, `cmake/build_stamp.cmake` | The build's date, and asking GitHub whether a newer build is published |
 | `src/scan.h` | What a scan decides: when to tune, stop and carry on |
 | `src/dxcluster.h`, `src/dxcluster.cpp` | The DX cluster connection, reading spots, callsign countries and locator distances |
 | `src/worldmap.h`, `src/worldmap.cpp` | The log book's world map. `tools/make_world_map.py` builds its data, `res/worldmap.bin`, from Natural Earth |

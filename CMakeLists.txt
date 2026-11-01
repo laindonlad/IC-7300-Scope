@@ -10,7 +10,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # ---- everything below the window: no GUI, no audio, so the tests and the probe can use it ----
-add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp src/dxcluster.cpp src/decoder.cpp src/chart_overlay.cpp)
+add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp src/dxcluster.cpp src/decoder.cpp src/chart_overlay.cpp src/update_check.cpp)
 target_include_directories(rigcore PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(rigcore SYSTEM PRIVATE third_party/morse third_party/stb)
 
@@ -39,7 +39,7 @@ embed_folder(overlays png kBuiltinOverlays builtin_overlays.inc)
 find_package(Threads REQUIRED)
 target_link_libraries(rigcore PUBLIC Threads::Threads)
 if(WIN32)
-  target_link_libraries(rigcore PUBLIC setupapi shell32 ws2_32 ole32 comdlg32)
+  target_link_libraries(rigcore PUBLIC setupapi shell32 ws2_32 ole32 comdlg32 winhttp)
   target_compile_definitions(rigcore PUBLIC _USE_MATH_DEFINES)
 endif()
 if(MSVC)
@@ -80,9 +80,15 @@ if(BUILD_GUI)
   target_include_directories(imgui PUBLIC ${IMGUI} ${IMGUI}/backends)
   target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 
-  add_executable(ic7300console src/main.cpp src/app.cpp src/audio.cpp src/waterfall.cpp src/worldmap.cpp)
+  add_executable(ic7300console src/main.cpp src/app.cpp src/audio.cpp src/waterfall.cpp src/worldmap.cpp src/build_stamp.cpp)
   target_include_directories(ic7300console PRIVATE third_party/miniaudio ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(ic7300console PRIVATE rigcore imgui ${CMAKE_DL_LIBS})
+
+  # The build's date is the program's version, so it's written at every build.
+  add_custom_target(build_stamp
+    COMMAND ${CMAKE_COMMAND} -DOUT_DIR=${CMAKE_CURRENT_BINARY_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/build_stamp.cmake
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/BUILD_DATE ${CMAKE_CURRENT_BINARY_DIR}/build_stamp.inc)
+  add_dependencies(ic7300console build_stamp)
 
   # The fonts go inside the executable, so there's nothing to install beside it.
   function(embed_font input symbol output)

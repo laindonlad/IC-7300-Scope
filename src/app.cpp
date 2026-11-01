@@ -40,6 +40,7 @@
 #include "store.h"
 #include "transport.h"
 #include "tuning.h"
+#include "update_check.h"
 #include "waterfall.h"
 #include "worldmap.h"
 
@@ -86,6 +87,30 @@ std::string utcNow(const char* fmt) {
   char b[64];
   strftime(b, sizeof b, fmt, &u);
   return b;
+}
+
+struct tm localTime(time_t t) {
+  struct tm l;
+#ifdef _WIN32
+  localtime_s(&l, &t);
+#else
+  localtime_r(&t, &l);
+#endif
+  return l;
+}
+
+// How far local time is ahead of UTC at t, in minutes, summer time included.
+int utcOffsetMinutes(time_t t) {
+  const struct tm l = localTime(t);
+  struct tm u;
+#ifdef _WIN32
+  gmtime_s(&u, &t);
+#else
+  gmtime_r(&t, &u);
+#endif
+  // The two can be either side of midnight, or of new year.
+  const int days = l.tm_year != u.tm_year ? (l.tm_year < u.tm_year ? -1 : 1) : l.tm_yday - u.tm_yday;
+  return days * 1440 + (l.tm_hour - u.tm_hour) * 60 + l.tm_min - u.tm_min;
 }
 
 std::string modeLabel(int mode, bool data) {
@@ -243,6 +268,7 @@ class App {
   void drawReceiverPanel();
   void drawBandMenu();
   void drawReceiverModes(int filter);
+  void drawEqButton(const char* label, bool tx);
   void drawBandRow();
   void drawControls();
   void drawCentre();
@@ -314,6 +340,8 @@ class App {
   void setStep(int i) { stepIdx_ = std::max(0, std::min(kStepCount - 1, i)); }
   void startRecording();
   void startClockSync();
+  void setRadioClock();
+  void startUpdateCheck();
   void pumpScan();
   scan::Config scanConfig() const;
   bool buildScanChannels(std::vector<scan::Channel>& out, size_t& first, std::string& why) const;
@@ -581,6 +609,16 @@ class App {
   };
   std::shared_ptr<ClockSync> clockSync_;
   std::string clockResult_;
+  time_t radioClockAt_ = 0;  // when to set the radio's clock from it, or 0
+
+  // looking for a newer build, once at the start. As with the clock, its thread is left to finish alone.
+  struct UpdateCheck {
+    std::atomic<bool> done{false};
+    std::string published;
+  };
+  std::shared_ptr<UpdateCheck> updateCheck_;
+  std::string newerBuild_;
+  bool checkUpdates_ = true;
 
   // self-test
   std::map<std::string, ImRect> rects_;
@@ -739,6 +777,7 @@ void App::loadSettings() {
   audioIn_ = cfg_.get("audio_in");
   audioOut_ = cfg_.get("audio_out");
   monitor_ = cfg_.getInt("monitor", 0) != 0;
+  checkUpdates_ = cfg_.getInt("check_updates", 1) != 0;
   monitorGain_ = (float)cfg_.getDouble("monitor_gain", 0.7);
   stepIdx_ = std::max(0, std::min(kStepCount - 1, cfg_.getInt("step", 2)));
   fftIdx_ = std::max(0, std::min(3, cfg_.getInt("fft", 2)));
@@ -881,6 +920,7 @@ void App::saveSettings() {
   cfg_.set("audio_in", audioIn_);
   cfg_.set("audio_out", audioOut_);
   cfg_.setInt("monitor", monitor_);
+  cfg_.setInt("check_updates", checkUpdates_);
   cfg_.setDouble("monitor_gain", monitorGain_);
   cfg_.setInt("step", stepIdx_);
   cfg_.setInt("fft", fftIdx_);
@@ -970,8 +1010,9 @@ void App::connect() {
 
 std::string App::windowTitle() const {
   // The name covers all the radios now, so only the brackets say which this is.
-  if (opt_.demo) return std::string(APP_NAME "  [DEMO: simulated ") + seenRadio_->name + "]";
-  return std::string(APP_NAME "  [") + seenRadio_->name + "]";
+  std::string name = std::string(APP_NAME "  ") + std::string(update::kBuildStamp).substr(0, 10);
+  if (opt_.demo) return name + "  [DEMO: simulated " + seenRadio_->name + "]";
+  return name + "  [" + seenRadio_->name + "]";
 }
 
 void App::applyFft() {
@@ -2004,6 +2045,38 @@ void App::drawReceiverModes(int filter) {
        "D-STAR, P25, dPMR, NXDN and DCR digital voice");
 }
 
+// The rig keeps a bass and a treble for each of SSB, AM and FM, so this shows whichever pair is in use now.
+void App::drawEqButton(const char* label, bool tx) {
+  const int bass = civ::toneRow(st_.mode, tx);
+  const bool usable = bass >= 0 && civ::toneWritable(bass, st_.rigId);
+  ImGui::BeginDisabled(!usable);
+  if (panelButton(label, ImVec2(S(52), S(30)))) ImGui::OpenPopup(label);
+  note(label);
+  if (usable) ImGui::SetItemTooltip("%s bass and treble", tx ? "Transmit" : "Receive");
+  else if (bass < 0) ImGui::SetItemTooltip("The rig has no bass or treble setting for %s", civ::modeName(st_.mode));
+  else ImGui::SetItemTooltip("Not available: this radio hasn't said it's an IC-7300%s", tx ? " (SSB only on an MK2)" : "");
+  ImGui::EndDisabled();
+  if (!ImGui::BeginPopup(label)) return;
+  // The mode can change while this is open, from the rig or a key.
+  if (!usable) {
+    ImGui::TextDisabled("Not available in %s", civ::modeName(st_.mode));
+  } else {
+    ImGui::TextDisabled("%s audio", tx ? "Transmit" : "Receive");
+    static const char* const kNames[] = {"Bass", "Treble"};
+    for (int i = 0; i < 2; i++) {
+      const int row = bass + i, known = st_.tone[row];
+      int v = known - 5;
+      ImGui::BeginDisabled(known < 0);
+      ImGui::SetNextItemWidth(S(160));
+      if (ImGui::SliderInt(kNames[i], &v, -5, 5, known < 0 ? "--" : v == 0 ? "0" : "%+d", ImGuiSliderFlags_AlwaysClamp)) rig_.setTone(row, v + 5);
+      note(std::string(label) + ":" + kNames[i]);
+      if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.f) rig_.setTone(row, known + (int)ImGui::GetIO().MouseWheel);
+      ImGui::EndDisabled();
+    }
+  }
+  ImGui::EndPopup();
+}
+
 void App::drawBandRow() {
   ImGui::BeginDisabled(!st_.connected);
   int here = plan_.bandOf(st_.hz);
@@ -2075,6 +2148,12 @@ void App::drawBandRow() {
     ImGui::SameLine();
   }
   ImGui::EndDisabled();
+  if (radio().hasToneMenu()) {
+    flow(S(52));
+    drawEqButton("RX EQ", false);
+    flow(S(52));
+    drawEqButton("TX EQ", true);
+  }
   ImGui::EndDisabled();
   flow(S(125));
   ImGui::AlignTextToFramePadding();
@@ -2844,7 +2923,7 @@ void App::drawScopePane() {
 }
 
 void App::startRecording() {
-  std::string path = store::dataDir() + "rx-" + utcNow("%Y%m%d-%H%M%S") + "-" + std::to_string(st_.hz > 0 ? st_.hz : 0) + ".wav";
+  std::string path = store::receivedDir() + "rx-" + utcNow("%Y%m%d-%H%M%S") + "-" + std::to_string(st_.hz > 0 ? st_.hz : 0) + ".wav";
   if (rec_.open(path, AudioEngine::kRate)) say("Recording to " + path);
   else say("Can't write " + path);
 }
@@ -3093,7 +3172,7 @@ void App::drawAudioPane() {
   } else if (panelButton("Rec")) {
     startRecording();
   }
-  ImGui::SetItemTooltip("Record the receiver to a WAV file");
+  ImGui::SetItemTooltip("Record the receiver to a WAV file in the received folder");
   flow(S(120));
   bool mon = audio_.monitoring();
   if (toggle("Listen", mon, ImVec2(0, 0), "listen")) {
@@ -3682,10 +3761,12 @@ void App::drawLog() {
     int worked = 0;
     bool dupe = false;
     std::set<std::string> where;
+    std::string last;  // the latest "YYYY-MM-DD HH:MM", which sorts as text
     for (int i = 0; i < (int)log_.size(); i++) {
       const store::LogEntry& e = log_[(size_t)i];
       if (i == logEditing_ || e.call != f.call || !onActiveStation(e)) continue;
       worked++;
+      if (e.utc > last) last = e.utc;
       std::string b = bands::adifBand(e.hz);
       where.insert(b + " " + e.mode);
       dupe = dupe || (b == band && e.mode == modeNow);
@@ -3695,7 +3776,8 @@ void App::drawLog() {
       std::string list;
       for (const std::string& w : where) list += (list.empty() ? "" : ", ") + w;
       ImGui::PushStyleColor(ImGuiCol_Text, dupe ? C_RED : C_AMBER);
-      ImGui::TextWrapped("%s%d time%s: %s", dupe ? "Already logged on this band and mode. " : "Worked ", worked, worked == 1 ? "" : "s", list.c_str());
+      std::string lastDate = last.empty() ? "" : ", last on " + last.substr(0, 10);
+      ImGui::TextWrapped("%s%d time%s%s: %s", dupe ? "Already logged on this band and mode. " : "Worked ", worked, worked == 1 ? "" : "s", lastDate.c_str(), list.c_str());
       ImGui::PopStyleColor();
     } else {
       ImGui::TextColored(ImColor(C_GREEN), "Not worked before");
@@ -4067,12 +4149,13 @@ static void sortLogBookView(std::vector<int>& view, const std::vector<store::Log
       case 10: return e.name;
       case 11: return e.qth;
       case 12: return e.locator;
-      case 13: return e.power;
-      case 14: return e.country;
-      case 15: return e.contest;
-      case 16: return e.exchSent;
-      case 17: return e.exchRcvd;
-      case 18: return e.notes;
+      case 13: return e.distKm;
+      case 14: return e.power;
+      case 15: return e.country;
+      case 16: return e.contest;
+      case 17: return e.exchSent;
+      case 18: return e.exchRcvd;
+      case 19: return e.notes;
       default: return "";
     }
   };
@@ -4209,9 +4292,10 @@ void App::drawLogBook() {
     return;
   }
 
-  static const char* const kHeads[] = {"Began", "Ended", "Call", "Station", "kHz", "Band", "Mode", "Confirmed", "Sent", "Rcvd", "Name", "QTH", "Locator", "W", "Country", "Contest", "Exch sent", "Exch rcvd", "Notes"};
-  static const float kWidths[] = {112, 112, 90, 90, 74, 44, 56, 110, 36, 36, 90, 110, 62, 34, 130, 90, 70, 70, 240};
-  const int columns = 19;
+  static const char* const kHeads[] = {"Began", "Ended", "Call", "Station", "kHz", "Band", "Mode", "Confirmed", "Sent", "Rcvd", "Name", "QTH", "Locator", "Distance (km)", "Power (W)", "Country", "Contest", "Exch sent", "Exch rcvd", "Notes"};
+  static const float kWidths[] = {112, 112, 90, 90, 74, 44, 56, 110, 36, 36, 90, 110, 62, 100, 74, 130, 90, 70, 70, 240};
+  const int columns = 20;
+  const int kDistanceColumn = 13;
   int bring = -1;
   if (ImGui::BeginTable("logbook", columns, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable)) {
     // Newest first until a heading is clicked.
@@ -4235,6 +4319,7 @@ void App::drawLogBook() {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         if (ImGui::Selectable(e.utc.c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
+        const bool rowTip = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip);
         ImGui::SetItemTooltip("Double-click to change it on the Log tab");
         auto cell = [](const std::string& s) {
           ImGui::TableNextColumn();
@@ -4246,8 +4331,10 @@ void App::drawLogBook() {
         ImGui::TableNextColumn();
         ImGui::Text("%.1f", (double)e.hz / 1000.0);
         cell(bands::adifBand(e.hz));
-        cell(e.mode), cell(store::confirmedBy(e)), cell(e.rstSent), cell(e.rstRcvd), cell(e.name), cell(e.qth), cell(e.locator), cell(e.power);
-        cell(e.country), cell(e.contest), cell(e.exchSent), cell(e.exchRcvd), cell(e.notes);
+        cell(e.mode), cell(store::confirmedBy(e)), cell(e.rstSent), cell(e.rstRcvd), cell(e.name), cell(e.qth), cell(e.locator), cell(e.distKm);
+        // Takes over from the row's tooltip, anywhere in this cell.
+        if (rowTip && ImGui::TableGetHoveredColumn() == kDistanceColumn && !e.distMiles.empty()) ImGui::SetTooltip("%s miles", e.distMiles.c_str());
+        cell(e.power), cell(e.country), cell(e.contest), cell(e.exchSent), cell(e.exchRcvd), cell(e.notes);
         ImGui::PopID();
       }
     ImGui::EndTable();
@@ -4858,29 +4945,87 @@ void App::drawStatus() {
     if (scan_.state() == scan::STOPPED) ImGui::TextColored(ImColor(C_GREEN), "SCAN: signal. Next is on the Scan tab.");
     else ImGui::TextColored(ImColor(C_AMBER), "SCANNING. Tune to stop it.");
   }
+  if (updateCheck_ && updateCheck_->done) {
+    if (update::isNewer(updateCheck_->published, update::kBuildStamp)) newerBuild_ = updateCheck_->published;
+    updateCheck_.reset();
+  }
+  if (!newerBuild_.empty()) {
+    ImGui::SameLine(0, S(20));
+    std::string label = "New version available, built " + newerBuild_.substr(0, 10) + "##update";
+    ImGui::PushStyleColor(ImGuiCol_Text, C_GREEN);
+    if (ImGui::Selectable(label.c_str(), false, 0, ImGui::CalcTextSize(label.c_str(), nullptr, true))) store::openFolder(update::kDownloadPage);
+    ImGui::PopStyleColor();
+    ImGui::SetItemTooltip("Click to open the download page on GitHub. You're on the build from %s UTC.", update::kBuildStamp);
+  }
   if (now < statusUntil_) {
     ImGui::SameLine(0, S(20));
     ImGui::TextColored(ImColor(C_AMBER), "%s", status_.c_str());
   }
   if (clockSync_ && clockSync_->done) {
     clockResult_ = clockSync_->report.message;
+    // The radio follows the computer, so only once the computer's time is known to be good. A scripted run
+    // has nothing to gain from waiting for the minute.
+    if (!opt_.noRig && opt_.selfTest.empty()) {
+      if (!clockSync_->report.ok) clockResult_ += " The radio's clock wasn't set.";
+      else if (!st_.connected) clockResult_ += " The radio isn't connected, so its clock wasn't set.";
+      else if (!civ::clockRows(st_.rigId)) clockResult_ += " This program doesn't know how to set this radio's clock.";
+      else {
+        // It takes no seconds, so sending it just as a minute starts is what makes it right.
+        const time_t t = time(nullptr);
+        radioClockAt_ = t - t % 60 + 60;
+        clockResult_ += " The radio's clock follows on the minute.";
+      }
+    }
     say(clockResult_);
     clockSync_.reset();
+  }
+  if (radioClockAt_ && time(nullptr) >= radioClockAt_) {
+    radioClockAt_ = 0;
+    setRadioClock();
   }
   std::string right = utcNow("%H:%M:%S UTC");
   float rw = ImGui::CalcTextSize(right.c_str()).x, bw = S(58);
   ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - rw - bw - ImGui::GetStyle().ItemSpacing.x);
-  ImGui::BeginDisabled(clockSync_ != nullptr);
-  if (toggle(clockSync_ ? "Wait##clocksync" : "Sync##clocksync", false, ImVec2(bw, 0), "clocksync")) startClockSync();
+  const bool clockBusy = clockSync_ != nullptr || radioClockAt_ != 0;
+  ImGui::BeginDisabled(clockBusy);
+  if (toggle(clockBusy ? "Wait##clocksync" : "Sync##clocksync", false, ImVec2(bw, 0), "clocksync")) startClockSync();
   ImGui::EndDisabled();
   if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-    ImGui::SetTooltip("%s%s%s",
+    ImGui::SetTooltip("%s\nThen sets the radio's date, time and UTC offset from it, as the next minute starts.%s%s",
                       opt_.demo ? "Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it."
                                 : "Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.",
                       clockResult_.empty() ? "" : "\n\nLast time: ", clockResult_.c_str());
   }
   ImGui::SameLine();
   ImGui::TextUnformatted(right.c_str());
+}
+
+void App::startUpdateCheck() {
+  // The demo and scripted runs stay off the network.
+  if (!checkUpdates_ || opt_.demo || !opt_.selfTest.empty() || !opt_.screenshot.empty()) return;
+  auto job = std::make_shared<UpdateCheck>();
+  updateCheck_ = job;
+  std::thread([job] {
+    job->published = update::fetchPublished();
+    job->done = true;
+  }).detach();
+}
+
+void App::setRadioClock() {
+  const time_t t = time(nullptr);
+  const struct tm l = localTime(t);
+  const int offset = utcOffsetMinutes(t);
+  if (!rig_.setRadioClock(l.tm_year + 1900, l.tm_mon + 1, l.tm_mday, l.tm_hour, l.tm_min, offset)) {
+    clockResult_ += " The radio stopped answering, so its clock wasn't set.";
+    say("The radio stopped answering, so its clock wasn't set.");
+    return;
+  }
+  // A refusal comes back as the rig's last error, and is shown in place of this.
+  const int a = offset < 0 ? -offset : offset;
+  char b[96];
+  snprintf(b, sizeof b, "Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.", l.tm_year + 1900, l.tm_mon + 1, l.tm_mday, l.tm_hour, l.tm_min, offset < 0 ? '-' : '+', a / 60, a % 60);
+  clockResult_ += std::string(" ") + b;
+  say(b);
 }
 
 void App::startClockSync() {
@@ -4926,6 +5071,8 @@ void App::drawMenu() {
   drawStationsMenu();
   if (ImGui::BeginMenu("Help")) {
     if (ImGui::MenuItem("Keys and rig set-up...")) openHelp_ = true;
+    ImGui::Separator();
+    ImGui::TextDisabled("Built %s UTC", update::kBuildStamp);
     ImGui::EndMenu();
   }
   ImGui::EndMenuBar();
@@ -4997,7 +5144,18 @@ void App::drawSettings() {
   ImGui::InputText("Callsign", callsign_, sizeof callsign_, ImGuiInputTextFlags_CharsUppercase);
   ImGui::SetNextItemWidth(S(160));
   ImGui::InputText("Your locator", locator_, sizeof locator_);
+  // Only once it's finished with, or a half-typed locator would leave its distances in the log for good.
+  const bool locatorEdited = ImGui::IsItemDeactivatedAfterEdit();
   ImGui::SetItemTooltip("Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.");
+  if (locatorEdited) {
+    bool filled = false;
+    for (store::LogEntry& e : log_)
+      if (fillDistance(e)) filled = true;
+    if (filled) {
+      logBookViewSorted_ = false;
+      if (!store::backupFile(logPath_) || !store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
+    }
+  }
   ImGui::SetNextItemWidth(S(160));
   ImGui::SliderInt("PTT time limit", &txLimit_, 5, 600, "%d s");
   ImGui::SetItemTooltip("PTT from this program lets go by itself after this long");
@@ -5105,6 +5263,8 @@ void App::drawSettings() {
   ImGui::EndTable();
 
   ImGui::Spacing();
+  ImGui::Checkbox("Check GitHub for a new version at start", &checkUpdates_);
+  ImGui::SetItemTooltip("Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent.");
   ImGui::Separator();
   if (panelButton("Apply and reconnect", ImVec2(S(170), 0))) {
     addr_ = (int)strtol(addrText_, nullptr, 16);
@@ -5557,7 +5717,10 @@ void App::buildSelfTest() {
   });
   step(10, [this] { click("ptt"); });
   step(60, [this] {
-    expect("transmitting, the needle reads power", st_.tx && fabsf(needle_.pos - needle::powerShare(civ::powerWatts(st_.meter[civ::M_PO], radio(), st_.hz), radio().maxWattsAt(st_.hz))) < 0.1f);
+    // The simulator's Po jumps around 120 to 179 every 180 ms and the needle chases it, so it's only ever
+    // somewhere in that range. The margin allows for its swing past a new reading.
+    const auto share = [this](int raw) { return needle::powerShare(civ::powerWatts(raw, radio(), st_.hz), radio().maxWattsAt(st_.hz)); };
+    expect("transmitting, the needle reads power", st_.tx && needle_.pos > share(120) - 0.05f && needle_.pos < share(179) + 0.05f);
     click("arm");
   });
   step(settle, [this] {
@@ -5805,6 +5968,7 @@ void App::runSelfTest() {
 
 int App::run() {
   loadSettings();
+  startUpdateCheck();
   openSettings_ = opt_.settings;
   if (opt_.demo) {
     seenRadio_ = opt_.demoRadio == 9700 ? &civ::kRadio9700 : opt_.demoRadio == 8600 ? &civ::kRadioR8600 : &civ::kRadio7300;

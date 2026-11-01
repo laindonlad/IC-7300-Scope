@@ -20,6 +20,8 @@ constexpr uint32_t K_RIT = key(0x21, 0), K_RIT_ON = key(0x21, 1), K_XIT_ON = key
 constexpr uint32_t K_ANT = key(0x12), K_IP_PLUS = key(0x1A, 0x07);
 constexpr uint32_t K_SCOPE_ON = key(0x27, 0x10), K_SCOPE_OUT = key(0x27, 0x11), K_SCOPE_MODE = key(0x27, 0x14);
 constexpr uint32_t K_SCOPE_SPAN = key(0x27, 0x15), K_SCOPE_REF = key(0x27, 0x19), K_SCOPE_SPEED = key(0x27, 0x1A);
+constexpr uint32_t toneKey(int t) { return key(0x1A, 0x40 + t); }  // clear of 1A's own sub-commands
+constexpr uint32_t K_CLOCK_TIME = key(0x1A, 0x60), K_CLOCK_DATE = key(0x1A, 0x61), K_CLOCK_OFFSET = key(0x1A, 0x62);  // and of those
 
 constexpr int kReplyTimeoutMs = 250;
 constexpr int kLinkLostMs = 2500;   // no frame at all for this long: the rig's off or gone
@@ -33,6 +35,7 @@ RigState::RigState() {
   for (int& v : level) v = -1;
   for (int& v : sw) v = -1;
   for (int& v : meter) v = -1;
+  for (int& v : tone) v = -1;
 }
 
 Rig::Rig() = default;
@@ -182,6 +185,26 @@ void Rig::setSwitch(int s, int v) {
   post(k, civ::setSwitch(addr_, s, v), "change that setting");
   st_.sw[s] = v;
   hold(k);
+}
+
+void Rig::setTone(int t, int v) {
+  v = std::min(10, std::max(0, v));
+  std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasToneMenu() || !civ::toneWritable(t, st_.rigId)) return;
+  post(toneKey(t), civ::setTone(addr_, t, v), "set that EQ level");
+  st_.tone[t] = v;
+  hold(toneKey(t));
+}
+
+bool Rig::setRadioClock(int year, int month, int day, int hour, int minute, int utcOffsetMinutes) {
+  std::lock_guard<std::mutex> g(m_);
+  const civ::ClockRows* rows = civ::clockRows(st_.rigId);
+  if (!rows || !st_.connected) return false;
+  // The time first, as that's the one that was meant for this moment.
+  post(K_CLOCK_TIME, civ::setClockTime(addr_, *rows, hour, minute), "set its time");
+  post(K_CLOCK_DATE, civ::setClockDate(addr_, *rows, year, month, day), "set its date");
+  post(K_CLOCK_OFFSET, civ::setClockOffset(addr_, *rows, utcOffsetMinutes), "set its UTC offset");
+  return true;
 }
 
 void Rig::setAtt(bool on) {
@@ -447,6 +470,8 @@ void Rig::buildPolls() {
     if (tx || !civ::levelIsTx(l)) add(civ::frame(a, 0x14, {civ::levelSub(l)}), 2500);
   for (int s = 0; s < civ::S_COUNT; s++)
     if (tx || !civ::switchIsTx(s)) add(civ::frame(a, 0x16, {civ::switchSub(s)}), 2500);
+  if (radio_->hasToneMenu())
+    for (int t = 0; t < civ::TONE_COUNT; t++) add(civ::readTone(a, t), 3000);
   add(civ::frame(a, 0x11), 1500);
   if (radio_->antennas > 1) add(civ::frame(a, 0x12), 1500);
   if (radio_->hasIpPlus) add(civ::frame(a, 0x1A, {0x07}), 2500);
@@ -651,6 +676,9 @@ void Rig::applyLocked(const civ::Frame& f) {
         if (st_.data && d.size() >= 3 && d[2] && !held(K_MODE, now)) st_.filter = d[2];  // data mode's own filter
       }
       if (d.size() >= 2 && d[0] == 0x07 && !held(K_IP_PLUS, now)) st_.ipPlus = d[1] != 0;
+      if (d.size() >= 4 && d[0] == 0x05 && d[1] == 0x00)
+        for (int t = 0; t < civ::TONE_COUNT; t++)
+          if (civ::toneAddr(t) == d[2] && !held(toneKey(t), now)) st_.tone[t] = std::min(10, civ::fromBcdBE(&d[3], 1));
       break;
     case 0x1C:
       if (d.size() >= 2 && d[0] == 0x00 && !held(K_TX, now)) {

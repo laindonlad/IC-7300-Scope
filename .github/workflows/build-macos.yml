@@ -38,7 +38,7 @@ jobs:
       - name: Commit the binaries
         run: |
           mkdir -p bin/macos
-          cp build/ic7300console build/ic7300probe build/test_core bin/macos/
+          cp build/ic7300console build/ic7300probe build/test_core build/BUILD_DATE bin/macos/
           lipo -info bin/macos/ic7300console
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

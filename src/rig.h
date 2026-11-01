@@ -44,7 +44,8 @@ struct RigState {
   int level[civ::L_COUNT];   // 0-255, -1 not known yet
   int sw[civ::S_COUNT];
   int meter[civ::M_COUNT];
-  int rigId = -1;            // what 19 00 says (94h on a 7300, A2h on a 9700, 96h on an R8600)
+  int tone[civ::TONE_COUNT];  // 0-10 for -5 to +5, -1 not known yet
+  int rigId = -1;           // what 19 00 says (94h on a 7300, A2h on a 9700, 96h on an R8600)
   // Which radio this is, once one has answered. Until then, the last one or the one expected.
   const civ::Radio* radio = &civ::kRadio7300;
   int strangerId = -1, strangerAddr = -1;  // something answered that isn't a radio we know
@@ -94,6 +95,9 @@ class Rig {
   void setOtherMode(int mode, bool data, int filter);
   void setLevel(int level, int v);
   void setSwitch(int sw, int v);
+  void setTone(int tone, int v);  // does nothing unless civ::toneWritable says so
+  // Local time, and how many minutes that's ahead of UTC. False unless it's connected and civ::clockRows knows it.
+  bool setRadioClock(int year, int month, int day, int hour, int minute, int utcOffsetMinutes);
   void setAtt(bool on);
   void setAttDb(int db);       // a radio with more than one step
   void setAntenna(int index);  // does nothing where the radio can't: see civ::Radio
