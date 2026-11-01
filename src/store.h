@@ -9,6 +9,8 @@ namespace store {
 // ~/.config/ic7300console. Created if needed.
 std::string dataDir();
 void openFolder(const std::string& path);
+// Written beside the target and moved over it, so a crash mid-save can't lose what was there.
+bool saveText(const std::string& path, const std::string& text);
 
 class Settings {
  public:

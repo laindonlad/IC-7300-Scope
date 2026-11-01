@@ -196,6 +196,9 @@ Only one program can own a COM port, so close any other CAT software first. The 
 | `--no-rig` | Audio waterfall only: leaves the serial port alone |
 | `--size 1600x900` | Sets the window size |
 | `--tab N` | Opens on a right-hand tab: 0 Keypad, 1 Memories, 2 Log, 3 CW / Voice |
+| `--settings` | Opens with the Settings dialog showing |
+| `--tune HZ` | Tunes to this frequency soon after starting |
+| `--find TEXT` | Opens Find a station with this search |
 | `--selftest out.txt` | Runs the scripted GUI test ([details](#testing)). Use it with `--demo` |
 | `--screenshot out.bmp` | Saves a screenshot and exits |
 | `--frames N` | Which frame `--screenshot` captures |
@@ -247,6 +250,7 @@ Just start typing, anywhere. Enter goes there and Esc cancels. You can also use 
 | Left, Right | Tune by the step (Shift: ten times the step) |
 | Up, Down | Change the step |
 | Page Up, Page Down | Next or previous band |
+| Ctrl+F | Find a station by name |
 | F1 to F8 | LSB, USB, CW, CW-R, AM, FM, RTTY, RTTY-R |
 | F9, F10 | Data mode, next filter |
 | F11, F12 | Split, swap VFOs |
@@ -257,16 +261,58 @@ Just start typing, anywhere. Enter goes there and Esc cancels. You can also use 
 - **Digits**: the wheel tunes that digit. Click the top half to go up, the bottom half to go down.
 - **Waterfalls and the tuning dial**: the wheel tunes by the step.
 - **Sliders**: the wheel moves them.
-- **Band scope**: click to tune there. Right-click for split and memories.
+- **Band scope**: click to tune there. Right-click for split and memories. Click a flag to go to that frequency, in its mode if it has one.
+- **Band map**: click a portion to tune there.
 - **Audio waterfall**: click to move that signal to the pitch, which is 1500 Hz on SSB and your CW pitch on CW. In data modes the dial stays put, so a digital program keeps its place.
 - **Band buttons**: click to return to where you last were on that band. Right-click for CW, FT8, FT4, WSPR and SSB frequencies.
 - **SPLIT**: right-click for a quick offset.
 
 ### Band plan
 
-The coloured strip under the band scope shows the band plan: blue for CW, purple for digital, green for SSB and orange for FM. It's a simplified version of IARU Region 1 and **not a statement of what your licence allows**.
+The scope shows you where you are on the band, using the plan for your country. Choose it in **Rig > Settings**. A band plan is a guide and **not a statement of what your licence allows**. **View > Band plan on the scope** turns all of this off.
 
-The 4 m button only works on radios that have that band. Others refuse the command and the status bar says so.
+- **Band map**: a bar above the scope with the whole of the current band, from where it begins to where it ends. Each portion is named and the part the scope is showing is outlined.
+- **Strip under the spectrum**: the same portions for the part of the band on screen.
+- **Colours**: blue for CW, purple for data, green for voice, orange for FM, yellow for beacons and teal for satellites. Hold the mouse over a portion in the map for the plan's own wording and its frequencies.
+- **Band edges**: a red line, with the band's first and last frequency named. Everything outside is shaded and marked "Out of band". This includes the gaps in bands that come in separate blocks, such as 60 m in most countries.
+- **Flags**: common frequencies such as FT8, WSPR, QRP calling and emergency centres of activity. Hold the mouse over one for what it is.
+
+| Plan | Source | In force |
+|---|---|---|
+| Australia | WIA Band Plan, Revision 2026-1 | February 2026 |
+| Canada | RAC 0-30 MHz Band Plan and 60 metres page. 6 m from IARU Region 2 | June 2023 |
+| IARU Region 1 | IARU Region 1 HF Band Plan. 6 m from the VHF Handbook v7.51 | October 2020 |
+| IARU Region 2 | IARU Region 2 Band Plan | September 2020 |
+| IARU Region 3 | IARU Region 3 Band Plan, R3-004 Rev. 2 | November 2024 |
+| Japan | JARL Amateur Band Plan | July 2025 |
+| New Zealand | NZART Band Plans and HF usage guide | June 2026 |
+| United Kingdom | RSGB Band Plan 2026 | January 2026 |
+| United States | ARRL band plan. 60 m from FCC Report and Order 25-60 | February 2026 |
+
+Countries without their own plan can use their IARU region's.
+
+Each plan is a JSON file you can edit, in the `bandplans` folder inside [your data folder](#your-data). **Open plans folder** in Settings takes you there and `README.txt` explains the format. After editing, press **Reload**. To add a country, copy a file to a new name and change its `name`. If a file has a mistake, Settings names the file and the line, and the built-in plan is used until it's fixed. **Reset this plan** puts the built-in copy back and keeps yours as `<name>.json.bak`.
+
+A plan leaves out any band its country doesn't have, so that band gets no button. The 4 m button only works on radios that have that band. Others refuse the command and the status bar says so.
+
+### Stations
+
+As well as the amateur bands, the scope flags what else is on the air, and this list stays the same whichever band plan you choose. It's for **listening only**. Some countries, including the UK, make it an offence to listen to messages not meant for you or to pass them on, so check what applies where you are.
+
+| Service | What's listed |
+|---|---|
+| Commercial | HFDL aircraft data, airline long-distance voice, Kyodo press fax |
+| Government | Time signals, VOLMET, North Atlantic air traffic control |
+| Naval and maritime | NAVTEX, WEFAX, GMDSS distress channels, coast guard and marine weather, French Navy STANAG 4285 |
+| Military | US HFGCS voice and ALE, RAF Volmet, Trenton, Russian stations such as The Buzzer |
+| Broadcast | Long wave stations, and the medium wave and shortwave bands |
+
+- **Flags**: station flags are solid, in a colour for their service, and the plan's are outlined. Hold the mouse over one for what it is. Clicking tunes there and sets the mode. A data signal's flag sits on the signal itself and the click tunes USB below it, ready for a decoder.
+- **Broadcast bands**: a bar along the bottom of the spectrum. Shortwave stations change frequency with the seasons, so these are bands rather than individual stations.
+- **Find a station**: **Stations > Find a station** or Ctrl+F searches names, types, places and frequencies in kHz, such as `northwood` or `wefax japan`. Click a result, or press Enter for the first.
+- **Stations menu**: every station by service and group. It also turns each service's flags on and off.
+
+The list is `stations/worldwide.json` in [your data folder](#your-data), and you can edit it or add your own files beside it. `README.txt` there explains the format. **Open stations folder**, **Reload** and **Reset station list** are in Settings. Its sources are named in the file. They are public and hobby lists of varying age, so a flag doesn't promise a signal.
 
 ## Transmit safety
 
@@ -297,6 +343,8 @@ Everything is stored as plain text files in a per-user folder. **Rig > Open data
 | `memories.csv` | Memories |
 | `log.csv` | The log |
 | `log.adi` | The log exported as ADIF, for other logging software |
+| `bandplans/*.json` | Band plans, which you can edit ([details](#band-plan)). Written the first time the program runs, and never overwritten |
+| `stations/*.json` | Station lists, which you can edit ([details](#stations)). Written the first time the program runs, and never overwritten |
 | `rx-<date>-<time>-<hz>.wav` | Recordings: 16-bit mono, 48 kHz |
 
 Demo mode uses `demo-settings.ini`, `demo-memories.csv` and `demo-log.csv`, so trying it can't disturb a real setup.
@@ -398,7 +446,9 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 | `src/dsp.h` | The FFT and dB scaling |
 | `src/waterfall.h`, `src/waterfall.cpp` | The waterfall texture and palettes |
 | `src/tuning.h` | Frequency entry, audio-to-RF mapping and the tuning dial's behaviour |
-| `src/bands.h` | The band table, presets and band plan |
+| `src/bands.h`, `src/bands.cpp` | Band plans: reading the JSON files, and which band a frequency is in |
+| `bandplans/*.json` | The built-in band plans, compiled into the program |
+| `stations/*.json` | The built-in station lists, compiled into the program |
 | `src/store.h`, `src/store.cpp` | Settings, memories, log, ADIF, WAV |
 | `src/app.h`, `src/app.cpp` | The window and the self-test script |
 | `src/main.cpp` | Command-line options |
@@ -415,8 +465,8 @@ The commands below use the `build` folder. If you downloaded the programs, use y
 
 | Test | Needs | What it covers |
 |---|---|---|
-| `test_core` | Nothing | 438 checks: CI-V bytes, frequency entry, the tuning dial, FFT and log files, plus the rig thread against the simulated radio, including refused commands, echo, stale readings, lost links and every transmit guard |
-| `ic7300console --demo --selftest out.txt` | A display | 55 checks: real clicks and keystrokes through the window, against the simulated radio |
+| `test_core` | Nothing | 3104 checks: CI-V bytes, frequency entry, the tuning dial, band plans, stations and their search, FFT and log files, plus the rig thread against the simulated radio, including refused commands, echo, stale readings, lost links and every transmit guard |
+| `ic7300console --demo --selftest out.txt` | A display | 67 checks: real clicks and keystrokes through the window, against the simulated radio |
 | `ic7300probe` | A real radio | Reads everything from the radio and listens to the scope |
 
 ### Core tests
@@ -425,7 +475,7 @@ The commands below use the `build` folder. If you downloaded the programs, use y
 .\build\test_core            # or: ctest --test-dir build
 ```
 
-This takes about 25 seconds and ends with `438 checks, 0 failed`.
+This takes about 25 seconds and ends with `1729 checks, 0 failed`.
 
 ### GUI self-test
 

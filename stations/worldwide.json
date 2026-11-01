@@ -1,0 +1,495 @@
+{
+  "name": "Worldwide stations",
+  "revision": "2026-11",
+  "source": "NOAA Worldwide Marine Radiofacsimile Broadcast Schedules (7 March 2025); NWS USCG broadcast pages; 47 CFR 80.1077 (GMDSS); Australian Bureau of Meteorology; Priyom (French Navy, HFGCS); M7SPI list after Priyom (Russia, 2022); G4NSJ (Volmet, LDOC); Milcom Monitoring Post (NAT, 2015); hfunderground wiki (DWD RTTY, ZLM); udxf.nl (HFDL); Wikipedia (time signals, long wave at September 2026, broadcast bands).",
+  "note": "For listening only: nothing here is yours to transmit on, and most is someone's safety or working traffic. Some countries, the UK among them, make it an offence to listen to messages not meant for you or to pass them on. These lists come from public and hobby sources of varying age, so a flag doesn't promise a signal.",
+  "groups": [
+    {
+      "service": "naval", "name": "NAVTEX", "mode": "USB", "dial_offset_khz": -1.7,
+      "note": "Navigational and weather warnings to ships. 100 baud SITOR-B, 170 Hz shift. Clicking tunes USB 1.7 kHz below, so the tones centre on 1700 Hz.",
+      "stations": [
+        {"khz": 490, "label": "NAVTEX", "note": "National services, in local languages"},
+        {"khz": 518, "label": "NAVTEX", "note": "International service, in English"},
+        {"khz": 4209.5, "label": "NAVTEX", "note": "HF national service"}
+      ]
+    },
+    {
+      "service": "naval", "name": "Maritime safety (SITOR / NBDP)", "mode": "USB", "dial_offset_khz": -1.7,
+      "note": "High-seas maritime safety information, sent as FEC text. Clicking tunes USB 1.7 kHz below.",
+      "stations": [
+        {"khz": 4210, "label": "MSI", "note": "HF safety broadcasts"},
+        {"khz": 6314, "label": "MSI", "note": "HF safety broadcasts. USCG Boston NMF"},
+        {"khz": 8416.5, "label": "MSI", "note": "HF safety broadcasts. USCG Boston NMF, Pt Reyes NMC, Honolulu NMO"},
+        {"khz": 12579, "label": "MSI", "note": "HF safety broadcasts. USCG Boston NMF, Honolulu NMO, Guam NRV"},
+        {"khz": 16806.5, "label": "MSI", "note": "HF safety broadcasts. USCG Boston NMF, Pt Reyes NMC, Guam NRV"},
+        {"khz": 19680.5, "label": "MSI", "note": "HF safety broadcasts"},
+        {"khz": 22376, "label": "MSI", "note": "HF safety broadcasts. USCG Honolulu NMO, Guam NRV"},
+        {"khz": 26100.5, "label": "MSI", "note": "HF safety broadcasts"}
+      ]
+    },
+    {
+      "service": "naval", "name": "Distress: DSC", "mode": "USB", "dial_offset_khz": -1.7,
+      "note": "GMDSS digital selective calling. Short bursts, decoded by software. Clicking tunes USB 1.7 kHz below. Never transmit here except in distress.",
+      "stations": [
+        {"khz": 2187.5, "label": "DSC", "note": "GMDSS distress alerting"},
+        {"khz": 4207.5, "label": "DSC", "note": "GMDSS distress alerting"},
+        {"khz": 6312, "label": "DSC", "note": "GMDSS distress alerting"},
+        {"khz": 8414.5, "label": "DSC", "note": "GMDSS distress alerting"},
+        {"khz": 12577, "label": "DSC", "note": "GMDSS distress alerting"},
+        {"khz": 16804.5, "label": "DSC", "note": "GMDSS distress alerting"}
+      ]
+    },
+    {
+      "service": "naval", "name": "Distress: voice", "mode": "USB",
+      "note": "GMDSS distress, safety and calling. Never transmit here except in distress. The USCG stopped listening on HF voice in the contiguous US and Hawaii in 2022.",
+      "stations": [
+        {"khz": 2182, "label": "Distress", "note": "GMDSS distress and calling, voice"},
+        {"khz": 4125, "label": "Distress", "note": "GMDSS distress and calling, voice"},
+        {"khz": 6215, "label": "Distress", "note": "GMDSS distress and calling, voice"},
+        {"khz": 8291, "label": "Distress", "note": "GMDSS distress and calling, voice"},
+        {"khz": 12290, "label": "Distress", "note": "GMDSS distress and calling, voice"},
+        {"khz": 16420, "label": "Distress", "note": "GMDSS distress and calling, voice"}
+      ]
+    },
+    {
+      "service": "naval", "name": "Distress: NBDP", "mode": "USB", "dial_offset_khz": -1.7,
+      "note": "GMDSS distress and safety traffic by narrow-band direct printing. Clicking tunes USB 1.7 kHz below.",
+      "stations": [
+        {"khz": 2174.5, "label": "NBDP", "note": "GMDSS distress and safety, text"},
+        {"khz": 4177.5, "label": "NBDP", "note": "GMDSS distress and safety, text"},
+        {"khz": 6268, "label": "NBDP", "note": "GMDSS distress and safety, text"},
+        {"khz": 8376.5, "label": "NBDP", "note": "GMDSS distress and safety, text"},
+        {"khz": 12520, "label": "NBDP", "note": "GMDSS distress and safety, text"},
+        {"khz": 16695, "label": "NBDP", "note": "GMDSS distress and safety, text"}
+      ]
+    },
+    {
+      "service": "naval", "name": "WEFAX: Europe", "mode": "USB", "dial_offset_khz": -1.9,
+      "note": "Weather charts, usually at 120 lpm, IOC 576. Flags sit on the assigned frequency; clicking tunes USB 1.9 kHz below, which is what a PC decoder expects.",
+      "stations": [
+        {"khz": 2618.5, "label": "GYA", "note": "Northwood, UK. Royal Navy JOMOC, North Atlantic charts"},
+        {"khz": 3855, "label": "DWD", "note": "Pinneberg, Germany. Deutscher Wetterdienst, DDH3 / DDK3 / DDK6"},
+        {"khz": 4481, "label": "SVJ4", "note": "Athens, Greece"},
+        {"khz": 4610, "label": "GYA", "note": "Northwood, UK. Royal Navy JOMOC, North Atlantic charts"},
+        {"khz": 5336, "label": "RBW", "note": "Murmansk, Russia. Ice charts. A listener reported 8444 in 2024; these are the listed ones"},
+        {"khz": 6445.5, "label": "RBW", "note": "Murmansk, Russia. Ice charts. A listener reported 8444 in 2024; these are the listed ones"},
+        {"khz": 7880, "label": "DWD", "note": "Pinneberg, Germany. Deutscher Wetterdienst, DDH3 / DDK3 / DDK6"},
+        {"khz": 7908.8, "label": "RBW", "note": "Murmansk, Russia. Ice charts. A listener reported 8444 in 2024; these are the listed ones"},
+        {"khz": 8040, "label": "GYA", "note": "Northwood, UK. Royal Navy JOMOC, North Atlantic charts"},
+        {"khz": 8105, "label": "SVJ4", "note": "Athens, Greece"},
+        {"khz": 10130, "label": "RBW", "note": "Murmansk, Russia. Ice charts. A listener reported 8444 in 2024; these are the listed ones"},
+        {"khz": 11086.5, "label": "GYA", "note": "Northwood, UK. Royal Navy JOMOC, North Atlantic charts"},
+        {"khz": 13882.5, "label": "DWD", "note": "Pinneberg, Germany. Deutscher Wetterdienst, DDH3 / DDK3 / DDK6"}
+      ]
+    },
+    {
+      "service": "naval", "name": "WEFAX: Americas", "mode": "USB", "dial_offset_khz": -1.9,
+      "note": "Weather charts, usually at 120 lpm, IOC 576. Flags sit on the assigned frequency; clicking tunes USB 1.9 kHz below, which is what a PC decoder expects.",
+      "stations": [
+        {"khz": 2054, "label": "NOJ", "note": "USCG Kodiak, Alaska"},
+        {"khz": 4228, "label": "CBV", "note": "Valparaiso Playa Ancha, Chile"},
+        {"khz": 4235, "label": "NMF", "note": "USCG Boston. NIK ice patrol charts share it, about February to September"},
+        {"khz": 4298, "label": "NOJ", "note": "USCG Kodiak, Alaska"},
+        {"khz": 4317.9, "label": "NMG", "note": "USCG New Orleans"},
+        {"khz": 4322, "label": "CBM", "note": "Chile"},
+        {"khz": 4346, "label": "NMC", "note": "USCG Pt Reyes"},
+        {"khz": 4416, "label": "VCO", "note": "Sydney, Nova Scotia, Canada"},
+        {"khz": 6340.5, "label": "NMF", "note": "USCG Boston. NIK ice patrol charts share it, about February to September"},
+        {"khz": 6915.1, "label": "VCO", "note": "Sydney, Nova Scotia, Canada"},
+        {"khz": 8459, "label": "NOJ", "note": "USCG Kodiak, Alaska"},
+        {"khz": 8503.9, "label": "NMG", "note": "USCG New Orleans"},
+        {"khz": 8677, "label": "CBV", "note": "Valparaiso Playa Ancha, Chile"},
+        {"khz": 8682, "label": "NMC", "note": "USCG Pt Reyes"},
+        {"khz": 8696, "label": "CBM", "note": "Chile"},
+        {"khz": 9110, "label": "NMF", "note": "USCG Boston. NIK ice patrol charts share it, about February to September"},
+        {"khz": 9982.5, "label": "KVM70", "note": "Honolulu, Hawaii. A US Department of Defense station"},
+        {"khz": 11090, "label": "KVM70", "note": "Honolulu, Hawaii. A US Department of Defense station"},
+        {"khz": 12410.6, "label": "NOJ", "note": "USCG Kodiak, Alaska"},
+        {"khz": 12750, "label": "NMF", "note": "USCG Boston. NIK ice patrol charts share it, about February to September"},
+        {"khz": 12786, "label": "NMC", "note": "USCG Pt Reyes"},
+        {"khz": 12789.9, "label": "NMG", "note": "USCG New Orleans"},
+        {"khz": 16135, "label": "KVM70", "note": "Honolulu, Hawaii. A US Department of Defense station"},
+        {"khz": 17146.4, "label": "NMG/CBV", "note": "USCG New Orleans; Valparaiso Playa Ancha, Chile"},
+        {"khz": 17151.2, "label": "NMC", "note": "USCG Pt Reyes"},
+        {"khz": 22527, "label": "NMC", "note": "USCG Pt Reyes"}
+      ]
+    },
+    {
+      "service": "naval", "name": "WEFAX: Asia and Pacific", "mode": "USB", "dial_offset_khz": -1.9,
+      "note": "Weather charts, usually at 120 lpm, IOC 576. Flags sit on the assigned frequency; clicking tunes USB 1.9 kHz below, which is what a PC decoder expects.",
+      "stations": [
+        {"khz": 2628, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 3585, "label": "HLL2", "note": "Seoul, South Korea"},
+        {"khz": 3622.5, "label": "JMH", "note": "Tokyo, Japan"},
+        {"khz": 4199.75, "label": "XSQ", "note": "Guangzhou, China. South China Sea forecasts. Listed as F3C"},
+        {"khz": 4274, "label": "JFX", "note": "Kagoshima, Japan"},
+        {"khz": 5100, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 5755, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 5857.5, "label": "HLL2", "note": "Seoul, South Korea"},
+        {"khz": 7433.5, "label": "HLL2", "note": "Seoul, South Korea"},
+        {"khz": 7535, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 7795, "label": "JMH", "note": "Tokyo, Japan"},
+        {"khz": 8412.5, "label": "XSQ", "note": "Guangzhou, China. South China Sea forecasts. Listed as F3C"},
+        {"khz": 8658, "label": "JFX", "note": "Kagoshima, Japan"},
+        {"khz": 9165, "label": "HLL2", "note": "Seoul, South Korea"},
+        {"khz": 10555, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 11030, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 12629.25, "label": "XSQ", "note": "Guangzhou, China. South China Sea forecasts. Listed as F3C"},
+        {"khz": 13074, "label": "JFX", "note": "Kagoshima, Japan"},
+        {"khz": 13570, "label": "HLL2", "note": "Seoul, South Korea"},
+        {"khz": 13920, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 13988.5, "label": "JMH", "note": "Tokyo, Japan"},
+        {"khz": 15615, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 16826.25, "label": "XSQ", "note": "Guangzhou, China. South China Sea forecasts. Listed as F3C"},
+        {"khz": 16907.5, "label": "JFX", "note": "Kagoshima, Japan"},
+        {"khz": 18060, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 20469, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 22559.6, "label": "JFX", "note": "Kagoshima, Japan"}
+      ]
+    },
+    {
+      "service": "naval", "name": "Marine weather: voice", "mode": "USB",
+      "note": "Forecasts and warnings read out at set times. Check the operator's schedule.",
+      "stations": [
+        {"khz": 2056, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 2201, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 2207, "label": "ZLM", "note": "Taupo Maritime Radio, New Zealand. Weather and local warnings"},
+        {"khz": 4146, "label": "ZLM", "note": "Taupo Maritime Radio, New Zealand. Weather and local warnings"},
+        {"khz": 4149, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 4316, "label": "Wx voice", "note": "USCG New Orleans NMG"},
+        {"khz": 4426, "label": "Wx voice", "note": "USCG Chesapeake NMN and Pt Reyes NMC; Charleville VMC, Australia"},
+        {"khz": 5905, "label": "DWD", "note": "Deutscher Wetterdienst, Germany. Voice weather for seafarers, in German"},
+        {"khz": 6180, "label": "DWD", "note": "Deutscher Wetterdienst, Germany. Voice weather for seafarers, in German"},
+        {"khz": 6224, "label": "ZLM", "note": "Taupo Maritime Radio, New Zealand. Weather and local warnings"},
+        {"khz": 6230, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 6501, "label": "Wx voice", "note": "USCG Chesapeake NMN, Kodiak NOJ, Honolulu NMO, Guam NRV"},
+        {"khz": 6507, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 8113, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 8176, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 8502, "label": "Wx voice", "note": "USCG New Orleans NMG"},
+        {"khz": 8764, "label": "Wx voice", "note": "USCG Chesapeake NMN, Pt Reyes NMC, Honolulu NMO"},
+        {"khz": 12362, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 12365, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 12788, "label": "Wx voice", "note": "USCG New Orleans NMG"},
+        {"khz": 13089, "label": "Wx voice", "note": "USCG Chesapeake NMN, Pt Reyes NMC, Honolulu NMO, Guam NRV"},
+        {"khz": 16528, "label": "VMW", "note": "Wiluna, Australia"},
+        {"khz": 16546, "label": "VMC", "note": "Charleville, Australia"},
+        {"khz": 17314, "label": "Wx voice", "note": "USCG Chesapeake NMN, Pt Reyes NMC"}
+      ]
+    },
+    {
+      "service": "naval", "name": "Marine weather: RTTY", "mode": "USB", "dial_offset_khz": -1.9,
+      "note": "Deutscher Wetterdienst text forecasts. 50 baud. Clicking tunes USB 1.9 kHz below the listed frequency.",
+      "stations": [
+        {"khz": 147.3, "label": "DDH47", "note": "Pinneberg, Germany. Long wave, 85 Hz shift"},
+        {"khz": 4583, "label": "DDK2", "note": "Pinneberg, Germany. 450 Hz shift"},
+        {"khz": 7646, "label": "DDH7", "note": "Pinneberg, Germany. 450 Hz shift"},
+        {"khz": 10100.8, "label": "DDK9", "note": "Pinneberg, Germany. 450 Hz shift. Inside the 30 m amateur band"},
+        {"khz": 11039, "label": "DDH9", "note": "Pinneberg, Germany. 450 Hz shift"},
+        {"khz": 14467.3, "label": "DDH8", "note": "Pinneberg, Germany. 450 Hz shift"}
+      ]
+    },
+    {
+      "service": "naval", "name": "French Navy: ship-to-shore", "mode": "USB",
+      "note": "Listed by Priyom, from listeners' logs. Encrypted: you'll see the signal, but it can't be read.",
+      "stations": [
+        {"khz": 2608.4, "label": "FUO", "note": "Toulon. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 2789, "label": "FUE", "note": "Brest. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 4232, "label": "FUF", "note": "Martinique. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 4271, "label": "FUJ", "note": "New Caledonia. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 4295, "label": "FUE", "note": "Brest. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 4334, "label": "FUX", "note": "Reunion. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 6348, "label": "FUE", "note": "Brest. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 6462, "label": "FUM", "note": "French Polynesia. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 8453, "label": "FUO/FUG", "note": "Toulon; Saissac identifies here in its test messages. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 8475.5, "label": "FUX", "note": "Reunion. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 8478.5, "label": "FUF", "note": "Martinique. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 8568, "label": "FUV", "note": "Djibouti. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 8625, "label": "FUM", "note": "French Polynesia. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 8646, "label": "FUJ", "note": "New Caledonia. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 12664.5, "label": "FUM", "note": "French Polynesia. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 12666.5, "label": "FUO/FUG", "note": "Toulon; Saissac identifies here in its test messages. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 12691.5, "label": "FUX", "note": "Reunion. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 12857, "label": "6WW", "note": "Senegal. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 13031.2, "label": "FUF", "note": "Martinique. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 13042.5, "label": "FUV", "note": "Djibouti. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 16904.9, "label": "FUV", "note": "Djibouti. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 16915, "label": "FUX", "note": "Reunion. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 16951.5, "label": "6WW", "note": "Senegal. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 16957.8, "label": "FUJ", "note": "New Caledonia. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 16959.2, "label": "FUM", "note": "French Polynesia. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 16961.5, "label": "FUF", "note": "Martinique. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 22447, "label": "FUV", "note": "Djibouti. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."},
+        {"khz": 22461.2, "label": "FUJ", "note": "New Caledonia. French Navy shore station, ship-to-shore. STANAG 4285, 600 bit/s, encrypted. Loops a test message when idle."}
+      ]
+    },
+    {
+      "service": "naval", "name": "French Navy: fleet broadcasts", "mode": "USB",
+      "note": "Listed by Priyom, from listeners' logs. Encrypted: you'll see the signal, but it can't be read.",
+      "stations": [
+        {"khz": 2063.8, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, FSK, by night"},
+        {"khz": 2587.6, "label": "FUO", "note": "Toulon. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 2601, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 2638.6, "label": "FUE", "note": "Brest. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 2698.6, "label": "FUF", "note": "Martinique. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 4288.6, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 4325, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, STANAG 4285 at 600 bit/s"},
+        {"khz": 4590, "label": "6WW", "note": "Senegal. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 4643, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 4810.1, "label": "FUF", "note": "Martinique. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 5215.6, "label": "FUO", "note": "Toulon. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 5758.6, "label": "FUO", "note": "Toulon. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 6360.6, "label": "FUX", "note": "Reunion. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 6365.3, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, FSK, by day"},
+        {"khz": 6406, "label": "FUE", "note": "Brest. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 6429.8, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, FSK, by night"},
+        {"khz": 6842.6, "label": "FUJ", "note": "New Caledonia. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 7554.6, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 8516.8, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, FSK, by day"},
+        {"khz": 8548, "label": "FUV", "note": "Djibouti. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 8552.6, "label": "FUF", "note": "Martinique. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 8564.8, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, FSK, by night"},
+        {"khz": 8573.6, "label": "FUX", "note": "Reunion. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 8632.6, "label": "FUO", "note": "Toulon. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 9095, "label": "6WW", "note": "Senegal. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 9098.6, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 9910.6, "label": "FUJ", "note": "New Caledonia. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 10186.1, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 10264.1, "label": "FUE", "note": "Brest. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 12144.6, "label": "FUO/FUJ", "note": "Toulon; New Caledonia. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 12713, "label": "FUV", "note": "Djibouti. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 12724, "label": "FUM", "note": "French Polynesia. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 12730, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, STANAG 4285 at 600 bit/s"},
+        {"khz": 12873.6, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 12883.6, "label": "FUO", "note": "Toulon. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 13410, "label": "6WW", "note": "Senegal. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 13411.6, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 13417.8, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, FSK"},
+        {"khz": 14722.2, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 14723.7, "label": "FUX", "note": "Reunion. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 16966, "label": "FUG", "note": "Saissac. French Navy fleet broadcast, STANAG 4285 at 600 bit/s"},
+        {"khz": 17060.6, "label": "FUX", "note": "Reunion. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 17063.4, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 17097.6, "label": "FUM", "note": "French Polynesia. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 17106.6, "label": "FUF", "note": "Martinique. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 17121, "label": "FUG", "note": "Saissac. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 18365, "label": "6WW", "note": "Senegal. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 18493.5, "label": "FUV", "note": "Djibouti. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."},
+        {"khz": 18598.4, "label": "FUJ", "note": "New Caledonia. French Navy fleet broadcast. STANAG 4285, encrypted, unless noted."}
+      ]
+    },
+    {
+      "service": "military", "name": "US HFGCS", "mode": "USB",
+      "note": "US Air Force High Frequency Global Communications System. Listen for encoded Emergency Action Messages.",
+      "stations": [
+        {"khz": 3137, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 4721, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 4724, "label": "HFGCS", "note": "Main voice frequency by night"},
+        {"khz": 5708, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 6721, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 8992, "label": "HFGCS", "note": "Voice"},
+        {"khz": 9025, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 11175, "label": "HFGCS", "note": "Main voice frequency by day"},
+        {"khz": 11226, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 13215, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 15016, "label": "HFGCS", "note": "Voice"},
+        {"khz": 15043, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 18003, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"},
+        {"khz": 23337, "label": "HFGCS ALE", "note": "Automatic link establishment: bursts of data tones"}
+      ]
+    },
+    {
+      "service": "military", "name": "UK and Canada", "mode": "USB",
+      "note": "Military aviation weather and operations.",
+      "stations": [
+        {"khz": 4742, "label": "RAF Volmet", "note": "Royal Air Force aviation weather, Akrotiri / Mount Pleasant"},
+        {"khz": 5450, "label": "RAF Volmet", "note": "Royal Air Force aviation weather, from St Eval"},
+        {"khz": 6754, "label": "Trenton", "note": "Canadian Forces, Trenton (Quinte West). Military aviation"},
+        {"khz": 11247, "label": "RAF Volmet", "note": "Royal Air Force aviation weather, Akrotiri / Mount Pleasant"},
+        {"khz": 11253, "label": "RAF Volmet", "note": "Royal Air Force aviation weather, from St Eval"},
+        {"khz": 15034, "label": "Trenton", "note": "Canadian Forces, Trenton (Quinte West). Military aviation"}
+      ]
+    },
+    {
+      "service": "military", "name": "Russian stations", "mode": "USB",
+      "note": "Russian military station, as listed in June 2022, credited to Priyom. They come and go, so don't count on it being there.",
+      "stations": [
+        {"khz": 3218.5, "label": "Katok-65", "note": "Western Military District"},
+        {"khz": 3243, "label": "The Goose", "note": "Western Military District"},
+        {"khz": 3510, "label": "Air Horn", "note": "Western Military District. Inside the 80 m amateur band"},
+        {"khz": 3756, "label": "The Pip", "note": "Southern Military District. Night frequency"},
+        {"khz": 3828, "label": "Squeaky Wheel", "note": "Southern Military District. Night frequency"},
+        {"khz": 3850, "label": "Baron-78", "note": "Southern Military District"},
+        {"khz": 4182, "label": "T marker", "note": "Western Military District. Single-letter CW marker"},
+        {"khz": 4224, "label": "Katok-65", "note": "Western Military District"},
+        {"khz": 4310, "label": "The Goose", "note": "Western Military District"},
+        {"khz": 4625, "label": "The Buzzer", "note": "S28, also known as UVB-76. A continuous buzz, interrupted by occasional voice messages"},
+        {"khz": 4770, "label": "The Alarm", "note": "Western Military District"},
+        {"khz": 4940, "label": "Baron-78", "note": "Southern Military District"},
+        {"khz": 5292, "label": "D marker", "note": "Western Military District. Single-letter CW marker"},
+        {"khz": 5372, "label": "Vega", "note": "Southern Military District"},
+        {"khz": 5448, "label": "The Pip", "note": "Southern Military District. Day frequency"},
+        {"khz": 5473, "label": "Squeaky Wheel", "note": "Southern Military District. Day frequency"}
+      ]
+    },
+    {
+      "service": "government", "name": "Time signals: shortwave", "mode": "AM",
+      "note": "Standard time and frequency stations. Good for checking propagation and the rig's calibration. CHU, Canada, closed on 22 June 2026.",
+      "stations": [
+        {"khz": 2500, "label": "Time", "note": "WWV and WWVH, USA; BPM, China"},
+        {"khz": 4996, "label": "RWM", "note": "Moscow, Russia. Morse and time pips"},
+        {"khz": 5000, "label": "Time", "note": "WWV and WWVH, USA; BPM, China; HLA, South Korea; YVTO, Venezuela"},
+        {"khz": 9996, "label": "RWM", "note": "Moscow, Russia. Morse and time pips"},
+        {"khz": 10000, "label": "Time", "note": "WWV and WWVH, USA; BPM, China; LOL, Argentina; PPE, Brazil"},
+        {"khz": 14996, "label": "RWM", "note": "Moscow, Russia. Morse and time pips"},
+        {"khz": 15000, "label": "Time", "note": "WWV and WWVH, USA; BPM, China"},
+        {"khz": 20000, "label": "WWV", "note": "WWV, USA"},
+        {"khz": 25000, "label": "WWV", "note": "WWV, USA. Experimental and on a variable schedule"}
+      ]
+    },
+    {
+      "service": "government", "name": "Time signals: long wave", "mode": "CW",
+      "note": "Time codes for radio clocks: you'll hear a carrier keyed on and off, so CW gives a tone.",
+      "stations": [
+        {"khz": 40, "label": "JJY", "note": "Fukushima, Japan"},
+        {"khz": 50, "label": "RTZ", "note": "Irkutsk, Russia"},
+        {"khz": 60, "label": "MSF/WWVB/JJY", "note": "MSF, UK; WWVB, USA; JJY Kyushu, Japan"},
+        {"khz": 66.66, "label": "RBU", "note": "Moscow, Russia"},
+        {"khz": 68.5, "label": "BPC", "note": "China"},
+        {"khz": 77.5, "label": "DCF77", "note": "Mainflingen, Germany"},
+        {"khz": 100, "label": "BPL", "note": "China"},
+        {"khz": 162, "label": "ALS162", "note": "Allouis, France. Time code in phase modulation"}
+      ]
+    },
+    {
+      "service": "government", "name": "VOLMET: civil aviation weather", "mode": "USB",
+      "note": "Airport weather reports, read out in a repeating cycle.",
+      "stations": [
+        {"khz": 2863, "label": "Volmet", "note": "Honolulu, Tokyo, Hong Kong, Auckland"},
+        {"khz": 2965, "label": "Volmet", "note": "Bangkok, Singapore, Mumbai, Karachi and others"},
+        {"khz": 3413, "label": "Volmet", "note": "Shannon, Ireland"},
+        {"khz": 3458, "label": "Volmet", "note": "Beijing, Guangzhou"},
+        {"khz": 3485, "label": "Volmet", "note": "New York, USA and Gander, Canada"},
+        {"khz": 5505, "label": "Volmet", "note": "Shannon, Ireland"},
+        {"khz": 5673, "label": "Volmet", "note": "Beijing, Guangzhou"},
+        {"khz": 6604, "label": "Volmet", "note": "New York, USA and Gander, Canada"},
+        {"khz": 6676, "label": "Volmet", "note": "Bangkok, Singapore, Mumbai, Karachi and others"},
+        {"khz": 6679, "label": "Volmet", "note": "Honolulu, Tokyo, Hong Kong, Auckland"},
+        {"khz": 8828, "label": "Volmet", "note": "Honolulu, Tokyo, Hong Kong, Auckland"},
+        {"khz": 8849, "label": "Volmet", "note": "Beijing, Guangzhou"},
+        {"khz": 8957, "label": "Volmet", "note": "Shannon, Ireland"},
+        {"khz": 10051, "label": "Volmet", "note": "New York, USA and Gander, Canada"},
+        {"khz": 11387, "label": "Volmet", "note": "Bangkok, Singapore, Mumbai, Karachi and others"},
+        {"khz": 13264, "label": "Volmet", "note": "Shannon, Ireland"},
+        {"khz": 13270, "label": "Volmet", "note": "New York, USA and Gander, Canada"},
+        {"khz": 13282, "label": "Volmet", "note": "Honolulu, Tokyo, Hong Kong, Auckland"},
+        {"khz": 13285, "label": "Volmet", "note": "Beijing, Guangzhou"}
+      ]
+    },
+    {
+      "service": "government", "name": "North Atlantic air traffic control", "mode": "USB",
+      "note": "Gander, New York, Santa Maria, Shanwick, Iceland and Bodo. Families as listed in 2015; family A was confirmed in 2020.",
+      "stations": [
+        {"khz": 2872, "label": "NAT-C", "note": "Family C. Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 2899, "label": "NAT-B", "note": "Family B. Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 2962, "label": "NAT-E", "note": "Family E. New York, Santa Maria. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 2971, "label": "NAT-D", "note": "Family D. Bodo, Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 3016, "label": "NAT-A", "note": "Family A. Gander, New York, Santa Maria, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 3476, "label": "NAT-F", "note": "Family F. Shanwick, Gander. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 4675, "label": "NAT-D", "note": "Family D. Bodo, Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 5598, "label": "NAT-A", "note": "Family A. Gander, New York, Santa Maria, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 5616, "label": "NAT-B", "note": "Family B. Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 5649, "label": "NAT-C", "note": "Family C. Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 6622, "label": "NAT-F", "note": "Family F. Shanwick, Gander. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 6628, "label": "NAT-E", "note": "Family E. New York, Santa Maria. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 8825, "label": "NAT-E", "note": "Family E. New York, Santa Maria. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 8831, "label": "NAT-F", "note": "Family F. Shanwick, Gander. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 8864, "label": "NAT-B", "note": "Family B. Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 8879, "label": "NAT-C", "note": "Family C. Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 8891, "label": "NAT-D", "note": "Family D. Bodo, Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 8906, "label": "NAT-A", "note": "Family A. Gander, New York, Santa Maria, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 11279, "label": "NAT-D", "note": "Family D. Bodo, Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 11309, "label": "NAT-E", "note": "Family E. New York, Santa Maria. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 11336, "label": "NAT-C", "note": "Family C. Gander, Iceland, Shanwick. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 13291, "label": "NAT-B/F", "note": "Families B and F. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 13306, "label": "NAT-A/C", "note": "Families A and C. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 13354, "label": "NAT-E", "note": "Family E. New York, Santa Maria. Oceanic air traffic control, North Atlantic. Selected by time of day."},
+        {"khz": 17946, "label": "NAT", "note": "Shared by several families. Oceanic air traffic control, North Atlantic. Selected by time of day."}
+      ]
+    },
+    {
+      "service": "commercial", "name": "Airline long-distance voice", "mode": "USB",
+      "note": "Company calls between airliners and their operators. Compiled from internet sources, so expect some to be quiet.",
+      "stations": [
+        {"khz": 5535, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 5545, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 6637, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 6640, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 8921, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 8930, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 11342, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 13205, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 13330, "label": "LDOC", "note": "Long distance operational control"},
+        {"khz": 13339, "label": "LDOC", "note": "Long distance operational control"}
+      ]
+    },
+    {
+      "service": "commercial", "name": "HFDL aircraft data", "mode": "USB",
+      "note": "Automatic data link with airliners. Decode with PC software. Frequencies rotate through the day, and lists disagree: hfdl.observer shows what's active now.",
+      "stations": [
+        {"khz": 2998, "label": "HFDL", "note": "Shannon, Ireland"},
+        {"khz": 3455, "label": "HFDL", "note": "Shannon, Ireland"},
+        {"khz": 4660, "label": "HFDL", "note": "Santa Cruz, Bolivia"},
+        {"khz": 5547, "label": "HFDL", "note": "Shannon, Ireland"},
+        {"khz": 6532, "label": "HFDL", "note": "Shannon, Ireland"},
+        {"khz": 6628, "label": "HFDL", "note": "Santa Cruz, Bolivia"},
+        {"khz": 8843, "label": "HFDL", "note": "Shannon, Ireland"},
+        {"khz": 8942, "label": "HFDL", "note": "Shannon, Ireland"},
+        {"khz": 8957, "label": "HFDL", "note": "Santa Cruz, Bolivia"},
+        {"khz": 10081, "label": "HFDL", "note": "Shannon, Ireland"},
+        {"khz": 11318, "label": "HFDL", "note": "Santa Cruz, Bolivia"},
+        {"khz": 11384, "label": "HFDL", "note": "Shannon, Ireland"},
+        {"khz": 13315, "label": "HFDL", "note": "Santa Cruz, Bolivia"},
+        {"khz": 17916, "label": "HFDL", "note": "Santa Cruz, Bolivia"},
+        {"khz": 21997, "label": "HFDL", "note": "Santa Cruz, Bolivia"}
+      ]
+    },
+    {
+      "service": "commercial", "name": "Press fax", "mode": "USB", "dial_offset_khz": -1.9,
+      "note": "News by radiofax. The schedule entry dates from 2009.",
+      "stations": [
+        {"khz": 16971, "label": "JJC", "note": "Kyodo News, Japan / Singapore relay"}
+      ]
+    },
+    {
+      "service": "broadcast", "name": "Long wave broadcasters", "mode": "AM",
+      "note": "Few are left. BBC Radio 4 on 198 kHz closed on 27 June 2026.",
+      "stations": [
+        {"khz": 153, "label": "Antena Satelor", "note": "Radio Romania"},
+        {"khz": 164, "label": "MNB", "note": "MNB Radio 1, Ulaanbaatar, Mongolia"},
+        {"khz": 209, "label": "MNB", "note": "MNB Radio 1, Mongolia"},
+        {"khz": 225, "label": "Polskie Radio", "note": "Program 1, Poland"},
+        {"khz": 227, "label": "MNB", "note": "MNB Radio 1, Altai City, Mongolia"},
+        {"khz": 252, "label": "Alger", "note": "Alger Chaine 3, Algeria. Intermittent"}
+      ]
+    }
+  ],
+  "ranges": [
+    {"from": 148.5, "to": 283.5, "service": "broadcast", "label": "Long wave broadcast", "note": "Regions 1 and 3 only"},
+    {"from": 526.5, "to": 1705, "service": "broadcast", "label": "Medium wave broadcast", "note": "526.5-1606.5 kHz in Regions 1 and 3; 530-1705 kHz in Region 2"},
+    {"from": 2300, "to": 2495, "service": "broadcast", "label": "120 m broadcast", "note": "Tropical band"},
+    {"from": 3200, "to": 3400, "service": "broadcast", "label": "90 m broadcast", "note": "Tropical band"},
+    {"from": 3900, "to": 4000, "service": "broadcast", "label": "75 m broadcast"},
+    {"from": 4750, "to": 4995, "service": "broadcast", "label": "60 m broadcast", "note": "Tropical band"},
+    {"from": 5900, "to": 6200, "service": "broadcast", "label": "49 m broadcast"},
+    {"from": 7200, "to": 7450, "service": "broadcast", "label": "41 m broadcast"},
+    {"from": 9400, "to": 9900, "service": "broadcast", "label": "31 m broadcast"},
+    {"from": 11600, "to": 12100, "service": "broadcast", "label": "25 m broadcast"},
+    {"from": 13570, "to": 13870, "service": "broadcast", "label": "22 m broadcast"},
+    {"from": 15100, "to": 15800, "service": "broadcast", "label": "19 m broadcast"},
+    {"from": 17480, "to": 17900, "service": "broadcast", "label": "16 m broadcast"},
+    {"from": 18900, "to": 19020, "service": "broadcast", "label": "15 m broadcast"},
+    {"from": 21450, "to": 21850, "service": "broadcast", "label": "13 m broadcast"},
+    {"from": 25670, "to": 26100, "service": "broadcast", "label": "11 m broadcast"}
+  ]
+}

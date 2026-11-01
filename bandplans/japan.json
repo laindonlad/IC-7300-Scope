@@ -1,0 +1,182 @@
+{
+  "name": "Japan",
+  "revision": "2025-07",
+  "source": "JARL Amateur Band Plan, in force 17 July 2025. jarl.org",
+  "note": "160 m and 80 m are broken up: nothing between the blocks is available. Voice on 160 m is only allowed in 1845-1875 kHz, and 1907.5-1912.5 kHz is 500 Hz maximum with no voice. 30 m is 2 kHz maximum, with no SSB or AM. Power and class limits are in your licence.",
+  "bands": [
+    {
+      "name": "160", "home_khz": 1860, "home_mode": "LSB",
+      "segments": [
+        {"from": 1800, "to": 1830, "use": "cw"},
+        {"from": 1830, "to": 1845, "use": "digi", "label": "CW / narrow data"},
+        {"from": 1845, "to": 1875, "use": "ssb", "label": "All narrow modes"},
+        {"from": 1907.5, "to": 1912.5, "use": "digi", "label": "500 Hz, no voice"}
+      ],
+      "markers": [
+        {"khz": 1820, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 1840, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 1836.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 1860, "label": "SSB", "mode": "LSB", "note": "Typical SSB"}
+      ]
+    },
+    {
+      "name": "80", "home_khz": 3680, "home_mode": "LSB",
+      "segments": [
+        {"from": 3500, "to": 3530, "use": "cw"},
+        {"from": 3530, "to": 3580, "use": "ssb", "label": "All narrow modes"},
+        {"from": 3599, "to": 3612, "use": "ssb", "label": "All narrow modes"},
+        {"from": 3662, "to": 3687, "use": "ssb", "label": "All narrow modes"},
+        {"from": 3702, "to": 3716, "use": "ssb", "label": "All narrow modes"},
+        {"from": 3745, "to": 3770, "use": "ssb", "label": "All narrow modes"},
+        {"from": 3791, "to": 3805, "use": "ssb", "label": "All narrow modes"}
+      ],
+      "markers": [
+        {"khz": 3525, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 3573, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 3575, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 3568.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 3680, "label": "SSB", "mode": "LSB", "note": "Typical SSB"},
+        {"khz": 3535, "label": "Emerg", "note": "Emergency frequency"}
+      ]
+    },
+    {
+      "name": "40", "home_khz": 7150, "home_mode": "LSB",
+      "segments": [
+        {"from": 7000, "to": 7030, "use": "cw"},
+        {"from": 7030, "to": 7200, "use": "ssb", "label": "All narrow modes"}
+      ],
+      "markers": [
+        {"khz": 7020, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 7074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 7047.5, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 7038.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 7150, "label": "SSB", "mode": "LSB", "note": "Typical SSB"},
+        {"khz": 7041, "label": "JA", "note": "Domestic FT8. Noted by WIA, not in the JARL plan"},
+        {"khz": 7050, "label": "Emerg", "note": "Emergency frequency"}
+      ]
+    },
+    {
+      "name": "30", "home_khz": 10136, "home_mode": "USB",
+      "segments": [
+        {"from": 10100, "to": 10120, "use": "cw"},
+        {"from": 10120, "to": 10150, "use": "digi", "label": "2 kHz, no SSB or AM"}
+      ],
+      "markers": [
+        {"khz": 10116, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 10136, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 10140, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 10138.7, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"}
+      ]
+    },
+    {
+      "name": "20", "home_khz": 14200, "home_mode": "USB",
+      "segments": [
+        {"from": 14000, "to": 14070, "use": "cw"},
+        {"from": 14070, "to": 14100, "use": "digi", "label": "CW / narrow data"},
+        {"from": 14100, "to": 14350, "use": "ssb", "label": "All narrow modes"}
+      ],
+      "markers": [
+        {"khz": 14030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 14074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 14080, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 14095.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 14200, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 14100, "label": "IBP", "note": "Beacon, JARL international only. Don't transmit here"},
+        {"khz": 14300, "label": "Emerg", "note": "Emergency frequency"}
+      ]
+    },
+    {
+      "name": "17", "home_khz": 18140, "home_mode": "USB",
+      "segments": [
+        {"from": 18068, "to": 18080, "use": "cw"},
+        {"from": 18080, "to": 18110, "use": "digi", "label": "CW / narrow data"},
+        {"from": 18110, "to": 18168, "use": "ssb", "label": "All narrow modes"}
+      ],
+      "markers": [
+        {"khz": 18075, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 18100, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 18104, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 18104.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 18140, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 18110, "label": "IBP", "note": "Beacon, JARL international only. Don't transmit here"},
+        {"khz": 18160, "label": "Emerg", "note": "Emergency frequency"}
+      ]
+    },
+    {
+      "name": "15", "home_khz": 21250, "home_mode": "USB",
+      "segments": [
+        {"from": 21000, "to": 21070, "use": "cw"},
+        {"from": 21070, "to": 21150, "use": "digi", "label": "CW / narrow data"},
+        {"from": 21150, "to": 21450, "use": "ssb", "label": "All narrow modes"}
+      ],
+      "markers": [
+        {"khz": 21030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 21074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 21140, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 21094.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 21250, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 21150, "label": "IBP", "note": "Beacon, JARL international only. Don't transmit here"},
+        {"khz": 21360, "label": "Emerg", "note": "Emergency frequency"}
+      ]
+    },
+    {
+      "name": "12", "home_khz": 24950, "home_mode": "USB",
+      "segments": [
+        {"from": 24890, "to": 24900, "use": "cw"},
+        {"from": 24900, "to": 24930, "use": "digi", "label": "CW / narrow data"},
+        {"from": 24930, "to": 24990, "use": "ssb", "label": "All narrow modes"}
+      ],
+      "markers": [
+        {"khz": 24895, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 24915, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 24919, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 24924.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 24950, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 24930, "label": "IBP", "note": "Beacon, JARL international only. Don't transmit here"}
+      ]
+    },
+    {
+      "name": "10", "home_khz": 28500, "home_mode": "USB",
+      "segments": [
+        {"from": 28000, "to": 28070, "use": "cw"},
+        {"from": 28070, "to": 28200, "use": "digi", "label": "CW / narrow data"},
+        {"from": 28200, "to": 29000, "use": "ssb", "label": "All narrow modes"},
+        {"from": 29000, "to": 29300, "use": "ssb", "label": "All modes"},
+        {"from": 29300, "to": 29510, "use": "sat", "label": "Satellite"},
+        {"from": 29510, "to": 29590, "use": "fm", "label": "Repeater / all modes"},
+        {"from": 29590, "to": 29610, "use": "ssb", "label": "All modes"},
+        {"from": 29610, "to": 29700, "use": "fm", "label": "Repeater / all modes"}
+      ],
+      "markers": [
+        {"khz": 28030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 28074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 28180, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 28124.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 28500, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 29600, "label": "FM", "mode": "FM", "note": "FM"},
+        {"khz": 28200, "label": "IBP", "note": "Beacon and emergency frequency. Don't transmit here without cause"}
+      ]
+    },
+    {
+      "name": "6", "home_khz": 50150, "home_mode": "USB",
+      "segments": [
+        {"from": 50000, "to": 50070, "use": "cw"},
+        {"from": 50070, "to": 51000, "use": "ssb", "label": "All narrow modes"},
+        {"from": 51000, "to": 52900, "use": "ssb", "label": "All modes"},
+        {"from": 52900, "to": 54000, "use": "other", "label": "All modes, experimental"}
+      ],
+      "markers": [
+        {"khz": 50050, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 50313, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 50318, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 50293, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 50150, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 51000, "label": "FM", "mode": "FM", "note": "Calling and emergency frequency"},
+        {"khz": 50010, "label": "Bcn", "note": "Beacon, JARL international only"},
+        {"khz": 50100, "label": "Emerg", "note": "Emergency frequency"},
+        {"khz": 51300, "label": "DV", "note": "Digital calling and emergency frequency"},
+        {"khz": 51500, "label": "Emerg", "note": "Emergency frequency"}
+      ]
+    }
+  ]
+}

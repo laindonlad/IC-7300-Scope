@@ -1,6 +1,7 @@
 #include "app.h"
 
 #include <GLFW/glfw3.h>
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -134,6 +135,20 @@ bool saveBmp(const std::string& path, int w, int h) {
   return true;
 }
 
+// The colours of the band plan, the same in the map and on the scope.
+ImU32 segmentColour(bands::Use use, int alpha) {
+  ImU32 c = use == bands::U_CW       ? IM_COL32(50, 140, 225, 255)
+            : use == bands::U_DIGI   ? IM_COL32(180, 80, 205, 255)
+            : use == bands::U_SSB    ? IM_COL32(55, 165, 90, 255)
+            : use == bands::U_FM     ? IM_COL32(225, 135, 40, 255)
+            : use == bands::U_BEACON ? IM_COL32(205, 175, 40, 255)
+            : use == bands::U_SAT    ? IM_COL32(40, 170, 175, 255)
+                                     : IM_COL32(120, 125, 135, 255);
+  return (c & 0x00FFFFFF) | ((ImU32)alpha << IM_COL32_A_SHIFT);
+}
+// What a portion of a band is for, in plain words. "Other" has no plain word, so it uses its own label.
+std::string portionName(const bands::Segment& s) { return s.use == bands::U_OTHER ? s.label : bands::useName(s.use); }
+
 class App {
  public:
   explicit App(const AppOptions& o) : opt_(o) {}
@@ -162,6 +177,7 @@ class App {
   void drawBandRow();
   void drawControls();
   void drawCentre();
+  void drawBandMap(double viewLo, double viewHi);
   void drawScopePane();
   void drawAudioPane();
   void drawRightTabs();
@@ -187,7 +203,14 @@ class App {
   void tuneTo(long long hz) { rig_.setFreq(hz); }
   void tuneBy(long long d) { rig_.setFreq(st_.hz + d); }
   void goBand(int i);
-  void goPreset(const bands::Preset& p);
+  void goMarker(const bands::Marker& m);
+  void goRange(const bands::StationRange& r);
+  void drawStationsMenu();
+  void drawStationSearch();
+  const bands::StationRange* rangeHere(long long hz) const { return showStations_ ? stations_.rangeAt(hz, showService_) : nullptr; }
+  void choosePlan(const std::string& id);
+  void reloadPlans();
+  void loadBandMem();
   void commitEntry();
   void setStep(int i) { stepIdx_ = std::max(0, std::min(kStepCount - 1, i)); }
   void startRecording();
@@ -204,7 +227,18 @@ class App {
   };
   PlotArea drawPlot(const char* id, double xLo, double xHi, const std::vector<float>& line, double lineLo, double lineHi, float yLo,
                     float yHi, Waterfall& wf, float u0, float u1, const std::function<std::string(double)>& axisLabel, double axisStep,
-                    float rowHeight);
+                    float rowHeight, float stripH = 0);
+  // The flags along the top of the spectrum, which the plan's and the stations' share room between.
+  struct FlagLayer {
+    int rows = 1;
+    std::vector<std::pair<float, float>> taken[3];
+    const bands::Marker* hit = nullptr;  // under the mouse
+    float bestDist = 0;
+  };
+  int freeFlagRow(const FlagLayer& l, float x0, float x1) const;
+  void drawFlag(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l, const bands::Marker& m, ImU32 col, bool filled, const std::string& rectName);
+  void drawPlanOverlay(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l);
+  void drawStationOverlay(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l);
 
   // ---- self-test ----
   struct Step {
@@ -255,7 +289,18 @@ class App {
     int mode = 0, filter = 1;
     bool data = false;
   };
-  std::vector<BandMem> bandMem_;
+  std::map<std::string, BandMem> bandMem_;  // by band name, as plans differ in which bands they have
+  bands::Library plans_;
+  bands::Plan plan_;
+  std::string plansDir_;
+  bool showBandPlan_ = true;
+  bands::Stations stations_;  // the same whichever plan is chosen
+  std::string stationsDir_;
+  bool showStations_ = true;
+  bool showService_[bands::S_COUNT] = {true, true, true, true, true};
+  bool stationSearchOpen_ = false, stationSearchFocus_ = false;
+  char stationQuery_[64] = "";
+  size_t stationHitCount_ = 0;
   int smeterPeak_ = 0;
 
   // audio view
@@ -404,19 +449,62 @@ void App::loadSettings() {
     std::string m = cfg_.get("macro" + std::to_string(i));
     if (!m.empty()) snprintf(macros_[i], sizeof macros_[i], "%s", m.c_str());
   }
-  int n;
-  bands::table(n);
-  bandMem_.assign((size_t)n, BandMem());
-  for (int i = 0; i < n; i++) {
-    auto p = store::splitCsv(cfg_.get("band" + std::to_string(i)));
-    if (p.size() == 4) {
-      BandMem& b = bandMem_[(size_t)i];
-      b.hz = atoll(p[0].c_str()), b.mode = atoi(p[1].c_str()), b.data = p[2] == "1", b.filter = atoi(p[3].c_str());
-      b.valid = b.hz > 0;
-    }
+  // The self-test uses only what's built in, so it can't depend on or disturb anyone's edited plans.
+  plansDir_ = dir + "bandplans";
+  stationsDir_ = dir + "stations";
+  if (!opt_.selfTest.empty()) {
+    plans_ = bands::builtinPlans();
+    stations_ = bands::builtinStations();
+  } else {
+    bands::installPlans(plansDir_);
+    plans_ = bands::loadPlans(plansDir_);
+    bands::installStations(stationsDir_);
+    stations_ = bands::loadStations(stationsDir_);
+    showStations_ = cfg_.getInt("show_stations", 1) != 0;
+    for (int i = 0; i < bands::S_COUNT; i++) showService_[i] = cfg_.getInt("show_service" + std::to_string(i), 1) != 0;
   }
+  showBandPlan_ = !opt_.selfTest.empty() || cfg_.getInt("show_bandplan", 1) != 0;
+  choosePlan(opt_.selfTest.empty() ? cfg_.get("band_plan", "uk") : "uk");
   memories_ = store::loadMemories(memPath_);
   log_ = store::loadLog(logPath_);
+}
+
+// Saved by band name. Earlier versions saved by position in a fixed list of twelve, which these read.
+void App::loadBandMem() {
+  static const char* const kOldOrder[] = {"160", "80", "60", "40", "30", "20", "17", "15", "12", "10", "6", "4"};
+  for (const bands::Plan& plan : plans_.plans)
+    for (const bands::Band& band : plan.bands) {
+      if (bandMem_.count(band.name)) continue;
+      std::string v = cfg_.get("band_" + band.name);
+      for (int i = 0; i < 12 && v.empty(); i++)
+        if (band.name == kOldOrder[i]) v = cfg_.get("band" + std::to_string(i));
+      BandMem b;
+      auto p = store::splitCsv(v);
+      if (p.size() == 4) {
+        b.hz = atoll(p[0].c_str()), b.mode = atoi(p[1].c_str()), b.data = p[2] == "1", b.filter = atoi(p[3].c_str());
+        b.valid = b.hz > 0;
+      }
+      bandMem_[band.name] = b;
+    }
+}
+
+void App::choosePlan(const std::string& id) {
+  const bands::Plan* p = plans_.find(id);
+  if (!p) p = plans_.find("uk");
+  if (!p && !plans_.plans.empty()) p = &plans_.plans[0];
+  if (p) plan_ = *p;
+  loadBandMem();
+}
+
+void App::reloadPlans() {
+  bands::installPlans(plansDir_);
+  plans_ = bands::loadPlans(plansDir_);
+  choosePlan(plan_.id);
+  bands::installStations(stationsDir_);
+  stations_ = bands::loadStations(stationsDir_);
+  say(!plans_.errors.empty()      ? "A band plan has a problem: " + plans_.errors[0]
+      : !stations_.errors.empty() ? "A station list has a problem: " + stations_.errors[0]
+                                  : "Band plans and stations reloaded");
 }
 
 void App::saveSettings() {
@@ -443,10 +531,14 @@ void App::saveSettings() {
   cfg_.setInt("tx_limit", txLimit_);
   cfg_.set("callsign", callsign_);
   for (int i = 0; i < 5; i++) cfg_.set("macro" + std::to_string(i), macros_[i]);
-  for (size_t i = 0; i < bandMem_.size(); i++) {
-    const BandMem& b = bandMem_[i];
+  cfg_.set("band_plan", plan_.id);
+  cfg_.setInt("show_bandplan", showBandPlan_);
+  cfg_.setInt("show_stations", showStations_);
+  for (int i = 0; i < bands::S_COUNT; i++) cfg_.setInt("show_service" + std::to_string(i), showService_[i]);
+  for (const auto& e : bandMem_) {
+    const BandMem& b = e.second;
     if (b.valid)
-      cfg_.set("band" + std::to_string(i), store::joinCsv({std::to_string(b.hz), std::to_string(b.mode), b.data ? "1" : "0", std::to_string(b.filter)}));
+      cfg_.set("band_" + e.first, store::joinCsv({std::to_string(b.hz), std::to_string(b.mode), b.data ? "1" : "0", std::to_string(b.filter)}));
   }
   int w, h;
   glfwGetWindowSize(win_, &w, &h);
@@ -565,28 +657,34 @@ void App::pumpScope() {
 
 void App::rememberBand() {
   if (!st_.connected || st_.tx || st_.hz <= 0 || st_.mode < 0) return;
-  int b = bands::bandOf(st_.hz);
-  if (b < 0) return;
-  BandMem& m = bandMem_[(size_t)b];
+  int b = plan_.bandOf(st_.hz);
+  if (b < 0 || !plan_.segmentAt(st_.hz)) return;
+  BandMem& m = bandMem_[plan_.bands[(size_t)b].name];
   m.valid = true, m.hz = st_.hz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
 }
 
 void App::goBand(int i) {
-  int n;
-  const bands::Band* t = bands::table(n);
-  const BandMem& m = bandMem_[(size_t)i];
-  if (m.valid) {
+  const bands::Band& band = plan_.bands[(size_t)i];
+  const BandMem& m = bandMem_[band.name];
+  // Where you were may not be in the band under a different plan.
+  if (m.valid && band.segmentAt(m.hz)) {
     tuneTo(m.hz);
     rig_.setMode(m.mode, m.data, m.filter);
   } else {
-    tuneTo(t[i].homeHz);
-    rig_.setMode(t[i].homeMode, false, st_.filter ? st_.filter : 1);
+    tuneTo(band.homeHz);
+    rig_.setMode(band.homeMode, false, st_.filter ? st_.filter : 1);
   }
 }
 
-void App::goPreset(const bands::Preset& p) {
-  tuneTo(p.hz);
-  rig_.setMode(p.mode, p.data, 1);
+void App::goMarker(const bands::Marker& m) {
+  tuneTo(m.tuneHz());
+  if (m.preset()) rig_.setMode(m.mode, m.data, 1);
+}
+
+// The middle of a broadcast band is as good a place as any to start listening.
+void App::goRange(const bands::StationRange& r) {
+  tuneTo((r.lo + r.hi) / 2);
+  if (r.service == bands::S_BROADCAST) rig_.setMode(civ::AM, false, 1);
 }
 
 void App::commitEntry() {
@@ -622,6 +720,7 @@ void App::handleKeys() {
   }
 
   bool ctrl = io.KeyCtrl, shift = io.KeyShift;
+  if (ctrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) stationSearchOpen_ = stationSearchFocus_ = true;
   if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
     if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
     else rig_.ptt(!st_.tx);
@@ -632,9 +731,8 @@ void App::handleKeys() {
   if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true)) tuneTo(tuning::stepFreq(st_.hz, step, -1));
   if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false)) setStep(stepIdx_ + 1);
   if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false)) setStep(stepIdx_ - 1);
-  int nb;
-  bands::table(nb);
-  int here = bands::bandOf(st_.hz);
+  int nb = (int)plan_.bands.size();
+  int here = plan_.bandOf(st_.hz);
   if (ImGui::IsKeyPressed(ImGuiKey_PageUp, false)) goBand(here < 0 ? 0 : (here + 1) % nb);
   if (ImGui::IsKeyPressed(ImGuiKey_PageDown, false)) goBand(here < 0 ? 0 : (here + nb - 1) % nb);
   int f = st_.filter ? st_.filter : 1;
@@ -982,24 +1080,23 @@ void App::drawHeader() {
 }
 
 void App::drawBandRow() {
-  int n;
-  const bands::Band* t = bands::table(n);
   ImGui::BeginDisabled(!st_.connected);
-  int here = bands::bandOf(st_.hz);
+  int here = plan_.bandOf(st_.hz);
   float bw = S(37);
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < (int)plan_.bands.size(); i++) {
+    const bands::Band& band = plan_.bands[(size_t)i];
     if (i) ImGui::SameLine();
     ImGui::PushID(i);
-    if (toggle(t[i].name, here == i, ImVec2(bw, S(30)), (std::string("band:") + t[i].name).c_str())) goBand(i);
-    ImGui::SetItemTooltip("%s m. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.", t[i].name);
+    if (toggle(band.name.c_str(), here == i, ImVec2(bw, S(30)), ("band:" + band.name).c_str())) goBand(i);
+    ImGui::SetItemTooltip("%s m. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.", band.name.c_str());
     if (ImGui::BeginPopupContextItem("presets")) {
-      ImGui::TextDisabled("%s m", t[i].name);
-      for (const bands::Preset& p : t[i].presets)
-        if (p.name) {
+      ImGui::TextDisabled("%s m", band.name.c_str());
+      for (const bands::Marker& p : band.markers)
+        if (p.preset()) {
           char b[64];
-          snprintf(b, sizeof b, "%-5s  %s", p.name, tuning::formatHz(p.hz).c_str());
-          if (ImGui::MenuItem(b)) goPreset(p);
-          note(std::string("preset:") + t[i].name + ":" + p.name);
+          snprintf(b, sizeof b, "%-5s  %s", p.label.c_str(), tuning::formatHz(p.hz).c_str());
+          if (ImGui::MenuItem(b)) goMarker(p);
+          note("preset:" + band.name + ":" + p.label);
         }
       ImGui::EndPopup();
     }
@@ -1152,7 +1249,7 @@ void App::drawControls() {
 
 App::PlotArea App::drawPlot(const char* id, double xLo, double xHi, const std::vector<float>& line, double lineLo, double lineHi,
                             float yLo, float yHi, Waterfall& wf, float u0, float u1, const std::function<std::string(double)>& axisLabel,
-                            double axisStep, float rowHeight) {
+                            double axisStep, float rowHeight, float stripH) {
   PlotArea a;
   ImVec2 avail = ImGui::GetContentRegionAvail();
   avail.y = std::max(avail.y, S(60));
@@ -1172,7 +1269,7 @@ App::PlotArea App::drawPlot(const char* id, double xLo, double xHi, const std::v
   dl->PushClipRect(a.p0, a.p1, true);
   float specH = floorf(h * 0.28f), axisH = S(17);
   ImVec2 s0 = a.p0, s1(a.p1.x, a.p0.y + specH);
-  a.w0 = ImVec2(a.p0.x, s1.y + axisH);
+  a.w0 = ImVec2(a.p0.x, s1.y + axisH + stripH);  // the band plan's strip goes in the gap, drawn by the caller
   a.w1 = a.p1;
 
   // Spectrum: one column a pixel, each the strongest value it covers.
@@ -1221,6 +1318,297 @@ App::PlotArea App::drawPlot(const char* id, double xLo, double xHi, const std::v
   wf.draw(dl, a.w0, a.w1, u0, u1, std::max(1.f, roundf(scale_ * rowHeight)));
   dl->PopClipRect();
   return a;
+}
+
+// The whole of the band the dial is in, each portion named in plain words, with the part the scope is
+// showing outlined and the dial marked. For finding your way round a band without knowing it already.
+void App::drawBandMap(double viewLo, double viewHi) {
+  float w = ImGui::GetContentRegionAvail().x, h = S(20);
+  ImVec2 p0 = ImGui::GetCursorScreenPos(), p1(p0.x + w, p0.y + h);
+  ImGui::InvisibleButton("bandmap", ImVec2(w, h));
+  note("bandmap");
+  bool hovered = ImGui::IsItemHovered(), clicked = ImGui::IsItemClicked(ImGuiMouseButton_Left);
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  dl->AddRectFilled(p0, p1, IM_COL32(12, 14, 18, 255));
+  float mx = ImGui::GetIO().MousePos.x, textY = p0.y + (h - S(12.5f)) / 2;
+
+  int here = plan_.bandOf(st_.hz);
+  if (here < 0) {
+    std::string t = st_.hz > 0 ? "Not on a band in the " + plan_.name + " plan" : "";
+    if (const bands::StationRange* r = rangeHere(st_.hz)) t += ".  In the " + r->label + " band";
+    dl->AddText(fSmall_, S(12.5f), ImVec2(p0.x + S(6), textY), C_DIM, t.c_str());
+    return;
+  }
+  const bands::Band& band = plan_.bands[(size_t)here];
+  auto edge = [](long long hz) {
+    char b[32];
+    snprintf(b, sizeof b, hz % 1000 ? "%.4f" : "%.3f", (double)hz / 1e6);
+    return std::string(b);
+  };
+  auto widthOf = [&](const std::string& t) { return fSmall_->CalcTextSizeA(S(12.5f), FLT_MAX, 0, t.c_str()).x; };
+  // Where it begins, on the left, and where it ends, on the right.
+  std::string left = band.name + " m  " + edge(band.lo), right = edge(band.hi);
+  dl->AddText(fSmall_, S(12.5f), ImVec2(p0.x + S(4), textY), C_TEXT, left.c_str());
+  float rightW = widthOf(right);
+  dl->AddText(fSmall_, S(12.5f), ImVec2(p1.x - rightW - S(4), textY), C_TEXT, right.c_str());
+  float x0 = p0.x + widthOf(left) + S(10), x1 = p1.x - rightW - S(10);
+  if (x1 <= x0) return;
+  auto toX = [&](double f) { return x0 + (float)((f - (double)band.lo) / (double)(band.hi - band.lo)) * (x1 - x0); };
+
+  const bands::Segment* over = nullptr;
+  for (const bands::Segment& s : band.segments) {
+    float a = toX((double)s.lo), b = toX((double)s.hi);
+    b = std::max(b, a + 1.f);
+    dl->AddRectFilled(ImVec2(a, p0.y + S(1)), ImVec2(b, p1.y - S(1)), segmentColour(s.use, 170));
+    std::string word = portionName(s);
+    float tw = widthOf(word);
+    if (tw + S(4) < b - a) dl->AddText(fSmall_, S(12.5f), ImVec2((a + b - tw) / 2, textY), IM_COL32(255, 255, 255, 255), word.c_str());
+    if (hovered && mx >= a && mx < b) over = &s;
+  }
+  // What the scope is showing, then the dial.
+  float va = std::max(x0, toX(viewLo)), vb = std::min(x1, toX(viewHi));
+  if (vb > va) dl->AddRect(ImVec2(va, p0.y), ImVec2(vb, p1.y), IM_COL32(255, 255, 255, 200), 2);
+  float dx = toX((double)st_.hz);
+  dl->AddLine(ImVec2(dx, p0.y), ImVec2(dx, p1.y), st_.tx ? C_RED : IM_COL32(255, 200, 80, 255), 2.f);
+
+  if (hovered && mx >= x0 && mx <= x1) {
+    double f = (double)band.lo + (double)((mx - x0) / (x1 - x0)) * (double)(band.hi - band.lo);
+    if (over) ImGui::SetTooltip("%s: %s\n%s to %s MHz\nClick to tune here", portionName(*over).c_str(), over->label.c_str(), edge(over->lo).c_str(), edge(over->hi).c_str());
+    else ImGui::SetTooltip("Out of band under the %s plan", plan_.name.c_str());
+    if (clicked && over && st_.connected) tuneTo(std::max(over->lo, std::min(over->hi, llround(f / 1000) * 1000)));
+  }
+}
+
+int App::freeFlagRow(const FlagLayer& l, float x0, float x1) const {
+  for (int r = 0; r < l.rows; r++) {
+    bool free = true;
+    for (const auto& p : l.taken[r])
+      if (x0 < p.second + S(2) && x1 > p.first - S(2)) free = false;
+    if (free) return r;
+  }
+  return -1;
+}
+
+// One flag, in up to three rows along the top of the spectrum. A flag with no room left keeps its tick,
+// which still shows what it is under the mouse.
+void App::drawFlag(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l, const bands::Marker& m, ImU32 col, bool filled, const std::string& rectName) {
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  float y0 = a.w0.y - stripH, y1 = a.w0.y, specBottom = y0 - S(17);
+  float x = a.p0.x + (float)(((double)m.hz - lo) / (hi - lo)) * (a.p1.x - a.p0.x);
+  float tw = fSmall_->CalcTextSizeA(S(12.5f), FLT_MAX, 0, m.label.c_str()).x;
+  float lx0 = x - tw / 2 - S(3), lx1 = x + tw / 2 + S(3);
+  int row = freeFlagRow(l, lx0, lx1);
+  float top = a.p0.y + S(1);
+  dl->AddLine(ImVec2(x, top), ImVec2(x, specBottom), (col & 0x00FFFFFF) | IM_COL32(0, 0, 0, 110));
+  dl->AddLine(ImVec2(x, y0), ImVec2(x, y1), IM_COL32(255, 255, 255, 230));
+  ImVec2 mouse = ImGui::GetIO().MousePos;
+  bool inLabel = false;
+  if (row >= 0) {
+    l.taken[row].push_back({lx0, lx1});
+    float ly = top + (float)row * S(16);
+    ImVec2 r0(lx0, ly), r1(lx1, ly + S(15));
+    // The plan's flags are outlined and the stations' solid, so they can be told apart at a glance.
+    dl->AddRectFilled(r0, r1, filled ? (col & 0x00FFFFFF) | IM_COL32(0, 0, 0, 215) : IM_COL32(12, 15, 20, 225), 3);
+    dl->AddRect(r0, r1, col, 3);
+    dl->AddText(fSmall_, S(12.5f), ImVec2(x - tw / 2, ly + S(1)), filled ? IM_COL32(255, 255, 255, 255) : C_TEXT, m.label.c_str());
+    inLabel = mouse.x >= lx0 && mouse.x <= lx1 && mouse.y >= r0.y && mouse.y <= r1.y;
+    if (!opt_.selfTest.empty()) rects_[rectName] = ImRect(r0, r1);
+  }
+  float dist = fabsf(mouse.x - x);
+  if (a.hovered && (inLabel || (dist < l.bestDist && mouse.y < specBottom))) {
+    l.hit = &m;
+    l.bestDist = inLabel ? 0 : dist;
+  }
+}
+
+ImU32 serviceColour(bands::Service s) {
+  switch (s) {
+    case bands::S_COMMERCIAL: return IM_COL32(190, 70, 130, 255);
+    case bands::S_GOVERNMENT: return IM_COL32(95, 105, 125, 255);
+    case bands::S_NAVAL: return IM_COL32(25, 110, 165, 255);
+    case bands::S_MILITARY: return IM_COL32(120, 125, 40, 255);
+    default: return IM_COL32(170, 85, 40, 255);
+  }
+}
+
+// Whatever else is on the air, whichever plan is chosen. Broadcast bands and the like are a bar along the
+// bottom of the spectrum with their name in a free spot, since they're often wider than the screen.
+void App::drawStationOverlay(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l) {
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  auto toX = [&](double f) { return a.p0.x + (float)((f - lo) / (hi - lo)) * (a.p1.x - a.p0.x); };
+  float specBottom = a.w0.y - stripH - S(17);
+  for (const bands::StationFile& f : stations_.files)
+    for (const bands::Station& s : f.stations)
+      if (showService_[s.service] && (double)s.hz >= lo && (double)s.hz <= hi)
+        drawFlag(a, lo, hi, stripH, l, s, serviceColour(s.service), true, "station:" + std::to_string(s.hz));
+  for (const bands::StationFile& f : stations_.files)
+    for (const bands::StationRange& r : f.ranges) {
+      if (!showService_[r.service] || (double)r.hi <= lo || (double)r.lo >= hi) continue;
+      float x0 = std::max(a.p0.x, toX((double)r.lo)), x1 = std::min(a.p1.x, toX((double)r.hi));
+      ImU32 col = serviceColour(r.service);
+      dl->AddRectFilled(ImVec2(x0, specBottom - S(3)), ImVec2(x1, specBottom), col);
+      float tw = fSmall_->CalcTextSizeA(S(12.5f), FLT_MAX, 0, r.label.c_str()).x;
+      float cx = (x0 + x1) / 2, lx0 = cx - tw / 2 - S(3), lx1 = cx + tw / 2 + S(3);
+      int row = lx1 - lx0 < x1 - x0 ? freeFlagRow(l, lx0, lx1) : -1;
+      if (row < 0) continue;
+      l.taken[row].push_back({lx0, lx1});
+      float ly = a.p0.y + S(1) + (float)row * S(16);
+      dl->AddRectFilled(ImVec2(lx0, ly), ImVec2(lx1, ly + S(15)), (col & 0x00FFFFFF) | IM_COL32(0, 0, 0, 130), 3);
+      dl->AddText(fSmall_, S(12.5f), ImVec2(cx - tw / 2, ly + S(1)), IM_COL32(255, 255, 255, 230), r.label.c_str());
+    }
+}
+
+// On the scope: the plan's strip with each portion named, the band's edges with everything outside them
+// shaded, and flags on the frequencies worth knowing.
+void App::drawPlanOverlay(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l) {
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  auto toX = [&](double f) { return a.p0.x + (float)((f - lo) / (hi - lo)) * (a.p1.x - a.p0.x); };
+  auto widthOf = [&](const char* t) { return fSmall_->CalcTextSizeA(S(12.5f), FLT_MAX, 0, t).x; };
+  float y0 = a.w0.y - stripH, y1 = a.w0.y, textY = y0 + (stripH - S(12.5f)) / 2;
+  float specBottom = y0 - S(17);
+  const ImU32 edgeCol = IM_COL32(255, 80, 70, 255);
+
+  auto outOfBand = [&](double from, double to) {
+    float x0 = toX(from), x1 = toX(to);
+    if (x1 - x0 < 1.f) return;
+    dl->AddRectFilled(ImVec2(x0, a.p0.y), ImVec2(x1, specBottom), IM_COL32(0, 0, 0, 150));
+    dl->AddRectFilled(ImVec2(x0, a.w0.y), ImVec2(x1, a.p1.y), IM_COL32(0, 0, 0, 150));
+    dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(70, 18, 18, 255));
+    const char* t = "Out of band";
+    float tw = widthOf(t);
+    if (tw + S(6) < x1 - x0) dl->AddText(fSmall_, S(12.5f), ImVec2((x0 + x1 - tw) / 2, textY), IM_COL32(255, 170, 160, 255), t);
+    if (from > lo) dl->AddLine(ImVec2(x0, a.p0.y), ImVec2(x0, a.p1.y), edgeCol, 1.5f);
+    if (to < hi) dl->AddLine(ImVec2(x1, a.p0.y), ImVec2(x1, a.p1.y), edgeCol, 1.5f);
+  };
+  double covered = lo;
+  for (const bands::Band& band : plan_.bands)
+    for (const bands::Segment& s : band.segments) {
+      if ((double)s.hi <= lo || (double)s.lo >= hi) continue;
+      if ((double)s.lo > covered) outOfBand(covered, (double)s.lo);
+      covered = std::max(covered, (double)s.hi);
+      float x0 = std::max(a.p0.x, toX((double)s.lo)), x1 = std::min(a.p1.x, toX((double)s.hi));
+      dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), segmentColour(s.use, 170));
+      std::string word = portionName(s);
+      float tw = widthOf(word.c_str());
+      if (tw + S(6) < x1 - x0) dl->AddText(fSmall_, S(12.5f), ImVec2((x0 + x1 - tw) / 2, textY), IM_COL32(255, 255, 255, 255), word.c_str());
+    }
+  if (covered < hi) outOfBand(covered, hi);
+
+  // Say where the band itself begins and ends, on the inside of each edge. 60 m's inner blocks have only
+  // the line, or there'd be no room.
+  auto edgeLabel = [&](double f, const std::string& t, bool toRight) {
+    if (f <= lo || f >= hi) return;
+    float tw = widthOf(t.c_str()), x = toX(f);
+    float tx = toRight ? x + S(5) : x - tw - S(5), ty = a.w0.y + S(3);
+    dl->AddRectFilled(ImVec2(tx - S(3), ty - S(1)), ImVec2(tx + tw + S(3), ty + S(15)), IM_COL32(0, 0, 0, 190), 3);
+    dl->AddText(fSmall_, S(12.5f), ImVec2(tx, ty), IM_COL32(255, 170, 160, 255), t.c_str());
+  };
+  for (const bands::Band& band : plan_.bands) {
+    char b[64];
+    snprintf(b, sizeof b, "%s m begins %s", band.name.c_str(), tuning::formatHz(band.lo).c_str());
+    edgeLabel((double)band.lo, b, true);
+    snprintf(b, sizeof b, "%s m ends %s", band.name.c_str(), tuning::formatHz(band.hi).c_str());
+    edgeLabel((double)band.hi, b, false);
+  }
+
+  // Presets get first pick of the room.
+  for (const bands::Band& band : plan_.bands) {
+    if ((double)band.hi <= lo || (double)band.lo >= hi) continue;
+    for (int pass = 0; pass < 2; pass++)
+      for (const bands::Marker& m : band.markers) {
+        if (m.preset() != (pass == 0) || (double)m.hz < lo || (double)m.hz > hi) continue;
+        const bands::Segment* seg = band.segmentAt(m.hz);
+        drawFlag(a, lo, hi, stripH, l, m, seg ? segmentColour(seg->use, 255) : C_TEXT, false, "marker:" + band.name + ":" + m.label);
+      }
+  }
+}
+
+void App::drawStationsMenu() {
+  if (!ImGui::BeginMenu("Stations")) return;
+  if (ImGui::MenuItem("Find a station...", "Ctrl+F")) stationSearchOpen_ = stationSearchFocus_ = true;
+  ImGui::MenuItem("Show on the scope", nullptr, &showStations_);
+  ImGui::Separator();
+  auto item = [&](const std::string& text, const std::string& tip) {
+    bool chosen = ImGui::MenuItem(text.c_str(), nullptr, false, st_.connected);
+    if (!tip.empty()) ImGui::SetItemTooltip("%s", tip.c_str());
+    return chosen;
+  };
+  for (int i = 0; i < bands::S_COUNT; i++) {
+    bands::Service service = (bands::Service)i;
+    if (!ImGui::BeginMenu(bands::serviceName(service))) continue;
+    ImGui::MenuItem("Show on the scope", nullptr, &showService_[i]);
+    ImGui::Separator();
+    for (const bands::StationFile& f : stations_.files) {
+      // The stations in a group are next to each other in the file.
+      for (size_t s = 0; s < f.stations.size();) {
+        const std::string& group = f.stations[s].group;
+        size_t end = s;
+        while (end < f.stations.size() && f.stations[end].group == group) end++;
+        if (f.stations[s].service == service && ImGui::BeginMenu((group + "##" + f.id).c_str())) {
+          for (size_t k = s; k < end; k++) {
+            const bands::Station& st = f.stations[k];
+            if (item(st.label + "   " + tuning::formatHz(st.hz), st.note)) goMarker(st);
+          }
+          ImGui::EndMenu();
+        }
+        s = end;
+      }
+      bool any = false;
+      for (const bands::StationRange& r : f.ranges) any = any || r.service == service;
+      if (any && ImGui::BeginMenu(("Bands##" + f.id).c_str())) {
+        for (const bands::StationRange& r : f.ranges)
+          if (r.service == service && item(r.label + "   " + tuning::formatHz(r.lo) + " to " + tuning::formatHz(r.hi), r.note)) goRange(r);
+        ImGui::EndMenu();
+      }
+    }
+    ImGui::EndMenu();
+  }
+  ImGui::EndMenu();
+}
+
+void App::drawStationSearch() {
+  if (!stationSearchOpen_) return;
+  ImGui::SetNextWindowSize(ImVec2(S(560), S(420)), ImGuiCond_FirstUseEver);
+  if (stationSearchFocus_) ImGui::SetNextWindowFocus();
+  if (!ImGui::Begin("Find a station", &stationSearchOpen_, ImGuiWindowFlags_NoCollapse)) {
+    ImGui::End();
+    return;
+  }
+  if (stationSearchFocus_) ImGui::SetKeyboardFocusHere();
+  stationSearchFocus_ = false;
+  ImGui::SetNextItemWidth(-1);
+  bool enter = ImGui::InputTextWithHint("##stationquery", "Name, type, place or frequency in kHz", stationQuery_, sizeof stationQuery_, ImGuiInputTextFlags_EnterReturnsTrue);
+  note("stationquery");
+  std::vector<bands::StationHit> hits = stations_.search(stationQuery_);
+  stationHitCount_ = hits.size();
+  ImGui::TextDisabled(st_.connected ? "%d found. Click one to go there, or press Enter for the first." : "%d found. Connect the rig to go there.", (int)hits.size());
+  ImGui::BeginChild("stationhits", ImVec2(0, 0), ImGuiChildFlags_Borders);
+  ImGui::BeginDisabled(!st_.connected);
+  auto go = [&](const bands::StationHit& h) {
+    if (h.station) goMarker(*h.station);
+    else goRange(*h.range);
+  };
+  for (size_t i = 0; i < hits.size(); i++) {
+    const bands::StationHit& h = hits[i];
+    const std::string& label = h.station ? h.station->label : h.range->label;
+    const std::string& tip = h.station ? h.station->note : h.range->note;
+    ImGui::PushID((int)i);
+    if (ImGui::Selectable("##hit", false, ImGuiSelectableFlags_AllowOverlap)) go(h);
+    note("stationhit:" + std::to_string(i));
+    if (!tip.empty()) ImGui::SetItemTooltip("%s", tip.c_str());
+    ImGui::SameLine(S(6));
+    ImGui::TextUnformatted(label.c_str());
+    ImGui::SameLine(S(160));
+    ImGui::TextUnformatted(tuning::formatHz(h.hz).c_str());
+    ImGui::SameLine(S(270));
+    ImGui::TextDisabled("%s", h.station ? h.station->group.c_str() : bands::serviceName(h.range->service));
+    ImGui::PopID();
+  }
+  ImGui::EndDisabled();
+  ImGui::EndChild();
+  if (enter && !hits.empty() && st_.connected) go(hits[0]);
+  if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Escape)) stationSearchOpen_ = false;
+  ImGui::End();
 }
 
 void App::drawScopePane() {
@@ -1302,28 +1690,27 @@ void App::drawScopePane() {
   };
   // The rig sends only about 4 sweeps a second (measured on a real 7300, polling or not), so each gets a
   // taller row than the audio's 25 lines a second, or the band waterfall would barely move.
-  PlotArea a = drawPlot("scopeplot", lo, hi, scopeLine_, lo, hi, scopeFloor_, scopeFloor_ + scopeRange_, wfScope_, 0.f, 1.f, label, step, 4.f);
+  if (showBandPlan_) drawBandMap(lo, hi);
+  float stripH = showBandPlan_ ? S(16) : 0;
+  PlotArea a = drawPlot("scopeplot", lo, hi, scopeLine_, lo, hi, scopeFloor_, scopeFloor_ + scopeRange_, wfScope_, 0.f, 1.f, label, step, 4.f, stripH);
   auto toX = [&](double f) { return a.p0.x + (float)((f - lo) / (hi - lo)) * (a.p1.x - a.p0.x); };
   ImDrawList* dl = ImGui::GetWindowDrawList();
   dl->PushClipRect(a.p0, a.p1, true);
 
-  // The band plan, as a strip under the spectrum.
-  {
-    int n;
-    const bands::Band* t = bands::table(n);
-    float y0 = a.w0.y - S(3);
-    for (int b = 0; b < n; b++) {
-      if (t[b].hi < lo || t[b].lo > hi) continue;
-      for (const bands::Segment& s : t[b].segments) {
-        if (!s.hi) continue;
-        ImU32 c = s.use == bands::U_CW ? IM_COL32(70, 170, 240, 255)
-                  : s.use == bands::U_DIGI ? IM_COL32(210, 90, 220, 255)
-                  : s.use == bands::U_SSB ? IM_COL32(90, 210, 120, 255)
-                  : s.use == bands::U_FM ? IM_COL32(240, 160, 60, 255)
-                                         : IM_COL32(150, 150, 150, 255);
-        dl->AddRectFilled(ImVec2(toX((double)s.lo), y0), ImVec2(toX((double)s.hi), y0 + S(3)), c);
-      }
-    }
+  // Flags, which the plan's get first pick of the room for.
+  FlagLayer flags;
+  flags.rows = std::max(1, std::min(3, (int)((a.w0.y - stripH - S(17) - a.p0.y) / S(16))));
+  flags.bestDist = S(4);
+  if (showBandPlan_) drawPlanOverlay(a, lo, hi, stripH, flags);
+  if (showStations_) drawStationOverlay(a, lo, hi, stripH, flags);
+  const bands::Marker* marker = flags.hit;
+  if (marker) {
+    std::string t = marker->label + "   " + tuning::formatHz(marker->hz);
+    if (!marker->note.empty()) t += "\n" + marker->note;
+    if (!marker->preset()) t += "\nClick to tune there";
+    else if (marker->tuneHz() != marker->hz) t += std::string("\nClick to tune ") + civ::modeName(marker->mode) + (marker->data ? "-D" : "") + " at " + tuning::formatHz(marker->tuneHz());
+    else t += std::string("\nClick to go there in ") + civ::modeName(marker->mode) + (marker->data ? "-D" : "");
+    ImGui::SetTooltip("%s", t.c_str());
   }
   // The passband and the dial.
   if (st_.hz > 0 && st_.mode >= 0) {
@@ -1354,6 +1741,11 @@ void App::drawScopePane() {
     float mx = ImGui::GetIO().MousePos.x;
     dl->AddLine(ImVec2(mx, a.p0.y), ImVec2(mx, a.p1.y), IM_COL32(255, 255, 255, 110));
     std::string t = tuning::formatHz(llround(a.x / 100) * 100);
+    if (showBandPlan_) {
+      const bands::Segment* seg = plan_.segmentAt(llround(a.x));
+      t += seg ? "  " + portionName(*seg) : "  Out of band";
+    }
+    if (const bands::StationRange* r = rangeHere(llround(a.x))) t += "  " + r->label;
     float tw = ImGui::CalcTextSize(t.c_str()).x;
     float lx = std::min(mx + S(6), a.p1.x - tw - S(6));
     dl->AddRectFilled(ImVec2(lx - S(3), a.p0.y + S(2)), ImVec2(lx + tw + S(3), a.p0.y + S(20)), IM_COL32(0, 0, 0, 190), 3);
@@ -1365,7 +1757,10 @@ void App::drawScopePane() {
     // Snapped so a click lands on a tidy frequency: 100 Hz, or 10 Hz when zoomed right in.
     long long snap = span <= 10000 ? 10 : 100;
     long long hz = llround(a.x / (double)snap) * snap;
-    if (a.clicked) tuneTo(hz);
+    if (a.clicked) {
+      if (marker) goMarker(*marker);
+      else tuneTo(hz);
+    }
     if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1));
     if (a.rclicked) {
       scopeMenuHz_ = hz;
@@ -1738,22 +2133,29 @@ void App::drawKeypad() {
   ImGui::PopFont();
   ImGui::Spacing();
 
-  int here = bands::bandOf(st_.hz);
-  int n;
-  const bands::Band* t = bands::table(n);
+  int here = plan_.bandOf(st_.hz);
   if (here >= 0) {
-    ImGui::TextColored(ImColor(C_ACCENT), "ON %s m", t[here].name);
+    const bands::Band& band = plan_.bands[(size_t)here];
+    ImGui::TextColored(ImColor(C_ACCENT), "ON %s m", band.name.c_str());
+    if (const bands::Segment* seg = band.segmentAt(st_.hz)) {
+      ImGui::SameLine();
+      ImGui::TextColored(ImColor(segmentColour(seg->use, 255)), "%s", portionName(*seg).c_str());
+      if (seg->label != portionName(*seg)) ImGui::TextDisabled("%s", seg->label.c_str());
+    } else {
+      ImGui::TextColored(ImColor(C_RED), "Between this band's blocks");
+    }
     ImGui::Separator();
     ImGui::BeginDisabled(!st_.connected);
-    for (const bands::Preset& p : t[here].presets)
-      if (p.name) {
+    for (const bands::Marker& p : band.markers)
+      if (p.preset()) {
         char b[64];
-        snprintf(b, sizeof b, "%-5s  %s", p.name, tuning::formatHz(p.hz).c_str());
-        if (ImGui::Button(b, ImVec2(-1, 0))) goPreset(p);
+        snprintf(b, sizeof b, "%-5s  %s", p.label.c_str(), tuning::formatHz(p.hz).c_str());
+        if (ImGui::Button(b, ImVec2(-1, 0))) goMarker(p);
       }
     ImGui::EndDisabled();
   } else if (st_.hz > 0) {
     ImGui::TextDisabled("Outside the amateur bands");
+    ImGui::TextDisabled("in the %s plan", plan_.name.c_str());
   }
 }
 
@@ -2015,8 +2417,10 @@ void App::drawMenu() {
   if (ImGui::BeginMenu("View")) {
     ImGui::MenuItem("Band scope", nullptr, &showScope_);
     ImGui::MenuItem("Audio waterfall", nullptr, &showAudio_);
+    ImGui::MenuItem("Band plan on the scope", nullptr, &showBandPlan_);
     ImGui::EndMenu();
   }
+  drawStationsMenu();
   if (ImGui::BeginMenu("Help")) {
     if (ImGui::MenuItem("Keys and rig set-up...")) openHelp_ = true;
     ImGui::EndMenu();
@@ -2082,6 +2486,74 @@ void App::drawSettings() {
   ImGui::SetItemTooltip("PTT from this program lets go by itself after this long");
 
   ImGui::Spacing();
+  ImGui::TextColored(ImColor(C_ACCENT), "BAND PLAN");
+  ImGui::Separator();
+  ImGui::SetNextItemWidth(S(380));
+  if (ImGui::BeginCombo("Country or region", plan_.name.c_str())) {
+    std::string chosen;
+    for (const bands::Plan& p : plans_.plans)
+      if (ImGui::Selectable(p.name.c_str(), p.id == plan_.id)) chosen = p.id;
+    ImGui::EndCombo();
+    if (!chosen.empty()) choosePlan(chosen);
+  }
+  ImGui::PushStyleColor(ImGuiCol_Text, C_DIM);
+  ImGui::TextWrapped("%s", plan_.source.c_str());
+  if (!plan_.note.empty()) ImGui::TextWrapped("%s", plan_.note.c_str());
+  ImGui::PopStyleColor();
+  static const bands::Library kBuiltin = bands::builtinPlans();
+  const bands::Plan* builtin = kBuiltin.find(plan_.id);
+  if (builtin && builtin->revision > plan_.revision)
+    ImGui::TextColored(ImColor(C_AMBER), "This program has a newer copy of this plan (%s). Reset uses it.", builtin->revision.c_str());
+  for (const std::string& e : plans_.errors) {
+    ImGui::PushStyleColor(ImGuiCol_Text, C_RED);
+    ImGui::TextWrapped("%s", e.c_str());
+    ImGui::PopStyleColor();
+  }
+  if (ImGui::Button("Open plans folder")) {
+    bands::installPlans(plansDir_);
+    store::openFolder(plansDir_);
+  }
+  ImGui::SetItemTooltip("Each plan is a JSON file you can edit. README.txt there explains the format.");
+  ImGui::SameLine();
+  if (ImGui::Button("Reload")) reloadPlans();
+  ImGui::SetItemTooltip("Reads the files again, after you've edited one");
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!builtin);
+  if (ImGui::Button("Reset this plan")) {
+    if (bands::resetPlan(plansDir_, plan_.id)) reloadPlans();
+    else say("Can't write to " + plansDir_);
+  }
+  ImGui::SetItemTooltip("Puts the built-in copy back. Your file is kept as .json.bak");
+  ImGui::EndDisabled();
+
+  ImGui::Spacing();
+  ImGui::TextColored(ImColor(C_ACCENT), "STATIONS");
+  ImGui::Separator();
+  ImGui::PushStyleColor(ImGuiCol_Text, C_DIM);
+  ImGui::TextWrapped("Shown on the scope whichever band plan is chosen. See the Stations menu.");
+  for (const bands::StationFile& f : stations_.files) {
+    ImGui::TextWrapped("%s (%d stations, revision %s). %s", f.name.c_str(), (int)f.stations.size(), f.revision.c_str(), f.note.c_str());
+    ImGui::SetItemTooltip("%s", f.source.c_str());
+  }
+  ImGui::PopStyleColor();
+  for (const std::string& e : stations_.errors) {
+    ImGui::PushStyleColor(ImGuiCol_Text, C_RED);
+    ImGui::TextWrapped("%s", e.c_str());
+    ImGui::PopStyleColor();
+  }
+  if (ImGui::Button("Open stations folder")) {
+    bands::installStations(stationsDir_);
+    store::openFolder(stationsDir_);
+  }
+  ImGui::SetItemTooltip("Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.");
+  ImGui::SameLine();
+  if (ImGui::Button("Reset station list")) {
+    if (bands::resetStations(stationsDir_, "worldwide")) reloadPlans();
+    else say("Can't write to " + stationsDir_);
+  }
+  ImGui::SetItemTooltip("Puts the built-in worldwide list back. Your file is kept as worldwide.json.bak");
+
+  ImGui::Spacing();
   ImGui::Separator();
   if (ImGui::Button("Apply and reconnect", ImVec2(S(170), 0))) {
     addr_ = (int)strtol(addrText_, nullptr, 16);
@@ -2126,6 +2598,7 @@ void App::drawHelp() {
           {"Left, Right", "Tune by the step. Hold Shift for ten times that."},
           {"Up, Down", "Change the step"},
           {"Page Up, Page Down", "Next or previous band"},
+          {"Ctrl+F", "Find a station by name"},
           {"F1 to F8", "LSB, USB, CW, CW-R, AM, FM, RTTY, RTTY-R"},
           {"F9, F10", "Data mode, next filter"},
           {"F11, F12", "Split, swap VFOs"},
@@ -2202,6 +2675,11 @@ void App::frame() {
   ImGui::EndChild();
   drawStatus();
   drawSettings();
+  if (!opt_.find.empty() && frameCount_ == 2) {
+    snprintf(stationQuery_, sizeof stationQuery_, "%s", opt_.find.c_str());
+    stationSearchOpen_ = true;
+  }
+  drawStationSearch();
   drawHelp();
   ImGui::End();
 }
@@ -2268,7 +2746,7 @@ void App::buildSelfTest() {
 
   // ---- bands: first visit goes home; coming back returns to where you were
   step(1, [this] { click("band:20"); });
-  step(settle, [this] { expect("band 20 goes to the band", bands::bandOf(sim_->hz()) == 5); });
+  step(settle, [this] { expect("band 20 goes to the band", plan_.bandOf(sim_->hz()) == 5); });
   step(1, [this] { click("band:40"); });
   step(settle, [this] { expect("band 40 returns to 7.074", sim_->hz() == 7074000); });
   step(1, [this] { click("band:15"); });
@@ -2277,13 +2755,69 @@ void App::buildSelfTest() {
     pressKey(ImGuiKey_PageDown);
   });
   step(settle, [this] {
-    expect("Page Down goes to the next band down", bands::bandOf(sim_->hz()) == 6);
+    expect("Page Down goes to the next band down", plan_.bandOf(sim_->hz()) == 6);
     pressKey(ImGuiKey_PageUp);
   });
   step(settle, [this] { expect("Page Up comes back", sim_->hz() == 21250000); });
   step(1, [this] { click("band:20", 0.5f, 0.5f, 1); });
   step(12, [this] { click("preset:20:FT8"); });
   step(settle, [this] { expect("20 m right-click FT8: 14.074 USB-D", sim_->hz() == 14074000 && sim_->mode() == civ::USB && sim_->data()); });
+
+  // ---- band plans: the map, the flags, and choosing another country
+  step(1, [this] { click("bandmap", 0.5f, 0.5f); });
+  step(settle, [this] {
+    expect("clicking the band map tunes within the band", plan_.segmentAt(sim_->hz()) && plan_.bandOf(sim_->hz()) == 5);
+    typeText("14075");
+    pressKey(ImGuiKey_Enter);
+  });
+  step(settle, [this] { click("marker:20:WSPR"); });
+  step(settle, [this] {
+    expect("clicking a flag goes there with its mode", sim_->hz() == 14095600 && sim_->mode() == civ::USB && sim_->data());
+    expect("the UK plan has 4 m but not 7.25 MHz", plan_.bandOf(70200000) >= 0 && plan_.bandOf(7250000) < 0);
+    choosePlan("us");
+    expect("the US plan has 7.25 MHz but not 4 m", plan_.bandOf(7250000) >= 0 && plan_.bandOf(70200000) < 0);
+  });
+  step(10, [this] { click("band:60"); });
+  step(settle, [this] {
+    expect("a band goes home under the new plan", plan_.segmentAt(sim_->hz()) && plan_.bandOf(sim_->hz()) == plan_.bandOf(5371500));
+    choosePlan("uk");
+  });
+  step(10, [this] { click("band:20", 0.5f, 0.5f, 1); });
+  step(12, [this] { click("preset:20:FT8"); });
+  step(settle, [this] { expect("back on the UK plan, FT8 is where it was", sim_->hz() == 14074000 && sim_->data()); });
+
+  // ---- stations: on the scope whichever plan is chosen, and found by name
+  step(1, [this] { typeText("8040"); pressKey(ImGuiKey_Enter); });
+  step(settle, [this] { click("station:8040000"); });
+  step(settle, [this] {
+    expect("clicking a station's flag tunes below it, for a decoder", sim_->hz() == 8038100 && sim_->mode() == civ::USB && !sim_->data());
+    choosePlan("us");
+    rects_.erase("station:8040000");
+  });
+  step(settle, [this] {
+    expect("a station's flag stays under another plan", rects_.count("station:8040000") == 1);
+    choosePlan("uk");
+    showService_[bands::S_NAVAL] = false;
+  });
+  step(2, [this] { rects_.erase("station:8040000"); });
+  step(settle, [this] {
+    expect("hiding a service hides its flags", rects_.count("station:8040000") == 0);
+    showService_[bands::S_NAVAL] = true;
+    stationSearchOpen_ = stationSearchFocus_ = true;
+  });
+  step(settle, [this] { typeText("northwood"); });
+  step(settle, [this] {
+    expect("searching by name finds the station", stationHitCount_ == 4);
+    click("stationhit:0");
+  });
+  step(settle, [this] {
+    expect("clicking a result goes there", sim_->hz() == 2616600 && sim_->mode() == civ::USB);
+    stationQuery_[0] = 0;
+    stationSearchOpen_ = false;
+  });
+  step(10, [this] { click("band:20", 0.5f, 0.5f, 1); });
+  step(12, [this] { click("preset:20:FT8"); });
+  step(settle, [this] { expect("back on the band after listening elsewhere", sim_->hz() == 14074000 && sim_->data()); });
 
   // ---- modes and filters
   step(1, [this] { click("data"); });
@@ -2474,6 +3008,7 @@ void App::runSelfTest() {
 
 int App::run() {
   loadSettings();
+  openSettings_ = opt_.settings;
   if (opt_.demo) sim_.reset(new SimRig);
 
   glfwSetErrorCallback(glfwError);
@@ -2541,6 +3076,8 @@ int App::run() {
   audio_.setMonitorGain(monitorGain_);
   connect();
   keepAudioOpen();
+  if (!plans_.errors.empty()) say("A band plan has a problem: " + plans_.errors[0]);
+  else if (!automated && cfg_.get("band_plan").empty()) say("The band plan is set to " + plan_.name + ". Choose your country in Settings.");
   if (monitor_ && !opt_.demo) {
     std::string err;
     if (!audio_.startMonitor(audioOut_, err)) say(err);
@@ -2558,6 +3095,7 @@ int App::run() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     if (!opt_.selfTest.empty()) runSelfTest();
+    if (opt_.tuneHz && frames == 60) tuneTo(opt_.tuneHz);
     ImGui::NewFrame();
     frame();
     ImGui::Render();
