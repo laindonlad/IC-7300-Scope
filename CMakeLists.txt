@@ -10,8 +10,30 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # ---- everything below the window: no GUI, no audio, so the tests and the probe can use it ----
-add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp)
-target_include_directories(rigcore PUBLIC src)
+add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp)
+target_include_directories(rigcore PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+# The band plans go inside the executable too, and are written out for editing the first time it runs.
+function(embed_json_folder folder table output)
+  file(GLOB files CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${folder}/*.json)
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${files})
+  set(inc "")
+  set(rows "")
+  set(index 0)
+  foreach(file ${files})
+    get_filename_component(id ${file} NAME_WE)
+    file(READ ${file} hex HEX)
+    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," bytes "${hex}")
+    string(APPEND inc "static const unsigned char ${table}${index}[] = {${bytes}};\n")
+    string(APPEND rows "  {\"${id}\", ${table}${index}, sizeof ${table}${index}},\n")
+    math(EXPR index "${index} + 1")
+  endforeach()
+  file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${output}
+    "${inc}static const struct { const char* id; const unsigned char* data; size_t size; } ${table}[] = {\n${rows}};\n")
+endfunction()
+embed_json_folder(bandplans kBuiltinPlans builtin_bandplans.inc)
+embed_json_folder(stations kBuiltinStations builtin_stations.inc)
+
 find_package(Threads REQUIRED)
 target_link_libraries(rigcore PUBLIC Threads::Threads)
 if(WIN32)

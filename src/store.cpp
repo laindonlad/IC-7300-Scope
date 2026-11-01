@@ -33,7 +33,8 @@ void makeDirs(const std::string& path) {
     }
   }
 }
-// Written beside the target and moved over it, so a crash mid-save can't lose the log.
+}  // namespace
+
 bool saveText(const std::string& path, const std::string& text) {
   std::string tmp = path + ".tmp";
   {
@@ -48,7 +49,6 @@ bool saveText(const std::string& path, const std::string& text) {
   return rename(tmp.c_str(), path.c_str()) == 0;
 #endif
 }
-}  // namespace
 
 std::string dataDir() {
   std::string d;
@@ -235,11 +235,7 @@ std::string adifRecord(const LogEntry& e, const std::string& stationCall) {
   char mhz[32];
   snprintf(mhz, sizeof mhz, "%.6f", e.hz / 1e6);
   adifField(out, "FREQ", mhz);
-  int b = bands::bandOf(e.hz);
-  if (b >= 0) {
-    int n;
-    adifField(out, "BAND", std::string(bands::table(n)[b].name) + "M");
-  }
+  adifField(out, "BAND", bands::adifBand(e.hz));
   // ADIF has no USB or USB-D mode. SSB, CW, AM, FM and RTTY are real names; a data mode could be any
   // digital mode, so it's left out rather than guessed, and the notes keep what the rig showed.
   std::string notes = e.notes;

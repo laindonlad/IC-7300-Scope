@@ -1,0 +1,216 @@
+{
+  "name": "IARU Region 3 (Asia, Pacific)",
+  "revision": "2024-11",
+  "source": "IARU Region 3 Band Plan, document R3-004 Rev. 2, November 2024. iaru-r3.org",
+  "note": "A regional plan for any country in Region 3 without its own file here. National regulations come first, and allocations vary a lot: copy this file and edit it for your country.",
+  "bands": [
+    {
+      "name": "160", "home_khz": 1900, "home_mode": "LSB",
+      "segments": [
+        {"from": 1800, "to": 1830, "use": "cw"},
+        {"from": 1830, "to": 1840, "use": "digi", "label": "CW / narrowband"},
+        {"from": 1840, "to": 2000, "use": "ssb", "label": "All modes"}
+      ],
+      "markers": [
+        {"khz": 1820, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 1840, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 1836.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 1900, "label": "SSB", "mode": "LSB", "note": "Typical SSB"},
+        {"khz": 1836, "label": "QRP", "note": "QRP centre of activity"}
+      ]
+    },
+    {
+      "name": "80", "home_khz": 3700, "home_mode": "LSB",
+      "segments": [
+        {"from": 3500, "to": 3535, "use": "cw"},
+        {"from": 3535, "to": 3600, "use": "digi", "label": "CW / phone / digital"},
+        {"from": 3600, "to": 3900, "use": "ssb", "label": "Phone / digital"}
+      ],
+      "markers": [
+        {"khz": 3525, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 3573, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 3575, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 3568.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 3700, "label": "SSB", "mode": "LSB", "note": "Typical SSB"},
+        {"khz": 3560, "label": "QRP", "note": "QRP centre of activity"},
+        {"khz": 3600, "label": "Emerg", "note": "Emergency centre of activity, all modes +/-5 kHz"},
+        {"khz": 3690, "label": "QRP", "note": "SSB QRP and digital voice centre of activity"},
+        {"khz": 3735, "label": "SSTV", "note": "Image centre of activity"},
+        {"khz": 3795, "label": "DX", "note": "DX phone centre of activity"},
+        {"khz": 3845, "label": "SSTV", "note": "Image centre of activity"}
+      ]
+    },
+    {
+      "name": "60", "home_khz": 5360, "home_mode": "USB",
+      "segments": [
+        {"from": 5351.5, "to": 5354, "use": "digi", "label": "CW / narrowband"},
+        {"from": 5354, "to": 5366, "use": "ssb", "label": "USB voice / all modes"},
+        {"from": 5366, "to": 5366.5, "use": "digi", "label": "Weak signal"}
+      ],
+      "markers": [
+        {"khz": 5357, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 5364.7, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 5360, "label": "SSB", "mode": "USB", "note": "Typical SSB"}
+      ]
+    },
+    {
+      "name": "40", "home_khz": 7150, "home_mode": "LSB",
+      "segments": [
+        {"from": 7000, "to": 7030, "use": "cw"},
+        {"from": 7030, "to": 7040, "use": "digi", "label": "CW / narrowband"},
+        {"from": 7040, "to": 7200, "use": "ssb", "label": "All modes"}
+      ],
+      "markers": [
+        {"khz": 7020, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 7074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 7047.5, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 7038.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 7150, "label": "SSB", "mode": "LSB", "note": "Typical SSB"},
+        {"khz": 7030, "label": "QRP", "note": "QRP centre of activity"},
+        {"khz": 7040, "label": "RTTY", "note": "RTTY DX"},
+        {"khz": 7070, "label": "DV", "note": "Digital voice centre of activity"},
+        {"khz": 7090, "label": "QRP", "note": "SSB QRP centre of activity"},
+        {"khz": 7095, "label": "DX", "note": "DX phone centre of activity"},
+        {"khz": 7110, "label": "Emerg", "note": "Emergency centre of activity, all modes +/-5 kHz"},
+        {"khz": 7165, "label": "SSTV", "note": "Image centre of activity"}
+      ]
+    },
+    {
+      "name": "30", "home_khz": 10136, "home_mode": "USB",
+      "segments": [
+        {"from": 10100, "to": 10130, "use": "cw"},
+        {"from": 10130, "to": 10150, "use": "digi", "label": "CW / narrowband"}
+      ],
+      "markers": [
+        {"khz": 10116, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 10136, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 10140, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 10138.7, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 10116, "label": "QRP", "note": "QRP centre of activity"}
+      ]
+    },
+    {
+      "name": "20", "home_khz": 14200, "home_mode": "USB",
+      "segments": [
+        {"from": 14000, "to": 14070, "use": "cw"},
+        {"from": 14070, "to": 14112, "use": "digi", "label": "CW / narrowband"},
+        {"from": 14112, "to": 14350, "use": "ssb", "label": "CW / phone"}
+      ],
+      "markers": [
+        {"khz": 14030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 14074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 14080, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 14095.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 14200, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 14055, "label": "QRS", "note": "Slow CW centre of activity"},
+        {"khz": 14060, "label": "QRP", "note": "QRP centre of activity"},
+        {"khz": 14100, "label": "IBP", "note": "International beacon. Don't transmit within 500 Hz"},
+        {"khz": 14130, "label": "DV", "note": "Digital voice centre of activity"},
+        {"khz": 14195, "label": "DX", "note": "DX phone centre of activity"},
+        {"khz": 14230, "label": "SSTV", "note": "Image centre of activity"},
+        {"khz": 14285, "label": "QRP", "note": "SSB QRP centre of activity"},
+        {"khz": 14300, "label": "Emerg", "note": "Global emergency centre of activity, all modes +/-5 kHz"}
+      ]
+    },
+    {
+      "name": "17", "home_khz": 18140, "home_mode": "USB",
+      "segments": [
+        {"from": 18068, "to": 18095, "use": "cw"},
+        {"from": 18095, "to": 18110, "use": "digi", "label": "CW / narrowband"},
+        {"from": 18110, "to": 18168, "use": "ssb", "label": "CW / phone"}
+      ],
+      "markers": [
+        {"khz": 18086, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 18100, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 18104, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 18104.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 18140, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 18110, "label": "IBP", "note": "International beacon. Don't transmit within 500 Hz"},
+        {"khz": 18130, "label": "QRP", "note": "SSB QRP centre of activity"},
+        {"khz": 18160, "label": "Emerg", "note": "Emergency centre of activity, all modes +/-5 kHz"}
+      ]
+    },
+    {
+      "name": "15", "home_khz": 21250, "home_mode": "USB",
+      "segments": [
+        {"from": 21000, "to": 21070, "use": "cw"},
+        {"from": 21070, "to": 21150, "use": "digi", "label": "CW / narrowband"},
+        {"from": 21150, "to": 21450, "use": "ssb", "label": "CW / phone"}
+      ],
+      "markers": [
+        {"khz": 21030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 21074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 21140, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 21094.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 21250, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 21055, "label": "QRS", "note": "Slow CW centre of activity"},
+        {"khz": 21060, "label": "QRP", "note": "QRP centre of activity"},
+        {"khz": 21150, "label": "IBP", "note": "International beacon. Don't transmit within 500 Hz"},
+        {"khz": 21180, "label": "DV", "note": "Digital voice centre of activity"},
+        {"khz": 21295, "label": "DX", "note": "DX phone centre of activity"},
+        {"khz": 21340, "label": "SSTV", "note": "Image centre of activity"},
+        {"khz": 21360, "label": "Emerg", "note": "Global emergency centre of activity, all modes +/-5 kHz"}
+      ]
+    },
+    {
+      "name": "12", "home_khz": 24950, "home_mode": "USB",
+      "segments": [
+        {"from": 24890, "to": 24915, "use": "cw"},
+        {"from": 24915, "to": 24930, "use": "digi", "label": "CW / narrowband"},
+        {"from": 24930, "to": 24990, "use": "ssb", "label": "CW / phone"}
+      ],
+      "markers": [
+        {"khz": 24906, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 24915, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 24919, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 24924.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 24950, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 24930, "label": "IBP", "note": "International beacon. Don't transmit within 500 Hz"},
+        {"khz": 24960, "label": "DV", "note": "Digital centre of activity"}
+      ]
+    },
+    {
+      "name": "10", "home_khz": 28500, "home_mode": "USB",
+      "segments": [
+        {"from": 28000, "to": 28070, "use": "cw"},
+        {"from": 28070, "to": 28190, "use": "digi", "label": "CW / narrowband"},
+        {"from": 28190, "to": 28225, "use": "beacon", "label": "Beacons"},
+        {"from": 28225, "to": 29300, "use": "ssb", "label": "All modes"},
+        {"from": 29300, "to": 29510, "use": "sat", "label": "Satellite"},
+        {"from": 29510, "to": 29590, "use": "fm", "label": "FM repeater in"},
+        {"from": 29590, "to": 29620, "use": "fm", "label": "FM simplex"},
+        {"from": 29620, "to": 29700, "use": "fm", "label": "FM repeater out"}
+      ],
+      "markers": [
+        {"khz": 28030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 28074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 28180, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 28124.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 28500, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 29600, "label": "FM", "mode": "FM", "note": "International calling channel"},
+        {"khz": 28055, "label": "QRS", "note": "Slow CW centre of activity"},
+        {"khz": 28200, "label": "IBP", "note": "International beacon. Don't transmit within 500 Hz"},
+        {"khz": 28330, "label": "DV", "note": "Digital voice centre of activity"},
+        {"khz": 28360, "label": "QRP", "note": "QRP centre of activity"},
+        {"khz": 28495, "label": "DX", "note": "DX centre of activity"},
+        {"khz": 28680, "label": "SSTV", "note": "Image centre of activity"}
+      ]
+    },
+    {
+      "name": "6", "home_khz": 50150, "home_mode": "USB",
+      "segments": [
+        {"from": 50000, "to": 50100, "use": "cw", "label": "CW / beacons"},
+        {"from": 50100, "to": 50500, "use": "ssb", "label": "CW / phone / digital"},
+        {"from": 50500, "to": 54000, "use": "other", "label": "All modes, wideband"}
+      ],
+      "markers": [
+        {"khz": 50090, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 50313, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 50318, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 50293, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 50150, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 50110, "label": "DX", "note": "DX centre of activity"}
+      ]
+    }
+  ]
+}

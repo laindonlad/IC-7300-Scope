@@ -28,6 +28,9 @@ int main(int argc, char** argv) {
       auto x = s.find('x');
       if (x != std::string::npos) o.width = atoi(s.c_str()), o.height = atoi(s.c_str() + x + 1);
     } else if (a == "--tab") o.tab = atoi(next().c_str());
+    else if (a == "--settings") o.settings = true;
+    else if (a == "--find") o.find = next();
+    else if (a == "--tune") o.tuneHz = atoll(next().c_str());
   }
   return runApp(o);
 }

@@ -1,0 +1,211 @@
+{
+  "name": "United States",
+  "revision": "2026-02",
+  "source": "ARRL band plan and frequency allocations; 60 m from FCC Report and Order 25-60, effective 13 February 2026. arrl.org/band-plan",
+  "note": "Shows the whole Amateur Extra allocation: General, Technician and Novice privileges are narrower. On 60 m the four channels allow 100 W ERP and 5351.5-5366.5 kHz allows 9.15 W ERP. Voice is not allowed below 3600, 7125, 14150, 18110, 21200, 24930 or 28300 kHz. See 47 CFR 97.301 and 97.305.",
+  "bands": [
+    {
+      "name": "160", "home_khz": 1900, "home_mode": "LSB",
+      "segments": [
+        {"from": 1800, "to": 1810, "use": "digi", "label": "Digital"},
+        {"from": 1810, "to": 1843, "use": "cw"},
+        {"from": 1843, "to": 2000, "use": "ssb", "label": "SSB / wideband"}
+      ],
+      "markers": [
+        {"khz": 1820, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 1840, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 1836.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 1900, "label": "SSB", "mode": "LSB", "note": "Typical SSB"},
+        {"khz": 1810, "label": "QRP", "note": "CW QRP"},
+        {"khz": 1910, "label": "QRP", "note": "SSB QRP"}
+      ]
+    },
+    {
+      "name": "80", "home_khz": 3850, "home_mode": "LSB",
+      "segments": [
+        {"from": 3500, "to": 3570, "use": "cw"},
+        {"from": 3570, "to": 3600, "use": "digi", "label": "RTTY / data"},
+        {"from": 3600, "to": 4000, "use": "ssb", "label": "Phone"}
+      ],
+      "markers": [
+        {"khz": 3525, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 3573, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 3575, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 3568.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 3850, "label": "SSB", "mode": "LSB", "note": "Typical SSB"},
+        {"khz": 3590, "label": "DX", "note": "RTTY/data DX"},
+        {"khz": 3790, "label": "DX", "note": "DX window, 3790-3800"},
+        {"khz": 3845, "label": "SSTV", "note": "SSTV"},
+        {"khz": 3885, "label": "AM", "note": "AM calling"}
+      ]
+    },
+    {
+      "name": "60", "home_khz": 5371.5, "home_mode": "USB",
+      "segments": [
+        {"from": 5330.5, "to": 5333.5, "use": "ssb", "label": "Channel"},
+        {"from": 5346.5, "to": 5349.5, "use": "ssb", "label": "Channel"},
+        {"from": 5351.5, "to": 5366.5, "use": "ssb", "label": "9.15 W ERP"},
+        {"from": 5371.5, "to": 5374.5, "use": "ssb", "label": "Channel"},
+        {"from": 5403.5, "to": 5406.5, "use": "ssb", "label": "Channel"}
+      ],
+      "markers": [
+        {"khz": 5357, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 5364.7, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 5371.5, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 5330.5, "label": "USB", "mode": "USB", "note": "Channel dial, centred on 5332. 100 W ERP, one signal at a time"},
+        {"khz": 5346.5, "label": "USB", "mode": "USB", "note": "Channel dial, centred on 5348. 100 W ERP, one signal at a time"},
+        {"khz": 5403.5, "label": "USB", "mode": "USB", "note": "Channel dial, centred on 5405. 100 W ERP, one signal at a time"}
+      ]
+    },
+    {
+      "name": "40", "home_khz": 7200, "home_mode": "LSB",
+      "segments": [
+        {"from": 7000, "to": 7080, "use": "cw", "label": "CW / data"},
+        {"from": 7080, "to": 7125, "use": "digi", "label": "RTTY / data"},
+        {"from": 7125, "to": 7300, "use": "ssb", "label": "Phone"}
+      ],
+      "markers": [
+        {"khz": 7020, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 7074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 7047.5, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 7038.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 7200, "label": "SSB", "mode": "LSB", "note": "Typical SSB"},
+        {"khz": 7040, "label": "DX", "note": "RTTY/data DX"},
+        {"khz": 7171, "label": "SSTV", "note": "SSTV"},
+        {"khz": 7290, "label": "AM", "note": "AM calling"}
+      ]
+    },
+    {
+      "name": "30", "home_khz": 10136, "home_mode": "USB",
+      "segments": [
+        {"from": 10100, "to": 10130, "use": "cw"},
+        {"from": 10130, "to": 10150, "use": "digi", "label": "RTTY / data. 200 W"}
+      ],
+      "markers": [
+        {"khz": 10116, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 10136, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 10140, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 10138.7, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"}
+      ]
+    },
+    {
+      "name": "20", "home_khz": 14250, "home_mode": "USB",
+      "segments": [
+        {"from": 14000, "to": 14070, "use": "cw"},
+        {"from": 14070, "to": 14099.5, "use": "digi", "label": "RTTY / data"},
+        {"from": 14099.5, "to": 14100.5, "use": "beacon", "label": "Beacons (IBP)"},
+        {"from": 14100.5, "to": 14112, "use": "digi", "label": "Data"},
+        {"from": 14112, "to": 14150, "use": "cw", "label": "CW / data"},
+        {"from": 14150, "to": 14350, "use": "ssb", "label": "Phone"}
+      ],
+      "markers": [
+        {"khz": 14030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 14074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 14080, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 14095.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 14250, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 14100, "label": "IBP", "note": "NCDXF beacons. Don't transmit here"},
+        {"khz": 14230, "label": "SSTV", "note": "SSTV"},
+        {"khz": 14286, "label": "AM", "note": "AM calling"}
+      ]
+    },
+    {
+      "name": "17", "home_khz": 18140, "home_mode": "USB",
+      "segments": [
+        {"from": 18068, "to": 18100, "use": "cw"},
+        {"from": 18100, "to": 18110, "use": "digi", "label": "RTTY / data"},
+        {"from": 18110, "to": 18168, "use": "ssb", "label": "Phone"}
+      ],
+      "markers": [
+        {"khz": 18086, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 18100, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 18104, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 18104.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 18140, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 18110, "label": "IBP", "note": "NCDXF beacons. Don't transmit here"}
+      ]
+    },
+    {
+      "name": "15", "home_khz": 21300, "home_mode": "USB",
+      "segments": [
+        {"from": 21000, "to": 21070, "use": "cw"},
+        {"from": 21070, "to": 21110, "use": "digi", "label": "RTTY / data"},
+        {"from": 21110, "to": 21200, "use": "cw", "label": "CW / data"},
+        {"from": 21200, "to": 21450, "use": "ssb", "label": "Phone"}
+      ],
+      "markers": [
+        {"khz": 21030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 21074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 21140, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 21094.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 21300, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 21150, "label": "IBP", "note": "NCDXF beacons. Don't transmit here"},
+        {"khz": 21340, "label": "SSTV", "note": "SSTV"}
+      ]
+    },
+    {
+      "name": "12", "home_khz": 24950, "home_mode": "USB",
+      "segments": [
+        {"from": 24890, "to": 24920, "use": "cw"},
+        {"from": 24920, "to": 24930, "use": "digi", "label": "RTTY / data"},
+        {"from": 24930, "to": 24990, "use": "ssb", "label": "Phone"}
+      ],
+      "markers": [
+        {"khz": 24906, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 24915, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 24919, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 24924.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 24950, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 24930, "label": "IBP", "note": "NCDXF beacons. Don't transmit here"}
+      ]
+    },
+    {
+      "name": "10", "home_khz": 28400, "home_mode": "USB",
+      "segments": [
+        {"from": 28000, "to": 28070, "use": "cw"},
+        {"from": 28070, "to": 28150, "use": "digi", "label": "RTTY / data"},
+        {"from": 28150, "to": 28190, "use": "cw"},
+        {"from": 28190, "to": 28300, "use": "beacon", "label": "Beacons"},
+        {"from": 28300, "to": 29000, "use": "ssb", "label": "Phone"},
+        {"from": 29000, "to": 29200, "use": "ssb", "label": "AM"},
+        {"from": 29200, "to": 29300, "use": "ssb", "label": "Phone"},
+        {"from": 29300, "to": 29510, "use": "sat", "label": "Satellite"},
+        {"from": 29510, "to": 29590, "use": "fm", "label": "FM repeater in"},
+        {"from": 29590, "to": 29610, "use": "fm", "label": "FM simplex"},
+        {"from": 29610, "to": 29700, "use": "fm", "label": "FM repeater out"}
+      ],
+      "markers": [
+        {"khz": 28030, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 28074, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 28180, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 28124.6, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 28400, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 29600, "label": "FM", "mode": "FM", "note": "FM simplex calling"},
+        {"khz": 28200, "label": "IBP", "note": "NCDXF beacons. Don't transmit here"},
+        {"khz": 28680, "label": "SSTV", "note": "SSTV"}
+      ]
+    },
+    {
+      "name": "6", "home_khz": 50125, "home_mode": "USB",
+      "segments": [
+        {"from": 50000, "to": 50100, "use": "cw", "label": "CW only"},
+        {"from": 50100, "to": 50300, "use": "ssb", "label": "SSB / CW"},
+        {"from": 50300, "to": 50600, "use": "ssb", "label": "All modes"},
+        {"from": 50600, "to": 50800, "use": "digi", "label": "Non-voice"},
+        {"from": 50800, "to": 51000, "use": "other", "label": "Remote control"},
+        {"from": 51000, "to": 51100, "use": "ssb", "label": "Pacific DX"},
+        {"from": 51100, "to": 54000, "use": "fm", "label": "FM"}
+      ],
+      "markers": [
+        {"khz": 50090, "label": "CW", "mode": "CW", "note": "Typical CW"},
+        {"khz": 50313, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial)"},
+        {"khz": 50318, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial)"},
+        {"khz": 50293, "label": "WSPR", "mode": "USB-D", "note": "WSPR (dial)"},
+        {"khz": 50125, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
+        {"khz": 52525, "label": "FM", "mode": "FM", "note": "Primary FM simplex"},
+        {"khz": 50620, "label": "Pkt", "note": "Digital (packet) calling"},
+        {"khz": 52540, "label": "FM", "note": "Secondary FM simplex"}
+      ]
+    }
+  ]
+}

@@ -3,8 +3,12 @@
 #include <math.h>
 #include <stdio.h>
 
+#include <map>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <functional>
+#include <iterator>
 #include <string>
 #include <thread>
 
@@ -189,17 +193,243 @@ static void testTuning() {
   CHECK(tuning::keySpeedWpm(255) == 48);
   CHECK(tuning::keySpeedWpm(tuning::keySpeedRaw(20)) == 20);
 
-  CHECK(bands::bandOf(14074000) == 5);
-  CHECK(bands::bandOf(15000000) == -1);
-  int n;
-  const bands::Band* t = bands::table(n);
-  for (int i = 0; i < n; i++) {
-    CHECK(t[i].homeHz >= t[i].lo && t[i].homeHz <= t[i].hi);
-    for (const auto& p : t[i].presets)
-      if (p.name) CHECK(p.hz >= t[i].lo && p.hz <= t[i].hi);
-    for (const auto& s : t[i].segments)
-      if (s.hi) CHECK(s.lo >= t[i].lo && s.hi <= t[i].hi && s.lo < s.hi);
+}
+
+static void testBandPlans() {
+  namespace fs = std::filesystem;
+  bands::Library lib = bands::builtinPlans();
+  for (const std::string& e : lib.errors) printf("  %s\n", e.c_str());
+  CHECK(lib.errors.empty());
+  CHECK(lib.plans.size() == 9);
+  for (const bands::Plan& plan : lib.plans) {
+    CHECK(!plan.name.empty() && !plan.source.empty() && !plan.revision.empty());
+    for (const bands::Band& b : plan.bands) {
+      CHECK(b.segmentAt(b.homeHz) != nullptr);
+      for (const bands::Marker& m : b.markers) {
+        if (!b.segmentAt(m.hz)) printf("  %s %s m: %s at %lld is in no segment\n", plan.id.c_str(), b.name.c_str(), m.label.c_str(), m.hz);
+        CHECK(b.segmentAt(m.hz) != nullptr);
+      }
+      for (size_t i = 1; i < b.segments.size(); i++) CHECK(b.segments[i].lo >= b.segments[i - 1].hi);
+    }
+    for (size_t i = 1; i < plan.bands.size(); i++) CHECK(plan.bands[i].lo > plan.bands[i - 1].hi);
   }
+
+  const bands::Plan* uk = lib.find("uk");
+  const bands::Plan* us = lib.find("us");
+  const bands::Plan* au = lib.find("australia");
+  const bands::Plan* jp = lib.find("japan");
+  CHECK(uk && us && au && jp);
+  if (!uk || !us || !au || !jp) return;
+  CHECK(uk->bandOf(14074000) == 5);
+  CHECK(uk->bandOf(15000000) == -1);
+  CHECK(uk->bandOf(7250000) == -1);
+  CHECK(us->bandOf(7250000) >= 0);
+  CHECK(uk->bandOf(70200000) >= 0);
+  CHECK(us->bandOf(70200000) == -1);
+  // Blocks: inside the band's outside edges, but between its segments, is out of band.
+  CHECK(uk->bandOf(5330000) >= 0 && uk->segmentAt(5330000) == nullptr);
+  CHECK(uk->segmentAt(5371500) != nullptr);
+  CHECK(us->segmentAt(5358500) != nullptr);  // inside the block that replaced that channel in 2026
+  CHECK(us->segmentAt(5340000) == nullptr);
+  CHECK(au->bandOf(5357000) == -1);
+  CHECK(au->segmentAt(3750000) == nullptr);
+  CHECK(jp->segmentAt(3590000) == nullptr);
+  CHECK(uk->segmentAt(14074000)->use == bands::U_DIGI);
+  CHECK(uk->segmentAt(14030000)->use == bands::U_CW);
+  CHECK(uk->segmentAt(14200000)->use == bands::U_SSB);
+
+  // ADIF's band doesn't depend on the plan showing.
+  CHECK(std::string(bands::adifBand(3900000)) == "80M");
+  CHECK(std::string(bands::adifBand(14074000)) == "20M");
+  CHECK(std::string(bands::adifBand(15000000)).empty());
+
+  // What goes wrong in a file somebody's edited.
+  auto errorOf = [](const std::string& json) {
+    bands::Plan p;
+    std::string e;
+    return bands::parsePlan(json, "t", p, e) ? std::string() : e;
+  };
+  auto plan = [](const std::string& segs, const std::string& rest = "\"home_khz\": 7010, \"home_mode\": \"CW\"") {
+    return "{\"name\": \"T\", \"bands\": [{\"name\": \"40\", " + rest + ", \"segments\": [" + segs + "]}]}";
+  };
+  const std::string good = "{\"from\": 7000, \"to\": 7040, \"use\": \"cw\"}";
+  CHECK(errorOf(plan(good)).empty());
+  CHECK(errorOf("\xEF\xBB\xBF" + plan(good)).empty());
+  CHECK(errorOf("{\n\"name\": \"T\",\n\"bands\" []\n}").find("line 3") == 0);
+  CHECK(errorOf("{\"name\": \"T\",\n}").find("line 2") == 0);
+  CHECK(errorOf("{\"name\": \"T\", \"bands\": [").find("line 1") == 0);
+  CHECK(!errorOf("").empty());
+  CHECK(!errorOf("{\"bands\": []}").empty());
+  CHECK(errorOf(plan(good + ", {\"from\": 7030, \"to\": 7050, \"use\": \"ssb\"}")).find("overlap") != std::string::npos);
+  CHECK(errorOf(plan("{\"from\": 7040, \"to\": 7000, \"use\": \"cw\"}")).find("before it begins") != std::string::npos);
+  CHECK(errorOf(plan("{\"from\": 7000, \"to\": 7040, \"use\": \"morse\"}")).find("morse") != std::string::npos);
+  CHECK(errorOf(plan(good, "\"home_khz\": 7100, \"home_mode\": \"CW\"")).find("home_khz") != std::string::npos);
+  CHECK(errorOf(plan(good, "\"home_khz\": 7010, \"home_mode\": \"SSB\"")).find("home_mode") != std::string::npos);
+  CHECK(errorOf(plan(good, "\"home_khz\": 7010, \"home_mode\": \"CW-D\"")).find("home_mode") != std::string::npos);
+  CHECK(errorOf(plan(good, "\"home_khz\": 7010, \"home_mode\": \"CW\", \"markers\": [{\"khz\": 8000, \"label\": \"X\"}]")).find("outside the band") != std::string::npos);
+  {
+    bands::Plan p;
+    std::string e;
+    CHECK(bands::parsePlan(plan(good, "\"home_khz\": 7010.5, \"home_mode\": \"CW\", \"markers\": [{\"khz\": 7038.6, \"label\": \"WSPR\", \"mode\": \"USB-D\"}, {\"khz\": 7030, \"label\": \"QRP\"}]"), "t", p, e));
+    CHECK(p.bands[0].homeHz == 7010500);
+    CHECK(p.bands[0].markers[0].hz == 7038600 && p.bands[0].markers[0].preset() && p.bands[0].markers[0].mode == civ::USB && p.bands[0].markers[0].data);
+    CHECK(!p.bands[0].markers[1].preset());
+    CHECK(p.bands[0].segments[0].label == "CW");
+  }
+
+  // The files in the folder.
+  std::error_code ec;
+  fs::path dir = fs::temp_directory_path(ec) / ("ic7300-plans-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  bands::installPlans(dir.string());
+  auto write = [&](const char* name, const std::string& text) { std::ofstream(dir / name, std::ios::binary) << text; };
+  auto read = [&](const char* name) {
+    std::ifstream f(dir / name, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(f), {});
+  };
+  CHECK(fs::exists(dir / "uk.json") && fs::exists(dir / "README.txt"));
+  CHECK(bands::loadPlans(dir.string()).errors.empty());
+  CHECK(bands::loadPlans(dir.string()).plans.size() == 9);
+  // An edit is used, and installing again doesn't overwrite it.
+  write("uk.json", plan(good));
+  bands::installPlans(dir.string());
+  CHECK(read("uk.json") == plan(good));
+  CHECK(bands::loadPlans(dir.string()).find("uk")->name == "T");
+  // A new file is a new plan.
+  write("ireland.json", plan(good));
+  CHECK(bands::loadPlans(dir.string()).plans.size() == 10);
+  CHECK(bands::loadPlans(dir.string()).find("ireland") != nullptr);
+  // A broken file is reported, naming it, and the built-in plan stands in.
+  write("uk.json", "{ broken");
+  {
+    bands::Library l = bands::loadPlans(dir.string());
+    CHECK(l.errors.size() == 1 && l.errors[0].find("uk.json") == 0);
+    CHECK(l.find("uk") && l.find("uk")->name == "United Kingdom");
+  }
+  // Reset puts it back and keeps what it replaced.
+  CHECK(bands::resetPlan(dir.string(), "uk"));
+  CHECK(read("uk.json.bak") == "{ broken");
+  CHECK(bands::loadPlans(dir.string()).errors.empty());
+  CHECK(!bands::resetPlan(dir.string(), "ireland"));
+  fs::remove_all(dir, ec);
+}
+
+static void testStations() {
+  namespace fs = std::filesystem;
+  bands::Stations lib = bands::builtinStations();
+  for (const std::string& e : lib.errors) printf("  %s\n", e.c_str());
+  CHECK(lib.errors.empty());
+  const bands::StationFile* w = lib.find("worldwide");
+  CHECK(w != nullptr);
+  if (!w) return;
+  CHECK(!w->source.empty() && !w->revision.empty() && !w->note.empty());
+  CHECK(w->stations.size() > 300);
+  bool service[bands::S_COUNT] = {};
+  std::map<long long, const bands::Station*> at;
+  for (const bands::Station& s : w->stations) {
+    service[s.service] = true;
+    CHECK(s.preset());
+    CHECK(s.tuneHz() >= 30000 && s.tuneHz() <= 74800000);
+    CHECK(!s.label.empty() && !s.group.empty() && !s.note.empty());
+    at[s.hz] = &s;
+    // Nothing's listed twice in one group.
+    int same = 0;
+    for (const bands::Station& o : w->stations) same += o.hz == s.hz && o.group == s.group;
+    if (same != 1) printf("  %s: %lld appears %d times\n", s.group.c_str(), s.hz, same);
+    CHECK(same == 1);
+  }
+  for (bool any : service) CHECK(any);
+  // A fax flag sits on the signal, and tunes USB below it.
+  CHECK(at.count(8040000) && at[8040000]->tuneHz() == 8038100 && at[8040000]->mode == civ::USB);
+  CHECK(at.count(518000) && at[518000]->tuneHz() == 516300);
+  CHECK(at.count(2182000) && at[2182000]->tuneHz() == 2182000);
+  CHECK(at.count(4625000) && at[4625000]->service == bands::S_MILITARY);
+  CHECK(at.count(11175000));
+  // Stations that have closed down.
+  CHECK(!at.count(3330000) && !at.count(7850000) && !at.count(14670000));  // CHU, June 2026
+  CHECK(!at.count(198000));  // BBC Radio 4 long wave, June 2026
+  CHECK(lib.rangeAt(9500000) && lib.rangeAt(9500000)->service == bands::S_BROADCAST);
+  CHECK(lib.rangeAt(14074000) == nullptr);
+  bool none[bands::S_COUNT] = {};
+  CHECK(lib.rangeAt(9500000, none) == nullptr);
+
+  // Search: any case, every word, and what it names first.
+  auto count = [&](const char* q) { return lib.search(q).size(); };
+  CHECK(count("") == w->stations.size() + w->ranges.size());
+  CHECK(count("NORTHWOOD") == 4);
+  CHECK(count("northwood 8040") == 1);
+  CHECK(count("navtex") >= 3);
+  CHECK(count("zzzz") == 0);
+  CHECK(count("wefax") > 40);
+  CHECK(lib.search("  8040  ")[0].station && lib.search("8040")[0].station->hz == 8040000);
+  {
+    auto hits = lib.search("buzzer");
+    CHECK(hits.size() == 1 && hits[0].station->hz == 4625000 && hits[0].named);
+    hits = lib.search("31 m");
+    CHECK(!hits.empty() && hits[0].range && hits[0].range->lo == 9400000);
+    // GYA's label names it, and comes first although lower ones only mention the word.
+    hits = lib.search("gya");
+    CHECK(hits.size() == 4 && hits[0].named && hits[0].station->hz == 2618500);
+  }
+
+  // What goes wrong in a file somebody's edited.
+  auto errorOf = [](const std::string& json) {
+    bands::StationFile f;
+    std::string e;
+    return bands::parseStations(json, "t", f, e) ? std::string() : e;
+  };
+  auto file = [](const std::string& rest, const std::string& stations) {
+    return "{\"name\": \"T\", \"groups\": [{\"name\": \"G\", " + rest + ", \"stations\": [" + stations + "]}]}";
+  };
+  const std::string naval = "\"service\": \"naval\", \"mode\": \"USB\"";
+  const std::string good = "{\"khz\": 8040, \"label\": \"GYA\"}";
+  CHECK(errorOf(file(naval, good)).empty());
+  CHECK(errorOf(file("\"service\": \"pirate\", \"mode\": \"USB\"", good)).find("pirate") != std::string::npos);
+  CHECK(errorOf(file("\"service\": \"naval\", \"mode\": \"SSB\"", good)).find("SSB") != std::string::npos);
+  CHECK(errorOf(file(naval, "{\"khz\": 8040}")).find("label") != std::string::npos);
+  CHECK(errorOf(file(naval, "{\"label\": \"X\"}")).find("khz") != std::string::npos);
+  CHECK(errorOf(file(naval, "{\"khz\": 25, \"label\": \"RJH\"}")).find("receive") != std::string::npos);
+  CHECK(errorOf("{\"name\": \"T\"}").find("no \"groups\"") != std::string::npos);
+  CHECK(errorOf("{\"name\": \"T\",\n\"groups\" []}").find("line 2") == 0);
+  CHECK(errorOf("{\"name\": \"T\", \"ranges\": [{\"from\": 9, \"to\": 8, \"service\": \"broadcast\", \"label\": \"X\"}]}").find("before it begins") != std::string::npos);
+  {
+    bands::StationFile f;
+    std::string e;
+    CHECK(bands::parseStations(file(naval + ", \"dial_offset_khz\": -1.9, \"note\": \"N\"", good + ", {\"khz\": 5000, \"label\": \"X\", \"mode\": \"AM\", \"dial_khz\": 4999}"), "t", f, e));
+    CHECK(f.stations[0].tuneHz() == 8038100 && f.stations[0].note == "N" && f.stations[0].mode == civ::USB);
+    CHECK(f.stations[1].tuneHz() == 4999000 && f.stations[1].mode == civ::AM);
+  }
+
+  // The files in the folder.
+  std::error_code ec;
+  fs::path dir = fs::temp_directory_path(ec) / ("ic7300-stations-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  bands::installStations(dir.string());
+  auto write = [&](const char* name, const std::string& text) { std::ofstream(dir / name, std::ios::binary) << text; };
+  auto read = [&](const char* name) {
+    std::ifstream f(dir / name, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(f), {});
+  };
+  CHECK(fs::exists(dir / "worldwide.json") && fs::exists(dir / "README.txt"));
+  CHECK(bands::loadStations(dir.string()).errors.empty());
+  write("worldwide.json", file(naval, good));
+  bands::installStations(dir.string());
+  CHECK(read("worldwide.json") == file(naval, good));
+  CHECK(bands::loadStations(dir.string()).find("worldwide")->stations.size() == 1);
+  // Your own list goes alongside, and search covers it.
+  write("mine.json", file(naval, "{\"khz\": 9000, \"label\": \"Mine\"}"));
+  {
+    bands::Stations l = bands::loadStations(dir.string());
+    CHECK(l.files.size() == 2 && l.search("mine").size() == 1);
+  }
+  write("worldwide.json", "{ broken");
+  {
+    bands::Stations l = bands::loadStations(dir.string());
+    CHECK(l.errors.size() == 1 && l.errors[0].find("worldwide.json") == 0);
+    CHECK(l.find("worldwide") && l.find("worldwide")->stations.size() > 300);
+  }
+  CHECK(bands::resetStations(dir.string(), "worldwide"));
+  CHECK(read("worldwide.json.bak") == "{ broken");
+  CHECK(!bands::resetStations(dir.string(), "mine"));
+  fs::remove_all(dir, ec);
 }
 
 static void testDial() {
@@ -650,7 +880,7 @@ int main() {
     const char* name;
     void (*fn)();
   } tests[] = {
-      {"CI-V bytes", testBytes}, {"frame reader", testReader}, {"frequency entry", testTuning}, {"tuning dial", testDial}, {"FFT", testDsp},
+      {"CI-V bytes", testBytes}, {"frame reader", testReader}, {"frequency entry", testTuning}, {"band plans", testBandPlans}, {"stations", testStations}, {"tuning dial", testDial}, {"FFT", testDsp},
       {"log and CSV", testStore}, {"rig basics", testRigBasics}, {"dial spin", testCoalesce},
       {"stale readings", testStaleReadings}, {"echo back", testEcho}, {"refused commands", testRefused},
       {"scope", testScope}, {"TX guards", testTxGuards}, {"TX watchdog", testWatchdog}, {"un-key retry", testUnkeyRetry},
