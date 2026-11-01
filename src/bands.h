@@ -7,7 +7,7 @@
 #include <vector>
 
 namespace bands {
-enum Use { U_CW, U_DIGI, U_SSB, U_FM, U_BEACON, U_SAT, U_OTHER };
+enum Use { U_CW, U_DIGI, U_SSB, U_FM, U_BEACON, U_SAT, U_OTHER, U_BROADCAST, U_AIR, U_MARINE, U_MOBILE, U_FIXED, U_NAV };
 
 struct Segment {
   long long lo = 0, hi = 0;
@@ -28,6 +28,11 @@ struct Marker {
 // blocks work: lo and hi are simply the outside edges of the first and last segment.
 struct Band {
   std::string name;
+  std::string unit = "m";  // 70 is 70 cm. Nothing, if the name says it all, as a receiver's bands do
+  // Set on what isn't an amateur band: the rest of a receiver's coverage, and a menu to find it in. Only a
+  // receiver is offered these, so a transceiver's buttons and its out-of-band warnings stay as they were.
+  std::string group;
+  std::string title() const { return unit.empty() ? name : name + " " + unit; }
   long long lo = 0, hi = 0;
   long long homeHz = 0;  // where the button goes the first time
   int homeMode = 0;
@@ -41,6 +46,7 @@ struct Plan {
   std::vector<Band> bands;  // lowest first
   int bandOf(long long hz) const;  // within a band's outside edges, or -1
   const Segment* segmentAt(long long hz) const;  // nullptr: out of band
+  Plan forRadio(bool receiver) const;  // without the groups' bands, unless it's for a receiver
 };
 
 const char* useName(Use u);
@@ -56,6 +62,9 @@ struct Library {
 // The ones built into the program.
 Library builtinPlans();
 // The built-in ones, each replaced by its file in dir if that's good, plus any other .json files there.
+// A file with nothing above 100 MHz, such as one written before VHF plans existed, keeps the built-in
+// plan's VHF and UHF bands, so an older copy doesn't leave a 9700 with no bands at all. One with no groups
+// keeps the built-in plan's for the same reason, except any that would overlap a band of its own.
 Library loadPlans(const std::string& dir);
 // Writes any built-in plan that's missing from dir, and the format notes. Never touches an existing plan.
 void installPlans(const std::string& dir);
@@ -63,7 +72,8 @@ void installPlans(const std::string& dir);
 bool resetPlan(const std::string& dir, const std::string& id);
 
 // ---- stations: what else is on the air, shown whichever band plan is chosen. For listening, not transmitting.
-enum Service { S_COMMERCIAL, S_GOVERNMENT, S_NAVAL, S_MILITARY, S_BROADCAST, S_COUNT };
+// New ones go last: settings keep each service's on or off by its number.
+enum Service { S_COMMERCIAL, S_GOVERNMENT, S_NAVAL, S_MILITARY, S_BROADCAST, S_AMATEUR, S_AVIATION, S_SPACE, S_LAND, S_COUNT };
 const char* serviceName(Service s);
 
 // The flag sits at hz, where the signal is. For a data signal that's above where USB has to be tuned to
@@ -71,15 +81,25 @@ const char* serviceName(Service s);
 struct Station : Marker {
   Service service = S_GOVERNMENT;
   std::string group;
+  // When a broadcaster is scheduled, in UTC minutes. It can run past midnight, and days is of its start,
+  // with bit 0 for Monday. A station with none is always on.
+  struct AirTime {
+    int from = 0, to = 0;
+    unsigned days = 0x7f;
+  };
+  std::vector<AirTime> airTimes;
+  bool onAir(int weekday, int minute) const;  // weekday 0 is Monday
 };
 // A stretch of spectrum rather than one frequency, such as a broadcast band.
 struct StationRange {
   long long lo = 0, hi = 0;
   Service service = S_BROADCAST;
   std::string label, note;
+  int mode = -1;  // what going there sets, if the range says. Otherwise a broadcast band is AM
 };
 struct StationFile {
   std::string id, name, revision, source, note;
+  bool receiverOnly = false;  // beyond what a transceiver would want to see, or could tune
   std::vector<Station> stations;
   std::vector<StationRange> ranges;
 };
@@ -89,19 +109,22 @@ struct StationHit {
   const StationRange* range = nullptr;
   long long hz = 0;
   bool named = false;  // the query's first word is in its label
+  bool phrase = false;  // the query's words, together and in order, are in its label or note
 };
 struct Stations {
   std::vector<StationFile> files;  // by name
   std::vector<std::string> errors;
   const StationFile* find(const std::string& id) const;
+  Stations forRadio(bool receiver) const;  // without the receiver-only files, unless it's for a receiver
   const StationRange* rangeAt(long long hz, const bool* shown = nullptr) const;  // shown: one per service
-  // Every word must appear, in any case, in the name, group, notes, service or frequency in kHz. Those it
-  // names come first, then by frequency. An empty query finds everything.
+  // Every word must appear, in any case, in the name, group, notes, service or frequency in kHz. Those with
+  // the words as a phrase come first, then those it names, then by frequency. An empty query finds everything.
   std::vector<StationHit> search(const std::string& query) const;
 };
 bool parseStations(const std::string& json, const std::string& id, StationFile& out, std::string& error);
 Stations builtinStations();
 // Works as for plans: built-in files, each replaced by a good file of its name in dir, plus any others there.
+// And as for plans, a file with nothing above 100 MHz keeps the built-in file's VHF and UHF stations.
 Stations loadStations(const std::string& dir);
 void installStations(const std::string& dir);
 bool resetStations(const std::string& dir, const std::string& id);

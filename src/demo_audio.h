@@ -32,7 +32,7 @@ class DemoAudio {
       lp_ += 0.35f * (w - lp_);
       out[i] = lp_ * 0.012f;
     }
-    if (m == civ::AM || m == civ::FM) return;
+    if (civ::isAmLike(m) || m == civ::FM || civ::hasNoFilters(m)) return;
     for (const SimSignal& s : sigs_) {
       double f = tuning::audioOffset(m, pitch) + (tuning::isLowerSide(m) ? (double)(dial - s.hz) : (double)(s.hz - dial));
       if (f < 100 || f > 3400) continue;

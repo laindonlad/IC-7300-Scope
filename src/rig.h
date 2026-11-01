@@ -36,12 +36,18 @@ struct RigState {
   bool otherData = false;
   int width = -1;                      // 1A 03's code; civ::widthHz turns it into Hz
   int split = -1, att = -1, atu = -1;  // atu: 0 off, 1 in line, 2 tuning
+  int attDb = 0;                       // how much, when a radio has more than one step
+  int ant = -1, ipPlus = -1;           // ant: 0 is ANT1
+  int overflow = -1, squelchOpen = -1;  // a receiver's own indicators
   int ritOn = -1, xitOn = -1, ritHz = 0;
   bool tx = false;
   int level[civ::L_COUNT];   // 0-255, -1 not known yet
   int sw[civ::S_COUNT];
   int meter[civ::M_COUNT];
-  int rigId = -1;            // what 19 00 says (94h on a 7300)
+  int rigId = -1;            // what 19 00 says (94h on a 7300, A2h on a 9700, 96h on an R8600)
+  // Which radio this is, once one has answered. Until then, the last one or the one expected.
+  const civ::Radio* radio = &civ::kRadio7300;
+  int strangerId = -1, strangerAddr = -1;  // something answered that isn't a radio we know
 
   int scopeOn = -1, scopeOutput = -1, scopeMode = -1, scopeSpeed = -1;
   long long scopeSpan = -1;
@@ -70,7 +76,12 @@ class Rig {
   ~Rig();  // lets go of PTT first
 
   // Connects via what factory makes, and retries for as long as it runs. Replaces any earlier link.
-  void start(std::function<Transport*()> factory, uint8_t addr = civ::kIc7300);
+  // It asks who's there with 19 00, at addr first and then at each radio's own address and the broadcast
+  // one, and works out the radio from the answer. If it's one we don't know, then an answer from addr is
+  // still taken as a 7300, since somebody chose that address. forced skips working it out. lastSeen says
+  // what to show until something answers.
+  void start(std::function<Transport*()> factory, uint8_t addr = civ::kIc7300, const civ::Radio* forced = nullptr,
+             const civ::Radio* lastSeen = nullptr);
   void stop();
   bool running() const { return thread_.joinable(); }
 
@@ -84,6 +95,9 @@ class Rig {
   void setLevel(int level, int v);
   void setSwitch(int sw, int v);
   void setAtt(bool on);
+  void setAttDb(int db);       // a radio with more than one step
+  void setAntenna(int index);  // does nothing where the radio can't: see civ::Radio
+  void setIpPlus(bool on);
   void setSplit(bool on);
   void setWidth(int code);
   void setRit(int hz);
@@ -101,7 +115,7 @@ class Rig {
   void setScopeRef(double db);
   void setScopeSpeed(int s);
 
-  // Transmit. All refused (false) until armed.
+  // Transmit. All refused (false) until armed, and a radio that can't transmit can't be armed.
   void armTx(bool on);
   bool ptt(bool on);
   bool tuneAtu();  // the 7300 transmits while it tunes
@@ -131,6 +145,8 @@ class Rig {
 
   void run();
   void buildPolls();
+  bool identify(const civ::Frame& f);
+  void sendProbe(uint64_t now);
   void openLink();
   void closeLink(const std::string& why);
   void pumpFrame(const civ::Frame& f);
@@ -158,7 +174,10 @@ class Rig {
 
   std::function<Transport*()> factory_;
   std::unique_ptr<Transport> tp_;
-  uint8_t addr_ = civ::kIc7300;
+  uint8_t addr_ = civ::kIc7300;           // written by the rig thread under m_; the window reads it under m_
+  const civ::Radio* radio_ = &civ::kRadio7300;  // the same
+  uint8_t wantAddr_ = civ::kIc7300;
+  const civ::Radio* forced_ = nullptr;
   std::atomic<bool> quit_{false};
   std::thread thread_;
 
@@ -167,6 +186,10 @@ class Rig {
   Outstanding out_;
   std::vector<PollItem> polls_;
   uint64_t lastFrameAt_ = 0, lastSendAt_ = 0, nextOpenAt_ = 0;
+  bool identified_ = false;  // until then it only asks who's there
+  std::vector<uint8_t> probeAddrs_;
+  size_t probeAt_ = 0;
+  uint64_t lastProbeAt_ = 0;
   ScopeLine assembling_;
   bool assemblingValid_ = false;
 };

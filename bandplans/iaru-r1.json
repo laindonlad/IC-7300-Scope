@@ -1,8 +1,8 @@
 {
   "name": "IARU Region 1 (Europe, Africa, Middle East)",
-  "revision": "2020-10",
-  "source": "IARU Region 1 HF Band Plan, effective 16 October 2020. 6 m from the IARU Region 1 VHF Handbook v7.51. iaru-r1.org",
-  "note": "A regional plan for any country in Region 1 without its own file here. National allocations differ, above all on 160 m, 60 m, 6 m and 4 m: copy this file and edit it for your country. 4 m has no harmonised plan, so it's shown as one block.",
+  "revision": "2026-11",
+  "source": "IARU Region 1 HF Band Plan, effective 16 October 2020. 6 m from the IARU Region 1 VHF Handbook v7.51. iaru-r1.org. 2 m, 70 cm and 23 cm: IARU Region 1 VHF Handbook version 10.03 (February 2026), with VHF+ Newsletter 98 (15 October 2026) for the Vienna 2026 changes, iaru-r1.org; FT8, FT4 and MSK144 dial frequencies from the WSJT-X default frequency table (github.com/WSJTX/wsjtx). Receiver bands (not amateur): summarised from the ITU Radio Regulations Article 5 table of allocations and general knowledge of national use. Broad, and not specific to a licence.",
+  "note": "A regional plan for any country in Region 1 without its own file here. National allocations differ, above all on 160 m, 60 m, 6 m and 4 m: copy this file and edit it for your country. 4 m has no harmonised plan, so it's shown as one block. On VHF and UHF: This is the Handbook 10.03 plan, the edition Newsletter 98 still lists as current. The Vienna conference (September 2026) adopted a supplemental 23 cm plan for countries that have implemented ECC Decision (25)01, with a preferred moonbounce segment at 1299.000-1299.650 MHz from 1 January 2027: check your national rules. It also removed the 144.500-144.794 MHz bandwidth limit and added 434.500 MHz for high-altitude balloon telemetry. 430-432 MHz is planned nationally. National allocations differ: check your own licence and society's plan. The non-amateur bands are only offered on a receiver, and a guide to what's where, not a statement of who may use it.",
   "bands": [
     {
       "name": "160", "home_khz": 1900, "home_mode": "LSB",
@@ -245,6 +245,641 @@
         {"khz": 70200, "label": "SSB", "mode": "USB", "note": "Typical SSB"},
         {"khz": 70450, "label": "FM", "mode": "FM", "note": "FM calling, in many countries"}
       ]
+    },
+    {
+      "name": "2", "unit": "m", "home_khz": 145500, "home_mode": "FM",
+      "segments": [
+        {"from": 144000, "to": 144025, "use": "sat", "label": "Satellite downlinks. No TX below 144.0025"},
+        {"from": 144025, "to": 144100, "use": "cw", "label": "CW"},
+        {"from": 144100, "to": 144150, "use": "digi", "label": "CW / MGM, EME"},
+        {"from": 144150, "to": 144400, "use": "ssb", "label": "CW / SSB / MGM"},
+        {"from": 144400, "to": 144500, "use": "beacon", "label": "Beacons exclusive to 144.490"},
+        {"from": 144500, "to": 144794, "use": "ssb", "label": "All modes"},
+        {"from": 144794, "to": 144975, "use": "digi", "label": "MGM / digital, APRS, DV gateways"},
+        {"from": 144975, "to": 145194, "use": "fm", "label": "FM/DV repeater in"},
+        {"from": 145194, "to": 145575, "use": "fm", "label": "FM/DV simplex, space uplink 145.200"},
+        {"from": 145575, "to": 145794, "use": "fm", "label": "FM/DV repeater out"},
+        {"from": 145794, "to": 146000, "use": "sat", "label": "Space 145.800, satellite exclusive above 145.806"}
+      ],
+      "markers": [
+        {"khz": 144050, "label": "CW", "mode": "CW", "note": "Telegraphy centre of activity"},
+        {"khz": 144170, "label": "FT4", "mode": "USB-D", "note": "FT4 (dial), WSJT-X default, not in the IARU plan"},
+        {"khz": 144174, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial), WSJT-X default, not in the IARU plan"},
+        {"khz": 144300, "label": "SSB", "mode": "USB", "note": "SSB centre of activity"},
+        {"khz": 144360, "label": "MSK", "mode": "USB-D", "note": "MSK144 (dial), WSJT-X Region 1 default, not in the IARU plan"},
+        {"khz": 145375, "label": "DV", "mode": "DV", "note": "Digital voice calling. Check the channel isn't in use by FM"},
+        {"khz": 145500, "label": "FM", "mode": "FM", "note": "FM calling"},
+        {"khz": 145800, "label": "ISS", "mode": "FM", "note": "Manned spacecraft downlink, such as the ISS. Receive only: the uplink is 145.200"}
+      ]
+    },
+    {
+      "name": "70", "unit": "cm", "home_khz": 433500, "home_mode": "FM",
+      "segments": [
+        {"from": 430000, "to": 432000, "use": "other", "label": "All modes, national planning: repeaters, digital links"},
+        {"from": 432000, "to": 432400, "use": "ssb", "label": "All modes, 2.7 kHz: CW / SSB"},
+        {"from": 432400, "to": 432500, "use": "beacon", "label": "Beacons exclusive to 432.490"},
+        {"from": 432500, "to": 433000, "use": "ssb", "label": "All modes, repeater in from 432.600"},
+        {"from": 433000, "to": 433400, "use": "fm", "label": "FM/DV repeater in. UK: repeater out"},
+        {"from": 433400, "to": 433600, "use": "fm", "label": "FM/DV simplex"},
+        {"from": 433600, "to": 434600, "use": "digi", "label": "All modes: digital, experiments"},
+        {"from": 434600, "to": 435000, "use": "fm", "label": "All modes, repeater out. UK: repeater in"},
+        {"from": 435000, "to": 438000, "use": "sat", "label": "Satellites, plus digital TV 436-438"},
+        {"from": 438000, "to": 440000, "use": "fm", "label": "All modes: digital, repeater out 438.650-439.5875"}
+      ],
+      "markers": [
+        {"khz": 432050, "label": "CW", "mode": "CW", "note": "Telegraphy centre of activity"},
+        {"khz": 432174, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial), WSJT-X default, not in the IARU plan"},
+        {"khz": 432200, "label": "SSB", "mode": "USB", "note": "SSB centre of activity"},
+        {"khz": 432360, "label": "MSK", "mode": "USB-D", "note": "MSK144 (dial), WSJT-X default. The IARU plan gives 432.370 as the meteor scatter centre of activity"},
+        {"khz": 433450, "label": "DV", "mode": "DV", "note": "Digital voice calling. Check the channel isn't in use by other modes"},
+        {"khz": 433500, "label": "FM", "mode": "FM", "note": "FM calling"},
+        {"khz": 432500, "label": "APRS", "note": "New APRS frequency"},
+        {"khz": 437000, "label": "DATV", "note": "DATV/data centre of activity. Satellites have priority"}
+      ]
+    },
+    {
+      "name": "23", "unit": "cm", "home_khz": 1296200, "home_mode": "USB",
+      "segments": [
+        {"from": 1240000, "to": 1243250, "use": "other", "label": "Reserved to 1241, then all modes: repeater out, digital"},
+        {"from": 1243250, "to": 1260000, "use": "other", "label": "ATV / digital ATV"},
+        {"from": 1260000, "to": 1270000, "use": "sat", "label": "Satellite service"},
+        {"from": 1270000, "to": 1272000, "use": "ssb", "label": "All modes: repeater in, digital"},
+        {"from": 1272000, "to": 1290994, "use": "other", "label": "ATV / digital ATV"},
+        {"from": 1290994, "to": 1291494, "use": "fm", "label": "FM/DV repeater in"},
+        {"from": 1291494, "to": 1296000, "use": "ssb", "label": "All modes"},
+        {"from": 1296000, "to": 1296150, "use": "cw", "label": "CW / MGM, EME to 1296.025"},
+        {"from": 1296150, "to": 1296800, "use": "ssb", "label": "CW / SSB / MGM"},
+        {"from": 1296800, "to": 1296994, "use": "beacon", "label": "Beacons exclusive"},
+        {"from": 1296994, "to": 1297494, "use": "fm", "label": "FM/DV repeater out"},
+        {"from": 1297494, "to": 1298000, "use": "fm", "label": "FM/DV simplex"},
+        {"from": 1298000, "to": 1300000, "use": "ssb", "label": "All modes: channels, high-speed data 1299-1299.75"}
+      ],
+      "markers": [
+        {"khz": 1296000, "label": "EME", "note": "Moonbounce, 1296.000-1296.025"},
+        {"khz": 1296174, "label": "FT8", "mode": "USB-D", "note": "FT8 (dial), WSJT-X default, not in the IARU plan"},
+        {"khz": 1296200, "label": "CW", "mode": "CW", "note": "Narrow-band centre of activity"},
+        {"khz": 1296200, "label": "SSB", "mode": "USB", "note": "Narrow-band centre of activity"},
+        {"khz": 1296500, "label": "Image", "note": "Image centre. Local narrowband traffic uses 1296.500-1296.800 in contests and openings"},
+        {"khz": 1296600, "label": "Data", "note": "Narrowband data centre"},
+        {"khz": 1297500, "label": "FM", "mode": "FM", "note": "FM centre of activity"},
+        {"khz": 1297725, "label": "DV", "mode": "DV", "note": "Digital voice calling. Check the channel isn't in use by other modes"}
+      ]
+    },
+    {
+      "name": "VLF", "group": "Long and medium wave", "home_khz": 20, "home_mode": "CW",
+      "segments": [{"from": 10, "to": 30, "use": "fixed", "label": "Military and navigation signals to submarines"}]
+    },
+    {
+      "name": "LF utility", "group": "Long and medium wave", "home_khz": 89, "home_mode": "CW",
+      "segments": [{"from": 30, "to": 148.5, "use": "fixed", "label": "Navigation, time signals, teleswitching"}]
+    },
+    {
+      "name": "Long wave", "group": "Long and medium wave", "home_khz": 216, "home_mode": "AM",
+      "segments": [{"from": 148.5, "to": 283.5, "use": "broadcast", "label": "Long wave broadcasting"}]
+    },
+    {
+      "name": "Radio beacons", "group": "Long and medium wave", "home_khz": 405, "home_mode": "CW",
+      "segments": [{"from": 283.5, "to": 526.5, "use": "nav", "label": "Aeronautical and maritime radio beacons, NAVTEX"}]
+    },
+    {
+      "name": "Medium wave", "group": "Long and medium wave", "home_khz": 1066, "home_mode": "AM",
+      "segments": [{"from": 526.5, "to": 1606.5, "use": "broadcast", "label": "Medium wave broadcasting"}]
+    },
+    {
+      "name": "Marine 1.7 MHz", "group": "Shortwave utility", "home_khz": 1703, "home_mode": "USB",
+      "segments": [{"from": 1606.5, "to": 1800, "use": "marine", "label": "Maritime, fixed and mobile"}]
+    },
+    {
+      "name": "Marine 1.9 MHz", "group": "Shortwave utility", "home_khz": 1805, "home_mode": "USB",
+      "segments": [{"from": 1800, "to": 1810, "use": "marine", "label": "Maritime, fixed and mobile"}]
+    },
+    {
+      "name": "Marine 2 MHz", "group": "Shortwave utility", "home_khz": 2150, "home_mode": "USB",
+      "segments": [{"from": 2000, "to": 2300, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "120 m broadcast", "group": "Shortwave broadcast", "home_khz": 2398, "home_mode": "AM",
+      "segments": [{"from": 2300, "to": 2495, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Time signals 2.5 MHz", "group": "Shortwave utility", "home_khz": 2500, "home_mode": "AM",
+      "segments": [{"from": 2495, "to": 2505, "use": "other", "label": "Standard time and frequency signals"}]
+    },
+    {
+      "name": "Fixed and mobile 2.5 MHz", "group": "Shortwave utility", "home_khz": 2678, "home_mode": "USB",
+      "segments": [{"from": 2505, "to": 2850, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Aviation 2.9 MHz", "group": "Shortwave utility", "home_khz": 3002, "home_mode": "USB",
+      "segments": [{"from": 2850, "to": 3155, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed 3.2 MHz", "group": "Shortwave utility", "home_khz": 3178, "home_mode": "USB",
+      "segments": [{"from": 3155, "to": 3200, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "90 m broadcast", "group": "Shortwave broadcast", "home_khz": 3300, "home_mode": "AM",
+      "segments": [{"from": 3200, "to": 3400, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Aviation 3.4 MHz", "group": "Shortwave utility", "home_khz": 3450, "home_mode": "USB",
+      "segments": [{"from": 3400, "to": 3500, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed and mobile 3.5 MHz", "group": "Shortwave utility", "home_khz": 3850, "home_mode": "USB",
+      "segments": [{"from": 3800, "to": 3900, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "75 m broadcast", "group": "Shortwave broadcast", "home_khz": 3950, "home_mode": "AM",
+      "segments": [{"from": 3900, "to": 4000, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed 4 MHz", "group": "Shortwave utility", "home_khz": 4032, "home_mode": "USB",
+      "segments": [{"from": 4000, "to": 4063, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Marine 4 MHz", "group": "Shortwave utility", "home_khz": 4250, "home_mode": "USB",
+      "segments": [{"from": 4063, "to": 4438, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Fixed and mobile 4.4 MHz", "group": "Shortwave utility", "home_khz": 4544, "home_mode": "USB",
+      "segments": [{"from": 4438, "to": 4650, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Aviation 4.7 MHz", "group": "Shortwave utility", "home_khz": 4700, "home_mode": "USB",
+      "segments": [{"from": 4650, "to": 4750, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "60 m broadcast", "group": "Shortwave broadcast", "home_khz": 4872, "home_mode": "AM",
+      "segments": [{"from": 4750, "to": 4995, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Time signals 5 MHz", "group": "Shortwave utility", "home_khz": 5000, "home_mode": "AM",
+      "segments": [{"from": 4995, "to": 5005, "use": "other", "label": "Standard time and frequency signals"}]
+    },
+    {
+      "name": "Broadcast 5 MHz", "group": "Shortwave broadcast", "home_khz": 5032, "home_mode": "AM",
+      "segments": [{"from": 5005, "to": 5060, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed and mobile 5 MHz (5.06 MHz)", "group": "Shortwave utility", "home_khz": 5206, "home_mode": "USB",
+      "segments": [{"from": 5060, "to": 5351.5, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Fixed and mobile 5 MHz (5.3665 MHz)", "group": "Shortwave utility", "home_khz": 5408, "home_mode": "USB",
+      "segments": [{"from": 5366.5, "to": 5450, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Aviation 5.5 MHz", "group": "Shortwave utility", "home_khz": 5590, "home_mode": "USB",
+      "segments": [{"from": 5450, "to": 5730, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed 5.7 MHz", "group": "Shortwave utility", "home_khz": 5815, "home_mode": "USB",
+      "segments": [{"from": 5730, "to": 5900, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "49 m broadcast", "group": "Shortwave broadcast", "home_khz": 6050, "home_mode": "AM",
+      "segments": [{"from": 5900, "to": 6200, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Marine 6 MHz", "group": "Shortwave utility", "home_khz": 6362, "home_mode": "USB",
+      "segments": [{"from": 6200, "to": 6525, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Aviation 6.6 MHz", "group": "Shortwave utility", "home_khz": 6645, "home_mode": "USB",
+      "segments": [{"from": 6525, "to": 6765, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed and ISM 6.8 MHz", "group": "Shortwave utility", "home_khz": 6882, "home_mode": "USB",
+      "segments": [{"from": 6765, "to": 7000, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "41 m broadcast", "group": "Shortwave broadcast", "home_khz": 7325, "home_mode": "AM",
+      "segments": [{"from": 7200, "to": 7450, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed 8 MHz", "group": "Shortwave utility", "home_khz": 7775, "home_mode": "USB",
+      "segments": [{"from": 7450, "to": 8100, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Marine 8 MHz", "group": "Shortwave utility", "home_khz": 8458, "home_mode": "USB",
+      "segments": [{"from": 8100, "to": 8815, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Aviation 8.9 MHz", "group": "Shortwave utility", "home_khz": 8928, "home_mode": "USB",
+      "segments": [{"from": 8815, "to": 9040, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed 9 MHz", "group": "Shortwave utility", "home_khz": 9220, "home_mode": "USB",
+      "segments": [{"from": 9040, "to": 9400, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "31 m broadcast", "group": "Shortwave broadcast", "home_khz": 9650, "home_mode": "AM",
+      "segments": [{"from": 9400, "to": 9900, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed 9.9 MHz", "group": "Shortwave utility", "home_khz": 9948, "home_mode": "USB",
+      "segments": [{"from": 9900, "to": 9995, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Time signals 10 MHz", "group": "Shortwave utility", "home_khz": 10000, "home_mode": "AM",
+      "segments": [{"from": 9995, "to": 10005, "use": "other", "label": "Standard time and frequency signals"}]
+    },
+    {
+      "name": "Aviation 10 MHz", "group": "Shortwave utility", "home_khz": 10052, "home_mode": "USB",
+      "segments": [{"from": 10005, "to": 10100, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed 10.5 MHz", "group": "Shortwave utility", "home_khz": 10662, "home_mode": "USB",
+      "segments": [{"from": 10150, "to": 11175, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Aviation 11.3 MHz", "group": "Shortwave utility", "home_khz": 11288, "home_mode": "USB",
+      "segments": [{"from": 11175, "to": 11400, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed 11.5 MHz", "group": "Shortwave utility", "home_khz": 11500, "home_mode": "USB",
+      "segments": [{"from": 11400, "to": 11600, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "25 m broadcast", "group": "Shortwave broadcast", "home_khz": 11850, "home_mode": "AM",
+      "segments": [{"from": 11600, "to": 12100, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed 12 MHz", "group": "Shortwave utility", "home_khz": 12165, "home_mode": "USB",
+      "segments": [{"from": 12100, "to": 12230, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Marine 12 MHz", "group": "Shortwave utility", "home_khz": 12715, "home_mode": "USB",
+      "segments": [{"from": 12230, "to": 13200, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Aviation 13 MHz", "group": "Shortwave utility", "home_khz": 13280, "home_mode": "USB",
+      "segments": [{"from": 13200, "to": 13360, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Radio astronomy 13.4 MHz", "group": "Other", "home_khz": 13385, "home_mode": "USB",
+      "segments": [{"from": 13360, "to": 13410, "use": "other", "label": "Radio astronomy"}]
+    },
+    {
+      "name": "Fixed and ISM 13.5 MHz", "group": "Shortwave utility", "home_khz": 13490, "home_mode": "USB",
+      "segments": [{"from": 13410, "to": 13570, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "22 m broadcast", "group": "Shortwave broadcast", "home_khz": 13720, "home_mode": "AM",
+      "segments": [{"from": 13570, "to": 13870, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed 13.9 MHz", "group": "Shortwave utility", "home_khz": 13935, "home_mode": "USB",
+      "segments": [{"from": 13870, "to": 14000, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Fixed 14.5 MHz", "group": "Shortwave utility", "home_khz": 14670, "home_mode": "USB",
+      "segments": [{"from": 14350, "to": 14990, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Time signals 15 MHz", "group": "Shortwave utility", "home_khz": 15000, "home_mode": "AM",
+      "segments": [{"from": 14990, "to": 15010, "use": "other", "label": "Standard time and frequency signals"}]
+    },
+    {
+      "name": "Aviation 15 MHz", "group": "Shortwave utility", "home_khz": 15055, "home_mode": "USB",
+      "segments": [{"from": 15010, "to": 15100, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "19 m broadcast", "group": "Shortwave broadcast", "home_khz": 15450, "home_mode": "AM",
+      "segments": [{"from": 15100, "to": 15800, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed 16 MHz", "group": "Shortwave utility", "home_khz": 16080, "home_mode": "USB",
+      "segments": [{"from": 15800, "to": 16360, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Marine 16 MHz", "group": "Shortwave utility", "home_khz": 16885, "home_mode": "USB",
+      "segments": [{"from": 16360, "to": 17410, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Fixed 17.4 MHz", "group": "Shortwave utility", "home_khz": 17445, "home_mode": "USB",
+      "segments": [{"from": 17410, "to": 17480, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "16 m broadcast", "group": "Shortwave broadcast", "home_khz": 17690, "home_mode": "AM",
+      "segments": [{"from": 17480, "to": 17900, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Aviation 18 MHz", "group": "Shortwave utility", "home_khz": 17965, "home_mode": "USB",
+      "segments": [{"from": 17900, "to": 18030, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed 18 MHz", "group": "Shortwave utility", "home_khz": 18049, "home_mode": "USB",
+      "segments": [{"from": 18030, "to": 18068, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Fixed 18.5 MHz", "group": "Shortwave utility", "home_khz": 18474, "home_mode": "USB",
+      "segments": [{"from": 18168, "to": 18780, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Marine 18 MHz", "group": "Shortwave utility", "home_khz": 18840, "home_mode": "USB",
+      "segments": [{"from": 18780, "to": 18900, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "15 m broadcast", "group": "Shortwave broadcast", "home_khz": 18960, "home_mode": "AM",
+      "segments": [{"from": 18900, "to": 19020, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed 19 MHz", "group": "Shortwave utility", "home_khz": 19350, "home_mode": "USB",
+      "segments": [{"from": 19020, "to": 19680, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Marine 19 MHz", "group": "Shortwave utility", "home_khz": 19740, "home_mode": "USB",
+      "segments": [{"from": 19680, "to": 19800, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Fixed 19.9 MHz", "group": "Shortwave utility", "home_khz": 19895, "home_mode": "USB",
+      "segments": [{"from": 19800, "to": 19990, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Time signals 20 MHz", "group": "Shortwave utility", "home_khz": 20000, "home_mode": "AM",
+      "segments": [{"from": 19990, "to": 20010, "use": "other", "label": "Standard time and frequency signals"}]
+    },
+    {
+      "name": "Fixed 20 MHz", "group": "Shortwave utility", "home_khz": 20505, "home_mode": "USB",
+      "segments": [{"from": 20010, "to": 21000, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "13 m broadcast", "group": "Shortwave broadcast", "home_khz": 21650, "home_mode": "AM",
+      "segments": [{"from": 21450, "to": 21850, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Fixed 21.9 MHz", "group": "Shortwave utility", "home_khz": 21887, "home_mode": "USB",
+      "segments": [{"from": 21850, "to": 21924, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Aviation 22 MHz", "group": "Shortwave utility", "home_khz": 21962, "home_mode": "USB",
+      "segments": [{"from": 21924, "to": 22000, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Marine 22 MHz", "group": "Shortwave utility", "home_khz": 22428, "home_mode": "USB",
+      "segments": [{"from": 22000, "to": 22855, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Fixed 23 MHz", "group": "Shortwave utility", "home_khz": 23028, "home_mode": "USB",
+      "segments": [{"from": 22855, "to": 23200, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Aviation 23 MHz", "group": "Shortwave utility", "home_khz": 23275, "home_mode": "USB",
+      "segments": [{"from": 23200, "to": 23350, "use": "air", "label": "Aviation long-distance voice and HF data"}]
+    },
+    {
+      "name": "Fixed and mobile 24 MHz", "group": "Shortwave utility", "home_khz": 24120, "home_mode": "USB",
+      "segments": [{"from": 23350, "to": 24890, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Time signals 25 MHz", "group": "Shortwave utility", "home_khz": 25000, "home_mode": "AM",
+      "segments": [{"from": 24990, "to": 25010, "use": "other", "label": "Standard time and frequency signals"}]
+    },
+    {
+      "name": "Fixed 25 MHz", "group": "Shortwave utility", "home_khz": 25040, "home_mode": "USB",
+      "segments": [{"from": 25010, "to": 25070, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Marine 25 MHz", "group": "Shortwave utility", "home_khz": 25140, "home_mode": "USB",
+      "segments": [{"from": 25070, "to": 25210, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Fixed 25.3 MHz", "group": "Shortwave utility", "home_khz": 25380, "home_mode": "USB",
+      "segments": [{"from": 25210, "to": 25550, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Radio astronomy 25.6 MHz", "group": "Other", "home_khz": 25610, "home_mode": "USB",
+      "segments": [{"from": 25550, "to": 25670, "use": "other", "label": "Radio astronomy"}]
+    },
+    {
+      "name": "11 m broadcast", "group": "Shortwave broadcast", "home_khz": 25885, "home_mode": "AM",
+      "segments": [{"from": 25670, "to": 26100, "use": "broadcast", "label": "International shortwave broadcasting"}]
+    },
+    {
+      "name": "Marine 26 MHz", "group": "Shortwave utility", "home_khz": 26138, "home_mode": "USB",
+      "segments": [{"from": 26100, "to": 26175, "use": "marine", "label": "Maritime working and safety"}]
+    },
+    {
+      "name": "Fixed and mobile 26.5 MHz", "group": "Shortwave utility", "home_khz": 26568, "home_mode": "USB",
+      "segments": [{"from": 26175, "to": 26960, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "CB radio 27 MHz", "group": "Land mobile", "home_khz": 27185, "home_mode": "FM",
+      "segments": [{"from": 26960, "to": 27410, "use": "mobile", "label": "CB radio, 26.965-27.405 MHz"}]
+    },
+    {
+      "name": "Mobile 27.5 MHz", "group": "Land mobile", "home_khz": 27705, "home_mode": "FM",
+      "segments": [{"from": 27410, "to": 28000, "use": "mobile", "label": "Land mobile, CB in places"}]
+    },
+    {
+      "name": "Fixed and mobile 29.8 MHz", "group": "Shortwave utility", "home_khz": 29850, "home_mode": "USB",
+      "segments": [{"from": 29700, "to": 30000, "use": "fixed", "label": "Fixed and mobile utility stations"}]
+    },
+    {
+      "name": "Low band 30 MHz", "group": "Land mobile", "home_khz": 38500, "home_mode": "FM",
+      "segments": [{"from": 30000, "to": 47000, "use": "mobile", "label": "Land mobile, military"}]
+    },
+    {
+      "name": "Low band 50 MHz (47 MHz)", "group": "Land mobile", "home_khz": 48500, "home_mode": "FM",
+      "segments": [{"from": 47000, "to": 50000, "use": "mobile", "label": "Land mobile, TV band I in places"}]
+    },
+    {
+      "name": "Low band 50 MHz (52 MHz)", "group": "Land mobile", "home_khz": 60000, "home_mode": "FM",
+      "segments": [{"from": 52000, "to": 68000, "use": "mobile", "label": "Land mobile, TV band I in places"}]
+    },
+    {
+      "name": "Low band 70 MHz (68 MHz)", "group": "Land mobile", "home_khz": 69000, "home_mode": "FM",
+      "segments": [{"from": 68000, "to": 70000, "use": "mobile", "label": "Land mobile, military"}]
+    },
+    {
+      "name": "Low band 70 MHz (70.5 MHz)", "group": "Land mobile", "home_khz": 79000, "home_mode": "FM",
+      "segments": [{"from": 70500, "to": 87500, "use": "mobile", "label": "Land mobile, military"}]
+    },
+    {
+      "name": "FM broadcast", "group": "FM and TV broadcast", "home_khz": 97750, "home_mode": "WFM",
+      "segments": [{"from": 87500, "to": 108000, "use": "broadcast", "label": "FM broadcast, 87.5 to 108 MHz"}]
+    },
+    {
+      "name": "VOR and ILS", "group": "Aviation", "home_khz": 112988, "home_mode": "AM",
+      "segments": [{"from": 108000, "to": 117975, "use": "nav", "label": "Aircraft navigation beacons"}]
+    },
+    {
+      "name": "Airband", "group": "Aviation", "home_khz": 127488, "home_mode": "AM",
+      "segments": [{"from": 117975, "to": 137000, "use": "air", "label": "Air traffic voice, ACARS and VDL data"}]
+    },
+    {
+      "name": "Satellites 137 MHz", "group": "Satellites and navigation", "home_khz": 137500, "home_mode": "WFM",
+      "segments": [{"from": 137000, "to": 138000, "use": "sat", "label": "Weather and data satellites"}]
+    },
+    {
+      "name": "Military 140 MHz", "group": "Land mobile", "home_khz": 141000, "home_mode": "FM",
+      "segments": [{"from": 138000, "to": 144000, "use": "mobile", "label": "Military and land mobile"}]
+    },
+    {
+      "name": "VHF high 150 MHz", "group": "Land mobile", "home_khz": 151000, "home_mode": "FM",
+      "segments": [{"from": 146000, "to": 156000, "use": "mobile", "label": "Business radio and public services"}]
+    },
+    {
+      "name": "Marine VHF", "group": "Maritime", "home_khz": 159025, "home_mode": "FM",
+      "segments": [{"from": 156000, "to": 162050, "use": "marine", "label": "Marine VHF channels, AIS"}]
+    },
+    {
+      "name": "VHF high 165 MHz", "group": "Land mobile", "home_khz": 168025, "home_mode": "FM",
+      "segments": [{"from": 162050, "to": 174000, "use": "mobile", "label": "Business radio and public services"}]
+    },
+    {
+      "name": "Band III", "group": "FM and TV broadcast", "home_khz": 202000, "home_mode": "FM",
+      "segments": [{"from": 174000, "to": 230000, "use": "broadcast", "label": "DAB, or VHF television"}]
+    },
+    {
+      "name": "Military air", "group": "Aviation", "home_khz": 305000, "home_mode": "AM",
+      "segments": [{"from": 230000, "to": 380000, "use": "air", "label": "Military aviation and satellites"}]
+    },
+    {
+      "name": "TETRA 380 MHz", "group": "Land mobile", "home_khz": 390000, "home_mode": "FM",
+      "segments": [{"from": 380000, "to": 400000, "use": "mobile", "label": "Emergency services, usually TETRA. Encrypted"}]
+    },
+    {
+      "name": "Weather balloons", "group": "Satellites and navigation", "home_khz": 403000, "home_mode": "FM",
+      "segments": [{"from": 400000, "to": 406000, "use": "sat", "label": "Radiosondes and satellites, 400.15-406 MHz"}]
+    },
+    {
+      "name": "Distress beacons", "group": "Satellites and navigation", "home_khz": 406050, "home_mode": "USB",
+      "segments": [{"from": 406000, "to": 406100, "use": "sat", "label": "Cospas-Sarsat 406 MHz emergency beacons"}]
+    },
+    {
+      "name": "UHF 410 MHz", "group": "Land mobile", "home_khz": 418050, "home_mode": "FM",
+      "segments": [{"from": 406100, "to": 430000, "use": "mobile", "label": "Business radio, TETRA, government"}]
+    },
+    {
+      "name": "UHF 450 MHz", "group": "Land mobile", "home_khz": 443000, "home_mode": "FM",
+      "segments": [{"from": 440000, "to": 446000, "use": "mobile", "label": "Business radio, pagers, PMR"}]
+    },
+    {
+      "name": "PMR446", "group": "Land mobile", "home_khz": 446100, "home_mode": "FM",
+      "segments": [{"from": 446000, "to": 446200, "use": "mobile", "label": "Licence-free handheld radios"}]
+    },
+    {
+      "name": "UHF 450 MHz (446.2 MHz)", "group": "Land mobile", "home_khz": 458100, "home_mode": "FM",
+      "segments": [{"from": 446200, "to": 470000, "use": "mobile", "label": "Business radio, pagers, PMR"}]
+    },
+    {
+      "name": "UHF television", "group": "FM and TV broadcast", "home_khz": 582000, "home_mode": "FM",
+      "segments": [{"from": 470000, "to": 694000, "use": "broadcast", "label": "Television"}]
+    },
+    {
+      "name": "Mobile 700 MHz", "group": "Mobile phones and data", "home_khz": 742000, "home_mode": "FM",
+      "segments": [{"from": 694000, "to": 790000, "use": "mobile", "label": "Mobile phones"}]
+    },
+    {
+      "name": "Mobile 800 MHz", "group": "Mobile phones and data", "home_khz": 826000, "home_mode": "FM",
+      "segments": [{"from": 790000, "to": 862000, "use": "mobile", "label": "Mobile phones"}]
+    },
+    {
+      "name": "Short range 868 MHz", "group": "Other", "home_khz": 869000, "home_mode": "FM",
+      "segments": [{"from": 862000, "to": 876000, "use": "other", "label": "Licence-free devices, LoRa, alarms and sensors"}]
+    },
+    {
+      "name": "Mobile 900 MHz", "group": "Mobile phones and data", "home_khz": 918000, "home_mode": "FM",
+      "segments": [{"from": 876000, "to": 960000, "use": "mobile", "label": "GSM-R railways and mobile phones"}]
+    },
+    {
+      "name": "DME and transponders", "group": "Aviation", "home_khz": 1062000, "home_mode": "FM",
+      "segments": [{"from": 960000, "to": 1164000, "use": "nav", "label": "DME, Mode S and ADS-B at 1090 MHz"}]
+    },
+    {
+      "name": "GNSS L5 and E5", "group": "Satellites and navigation", "home_khz": 1189500, "home_mode": "USB",
+      "segments": [{"from": 1164000, "to": 1215000, "use": "nav", "label": "GPS L5, Galileo E5, GLONASS G3, BeiDou B2"}]
+    },
+    {
+      "name": "GNSS L2", "group": "Satellites and navigation", "home_khz": 1227500, "home_mode": "USB",
+      "segments": [{"from": 1215000, "to": 1240000, "use": "nav", "label": "GPS L2, GLONASS G2"}]
+    },
+    {
+      "name": "Radar 1.3 GHz", "group": "Aviation", "home_khz": 1350000, "home_mode": "FM",
+      "segments": [{"from": 1300000, "to": 1400000, "use": "nav", "label": "Long-range air traffic radar"}]
+    },
+    {
+      "name": "Radio astronomy 1.4 GHz", "group": "Other", "home_khz": 1413500, "home_mode": "USB",
+      "segments": [{"from": 1400000, "to": 1427000, "use": "other", "label": "Hydrogen line, 1420.4 MHz. Protected: nothing should transmit here"}]
+    },
+    {
+      "name": "Mobile 1.5 GHz", "group": "Mobile phones and data", "home_khz": 1472500, "home_mode": "FM",
+      "segments": [{"from": 1427000, "to": 1518000, "use": "mobile", "label": "Mobile downlink, links"}]
+    },
+    {
+      "name": "Inmarsat L-band", "group": "Satellites and navigation", "home_khz": 1538500, "home_mode": "USB",
+      "segments": [{"from": 1518000, "to": 1559000, "use": "sat", "label": "Inmarsat and other mobile satellite downlinks"}]
+    },
+    {
+      "name": "GNSS L1", "group": "Satellites and navigation", "home_khz": 1584500, "home_mode": "USB",
+      "segments": [{"from": 1559000, "to": 1610000, "use": "nav", "label": "GPS L1, Galileo E1, GLONASS G1, BeiDou B1"}]
+    },
+    {
+      "name": "Iridium and Globalstar", "group": "Satellites and navigation", "home_khz": 1642500, "home_mode": "USB",
+      "segments": [{"from": 1610000, "to": 1675000, "use": "sat", "label": "Iridium, Globalstar and mobile satellite uplinks"}]
+    },
+    {
+      "name": "Weather satellites 1.7 GHz", "group": "Satellites and navigation", "home_khz": 1692500, "home_mode": "USB",
+      "segments": [{"from": 1675000, "to": 1710000, "use": "sat", "label": "Geostationary and polar weather satellites, radiosondes"}]
+    },
+    {
+      "name": "Mobile 1800 MHz", "group": "Mobile phones and data", "home_khz": 1795000, "home_mode": "FM",
+      "segments": [{"from": 1710000, "to": 1880000, "use": "mobile", "label": "Mobile phones"}]
+    },
+    {
+      "name": "DECT", "group": "Other", "home_khz": 1890000, "home_mode": "FM",
+      "segments": [{"from": 1880000, "to": 1900000, "use": "other", "label": "Cordless phones"}]
+    },
+    {
+      "name": "Mobile 2100 MHz up", "group": "Mobile phones and data", "home_khz": 1940000, "home_mode": "FM",
+      "segments": [{"from": 1900000, "to": 1980000, "use": "mobile", "label": "Mobile phones, uplink"}]
+    },
+    {
+      "name": "Mobile satellite 2 GHz", "group": "Mobile phones and data", "home_khz": 2002500, "home_mode": "FM",
+      "segments": [{"from": 1980000, "to": 2025000, "use": "mobile", "label": "Mobile satellite, public safety links"}]
+    },
+    {
+      "name": "Space uplinks 2 GHz", "group": "Satellites and navigation", "home_khz": 2067500, "home_mode": "USB",
+      "segments": [{"from": 2025000, "to": 2110000, "use": "sat", "label": "Space operations and research"}]
+    },
+    {
+      "name": "Mobile 2100 MHz down", "group": "Mobile phones and data", "home_khz": 2155000, "home_mode": "FM",
+      "segments": [{"from": 2110000, "to": 2200000, "use": "mobile", "label": "Mobile phones, downlink"}]
+    },
+    {
+      "name": "Space downlinks 2.2 GHz", "group": "Satellites and navigation", "home_khz": 2250000, "home_mode": "USB",
+      "segments": [{"from": 2200000, "to": 2300000, "use": "sat", "label": "Space operations, telemetry"}]
+    },
+    {
+      "name": "Mobile 2300 MHz", "group": "Mobile phones and data", "home_khz": 2350000, "home_mode": "FM",
+      "segments": [{"from": 2300000, "to": 2400000, "use": "mobile", "label": "Mobile phones, 13 cm amateur band where allowed"}]
+    },
+    {
+      "name": "ISM 2.4 GHz", "group": "Other", "home_khz": 2441750, "home_mode": "FM",
+      "segments": [{"from": 2400000, "to": 2483500, "use": "other", "label": "Wi-Fi, Bluetooth, microwave ovens, amateur in places"}]
+    },
+    {
+      "name": "Globalstar 2.5 GHz", "group": "Satellites and navigation", "home_khz": 2491750, "home_mode": "USB",
+      "segments": [{"from": 2483500, "to": 2500000, "use": "sat", "label": "Mobile satellite downlink"}]
+    },
+    {
+      "name": "Mobile 2600 MHz", "group": "Mobile phones and data", "home_khz": 2595000, "home_mode": "FM",
+      "segments": [{"from": 2500000, "to": 2690000, "use": "mobile", "label": "Mobile phones"}]
+    },
+    {
+      "name": "Radio astronomy 2.7 GHz", "group": "Other", "home_khz": 2695000, "home_mode": "USB",
+      "segments": [{"from": 2690000, "to": 2700000, "use": "other", "label": "Radio astronomy"}]
+    },
+    {
+      "name": "Radar 2.8 GHz", "group": "Aviation", "home_khz": 2800000, "home_mode": "FM",
+      "segments": [{"from": 2700000, "to": 2900000, "use": "nav", "label": "Air traffic and weather radar"}]
+    },
+    {
+      "name": "Radar 2.9 GHz", "group": "Maritime", "home_khz": 2950000, "home_mode": "FM",
+      "segments": [{"from": 2900000, "to": 3000000, "use": "nav", "label": "Marine and weather radar"}]
     }
   ]
 }

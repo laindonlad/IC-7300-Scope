@@ -30,10 +30,10 @@ int main(int argc, char** argv) {
   for (auto& p : ports) printf("  %s  %s\n", p.name.c_str(), p.desc.c_str());
   if (port.empty()) port = guessRigPort(ports);
   if (port.empty()) {
-    printf("No IC-7300 found. Name the port: ic7300probe COM11\n");
+    printf("No radio found. Name the port: ic7300probe COM11\n");
     return 2;
   }
-  printf("Using %s at 115200, CI-V address 94h\n\n", port.c_str());
+  printf("Using %s at 115200, asking at 94h, A2h, 96h and the broadcast address\n\n", port.c_str());
 
   Rig rig;
   rig.start([&] { return newSerialTransport(port, 115200); });
@@ -47,7 +47,8 @@ int main(int argc, char** argv) {
   }
   if (!s.connected) {
     printf("FAIL: no answer from the rig. %s\n", s.portError.empty() ? "The port opened but nothing replied." : s.portError.c_str());
-    printf("Check: rig powered on; CI-V USB Baud Rate 115200; CI-V Address 94h.\n");
+    printf("Check: rig powered on; CI-V USB Baud Rate 115200; on an IC-9700, its Enhanced COM port.\n");
+    if (s.strangerId >= 0) printf("A radio answered at %02Xh reporting %02Xh, which isn't an IC-7300, IC-9700 or IC-R8600.\n", s.strangerAddr, s.strangerId);
     printf("If the port's in use, close the other program first: a port can only have one owner.\n");
     return 1;
   }
@@ -63,31 +64,43 @@ int main(int argc, char** argv) {
   printf("Identity and dial:\n");
   char id[16];
   snprintf(id, sizeof id, "%02Xh", s.rigId);
-  require("rig id", s.rigId == 0x94, id);
+  printf("  Found an %s\n", s.radio->name);
+  require("rig id", s.rigId == s.radio->addr, id);
   require("frequency", s.hz > 0, tuning::formatHz(s.hz));
   require("mode", s.mode >= 0, std::string(civ::modeName(s.mode)) + (s.data ? "-D" : "") + " FIL" + n(s.filter));
   require("filter width", s.width >= 0, n(civ::widthHz(s.mode, s.width)) + " Hz");
-  require("other VFO", s.otherHz > 0, tuning::formatHz(s.otherHz));
-  require("other VFO mode", s.otherMode >= 0, civ::modeName(s.otherMode));
-  require("split", s.split >= 0, n(s.split));
-  require("attenuator", s.att >= 0, n(s.att));
-  require("tuner", s.atu >= 0, n(s.atu));
-  require("RIT", s.ritOn >= 0, n(s.ritOn) + ", offset " + n(s.ritHz) + " Hz");
-  require("XIT", s.xitOn >= 0, n(s.xitOn));
+  if (s.radio->hasOtherVfo) {
+    require("other VFO", s.otherHz > 0, tuning::formatHz(s.otherHz));
+    require("other VFO mode", s.otherMode >= 0, civ::modeName(s.otherMode));
+    require("split", s.split >= 0, n(s.split));
+  }
+  require("attenuator", s.att >= 0, n(s.att) + ", " + n(s.attDb) + " dB");
+  if (s.radio->antennas > 1) require("antenna", s.ant >= 0, "ANT" + n(s.ant + 1));
+  if (s.radio->hasIpPlus) require("IP+", s.ipPlus >= 0, n(s.ipPlus));
+  if (s.radio->hasTuner) require("tuner", s.atu >= 0, n(s.atu));
+  if (s.radio->hasRit) require("RIT", s.ritOn >= 0, n(s.ritOn) + ", offset " + n(s.ritHz) + " Hz");
+  if (s.radio->hasXit) require("XIT", s.xitOn >= 0, n(s.xitOn));
 
   printf("Levels:\n");
   static const char* levelNames[civ::L_COUNT] = {"AF", "RF", "SQL", "NR", "PBT inside", "PBT outside", "CW pitch", "RF power", "Mic",
                                                  "Key speed", "Notch", "Comp", "BK-IN delay", "NB", "Monitor", "VOX", "Anti-VOX"};
-  for (int l = 0; l < civ::L_COUNT; l++) require(levelNames[l], s.level[l] >= 0, n(s.level[l]));
+  for (int l = 0; l < civ::L_COUNT; l++)
+    if (s.radio->hasTransmit || !civ::levelIsTx(l)) require(levelNames[l], s.level[l] >= 0, n(s.level[l]));
 
   printf("Switches:\n");
   static const char* swNames[civ::S_COUNT] = {"Preamp", "AGC", "NB", "NR", "Auto notch", "Tone", "TSQL", "Comp", "Monitor", "VOX", "BK-IN",
                                               "Manual notch", "Dial lock", "DSP filter", "Notch width", "SSB TX width"};
-  for (int i = 0; i < civ::S_COUNT; i++) require(swNames[i], s.sw[i] >= 0, n(s.sw[i]));
+  for (int i = 0; i < civ::S_COUNT; i++)
+    if (s.radio->hasTransmit || !civ::switchIsTx(i)) require(swNames[i], s.sw[i] >= 0, n(s.sw[i]));
 
   printf("Meters:\n");
   require("S meter", s.meter[civ::M_S] >= 0, n(s.meter[civ::M_S]) + " raw");
-  require("Vd", s.meter[civ::M_VD] >= 0, std::to_string(civ::voltsVd(s.meter[civ::M_VD])) + " V");
+  if (s.radio->hasTransmit) {
+    require("Vd", s.meter[civ::M_VD] >= 0, std::to_string(civ::voltsVd(s.meter[civ::M_VD])) + " V");
+  } else {
+    require("squelch status", s.squelchOpen >= 0, n(s.squelchOpen));
+    require("overload", s.overflow >= 0, n(s.overflow));
+  }
 
   printf("Scope:\n");
   rig.setScope(true);

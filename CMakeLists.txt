@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(IC7300Console LANGUAGES C CXX)
+project(IC7300_IC9700Console LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,7 +10,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # ---- everything below the window: no GUI, no audio, so the tests and the probe can use it ----
-add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp)
+add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp)
 target_include_directories(rigcore PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # The band plans go inside the executable too, and are written out for editing the first time it runs.
@@ -37,7 +37,7 @@ embed_json_folder(stations kBuiltinStations builtin_stations.inc)
 find_package(Threads REQUIRED)
 target_link_libraries(rigcore PUBLIC Threads::Threads)
 if(WIN32)
-  target_link_libraries(rigcore PUBLIC setupapi shell32)
+  target_link_libraries(rigcore PUBLIC setupapi shell32 ws2_32 ole32)
   target_compile_definitions(rigcore PUBLIC _USE_MATH_DEFINES)
 endif()
 if(MSVC)

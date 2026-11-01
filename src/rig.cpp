@@ -17,6 +17,7 @@ constexpr uint32_t K_FREQ = key(0x03), K_MODE = key(0x04), K_DATA = key(0x1A, 0x
 constexpr uint32_t K_OTHER_FREQ = key(0x25, 1), K_OTHER_MODE = key(0x26, 1), K_WIDTH = key(0x1A, 0x03);
 constexpr uint32_t K_SPLIT = key(0x0F), K_ATT = key(0x11), K_ATU = key(0x1C, 1), K_TX = key(0x1C, 0);
 constexpr uint32_t K_RIT = key(0x21, 0), K_RIT_ON = key(0x21, 1), K_XIT_ON = key(0x21, 2);
+constexpr uint32_t K_ANT = key(0x12), K_IP_PLUS = key(0x1A, 0x07);
 constexpr uint32_t K_SCOPE_ON = key(0x27, 0x10), K_SCOPE_OUT = key(0x27, 0x11), K_SCOPE_MODE = key(0x27, 0x14);
 constexpr uint32_t K_SCOPE_SPAN = key(0x27, 0x15), K_SCOPE_REF = key(0x27, 0x19), K_SCOPE_SPEED = key(0x27, 0x1A);
 
@@ -25,6 +26,7 @@ constexpr int kLinkLostMs = 2500;   // no frame at all for this long: the rig's 
 constexpr int kPollGapMs = 12;      // room between polls, for the rig's sake
 constexpr int kHoldMs = 400;
 constexpr int kUnkeyRetryMs = 250;
+constexpr int kProbeGapMs = 120;    // a wrong address never answers, so the next one isn't kept waiting
 }  // namespace
 
 RigState::RigState() {
@@ -36,22 +38,32 @@ RigState::RigState() {
 Rig::Rig() = default;
 Rig::~Rig() { stop(); }
 
-void Rig::start(std::function<Transport*()> factory, uint8_t addr) {
+void Rig::start(std::function<Transport*()> factory, uint8_t addr, const civ::Radio* forced, const civ::Radio* lastSeen) {
   stop();
   {
     std::lock_guard<std::mutex> g(m_);
     RigState fresh;
     fresh.txLimit = st_.txLimit;
+    fresh.radio = forced ? forced : lastSeen ? lastSeen : st_.radio;
     st_ = fresh;
+    radio_ = st_.radio;
     queue_.clear();
     scopeLines_.clear();
     holds_.clear();
     keyWanted_ = keyedByUs_ = false;
     lastUnkeySent_ = txReadAt_ = 0;
     // wantScope_ carries over: it's what the window asked for
+    addr_ = wantAddr_ = addr;
   }
   factory_ = std::move(factory);
-  addr_ = addr;
+  forced_ = forced;
+  // The chosen address first, so whoever's always been at it is found straight away.
+  probeAddrs_.clear();
+  for (uint8_t a : {addr, civ::kIc7300, civ::kIc9700, civ::kIcR8600, civ::kBroadcast})
+    if (std::find(probeAddrs_.begin(), probeAddrs_.end(), a) == probeAddrs_.end()) probeAddrs_.push_back(a);
+  probeAt_ = 0;
+  lastProbeAt_ = 0;
+  identified_ = false;
   quit_ = false;
   nextOpenAt_ = 0;
   buildPolls();
@@ -113,16 +125,17 @@ bool Rig::held(uint32_t k, uint64_t now) const {
 }
 
 void Rig::setFreq(long long hz) {
-  hz = std::min(civ::kMaxHz, std::max(civ::kMinHz, hz));
   std::lock_guard<std::mutex> g(m_);
+  hz = radio_->clamp(hz);
   post(K_FREQ, civ::setFreq(addr_, hz), "set that frequency");
   st_.hz = hz;
   hold(K_FREQ);
 }
 
 void Rig::setOtherFreq(long long hz) {
-  hz = std::min(civ::kMaxHz, std::max(civ::kMinHz, hz));
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasOtherVfo) return;
+  hz = radio_->clamp(hz);
   post(K_OTHER_FREQ, civ::setOtherFreq(addr_, hz), "set the other VFO");
   st_.otherHz = hz;
   hold(K_OTHER_FREQ);
@@ -131,9 +144,11 @@ void Rig::setOtherFreq(long long hz) {
 void Rig::setMode(int mode, bool data, int filter) {
   filter = std::min(3, std::max(1, filter));
   std::lock_guard<std::mutex> g(m_);
+  mode = civ::modeOn(*radio_, mode);
   post(K_MODE, civ::setMode(addr_, mode, filter), "set that mode");
-  bool d = data && civ::hasData(mode);
-  if (civ::hasData(mode)) post(K_DATA, civ::setData(addr_, d, filter), "set data mode");
+  bool canData = radio_->hasDataMode && civ::hasData(mode);
+  bool d = data && canData;
+  if (canData) post(K_DATA, civ::setData(addr_, d, filter), "set data mode");
   st_.mode = mode, st_.data = d, st_.filter = filter;
   hold(K_MODE);
   hold(K_DATA);
@@ -143,8 +158,9 @@ void Rig::setMode(int mode, bool data, int filter) {
 void Rig::setOtherMode(int mode, bool data, int filter) {
   filter = std::min(3, std::max(1, filter));
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasOtherVfo) return;
   bool d = data && civ::hasData(mode);
-  post(K_OTHER_MODE, civ::setOtherMode(addr_, mode, d, filter), "set the other VFO's mode");
+  post(K_OTHER_MODE, civ::setOtherMode(addr_, mode, d, filter, radio_->hasMainSub), "set the other VFO's mode");
   st_.otherMode = mode, st_.otherData = d, st_.otherFilter = filter;
   hold(K_OTHER_MODE);
 }
@@ -153,6 +169,7 @@ void Rig::setLevel(int l, int v) {
   v = std::min(255, std::max(0, v));
   uint32_t k = key(0x14, civ::levelSub(l));
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasTransmit && civ::levelIsTx(l)) return;
   post(k, civ::setLevel(addr_, l, v), "set that level");
   st_.level[l] = v;
   hold(k);
@@ -161,6 +178,7 @@ void Rig::setLevel(int l, int v) {
 void Rig::setSwitch(int s, int v) {
   uint32_t k = key(0x16, civ::switchSub(s));
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasTransmit && civ::switchIsTx(s)) return;
   post(k, civ::setSwitch(addr_, s, v), "change that setting");
   st_.sw[s] = v;
   hold(k);
@@ -168,13 +186,40 @@ void Rig::setSwitch(int s, int v) {
 
 void Rig::setAtt(bool on) {
   std::lock_guard<std::mutex> g(m_);
-  post(K_ATT, civ::setAtt(addr_, on), "set the attenuator");
+  post(K_ATT, civ::setAtt(addr_, on, radio_->attCode), "set the attenuator");
   st_.att = on;
+  st_.attDb = on ? radio_->attDb : 0;
   hold(K_ATT);
+}
+
+void Rig::setAttDb(int db) {
+  std::lock_guard<std::mutex> g(m_);
+  post(K_ATT, civ::setAttDb(addr_, db), "set the attenuator");
+  st_.att = db > 0;
+  st_.attDb = db;
+  hold(K_ATT);
+}
+
+void Rig::setAntenna(int index) {
+  std::lock_guard<std::mutex> g(m_);
+  if (radio_->antennas <= 1 || index < 0 || index >= radio_->antennas) return;
+  if (index > 0 && st_.hz >= radio_->antennaSwitchBelowHz) return;
+  post(K_ANT, civ::setAntenna(addr_, index), "change antenna");
+  st_.ant = index;
+  hold(K_ANT);
+}
+
+void Rig::setIpPlus(bool on) {
+  std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasIpPlus) return;
+  post(K_IP_PLUS, civ::setIpPlus(addr_, on), "set IP+");
+  st_.ipPlus = on;
+  hold(K_IP_PLUS);
 }
 
 void Rig::setSplit(bool on) {
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasOtherVfo) return;
   post(K_SPLIT, civ::setSplit(addr_, on), "set split");
   st_.split = on;
   hold(K_SPLIT);
@@ -190,6 +235,7 @@ void Rig::setWidth(int code) {
 void Rig::setRit(int hz) {
   hz = std::min(9999, std::max(-9999, hz));
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasRit) return;
   post(K_RIT, civ::setRit(addr_, hz), "set the RIT offset");
   st_.ritHz = hz;
   hold(K_RIT);
@@ -197,6 +243,7 @@ void Rig::setRit(int hz) {
 
 void Rig::setRitOn(bool on) {
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasRit) return;
   post(K_RIT_ON, civ::ritOn(addr_, on), "set RIT");
   st_.ritOn = on;
   hold(K_RIT_ON);
@@ -204,6 +251,7 @@ void Rig::setRitOn(bool on) {
 
 void Rig::setXitOn(bool on) {
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasXit) return;
   post(K_XIT_ON, civ::xitOn(addr_, on), "set XIT");
   st_.xitOn = on;
   hold(K_XIT_ON);
@@ -211,12 +259,26 @@ void Rig::setXitOn(bool on) {
 
 void Rig::vfoEqual() {
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasOtherVfo) return;
   post(key(0x07, 0xA0), civ::vfoEqual(addr_), "copy the VFO");
 }
 
 void Rig::vfoSwap() {
   std::lock_guard<std::mutex> g(m_);
-  post(key(0x07, 0xB0), civ::vfoSwap(addr_), "swap the VFOs");
+  if (!radio_->hasOtherVfo) return;
+  if (radio_->hasVfoExchange) {
+    post(key(0x07, 0xB0), civ::vfoSwap(addr_), "swap the VFOs");
+  } else {
+    // No command does this: 07 B0 would exchange the MAIN and SUB bands. So each VFO is given the other's
+    // settings, which takes knowing them.
+    if (st_.hz <= 0 || st_.otherHz <= 0 || st_.mode < 0 || st_.otherMode < 0) return;
+    int filter = std::min(3, std::max(1, st_.otherFilter)), otherFilter = std::min(3, std::max(1, st_.filter));
+    post(K_FREQ, civ::setFreq(addr_, st_.otherHz), "swap the VFOs");
+    post(K_OTHER_FREQ, civ::setOtherFreq(addr_, st_.hz), "swap the VFOs");
+    post(K_MODE, civ::setMode(addr_, st_.otherMode, filter), "swap the VFOs");
+    if (civ::hasData(st_.otherMode)) post(K_DATA, civ::setData(addr_, st_.otherData, filter), "swap the VFOs");
+    post(K_OTHER_MODE, civ::setOtherMode(addr_, st_.mode, st_.data, otherFilter, radio_->hasMainSub), "swap the VFOs");
+  }
   std::swap(st_.hz, st_.otherHz);
   std::swap(st_.mode, st_.otherMode);
   std::swap(st_.data, st_.otherData);
@@ -226,6 +288,7 @@ void Rig::vfoSwap() {
 
 void Rig::setAtu(bool on) {
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasTuner) return;
   post(K_ATU, civ::atu(addr_, on ? 1 : 0), "set the tuner");
   st_.atu = on;
   hold(K_ATU);
@@ -242,8 +305,14 @@ void Rig::powerOn() {
   Cmd c{key(0x18), {}, "power on"};
   // At 115200 the rig needs about 150 FEs to wake its CI-V (Hamlib's icom_set_powerstat).
   c.bytes.assign(150, 0xFE);
-  civ::Bytes on = civ::powerOn(addr_);
-  c.bytes.insert(c.bytes.end(), on.begin(), on.end());
+  // A radio that's off can't say which it is, so each candidate is told. The others ignore what isn't theirs.
+  std::vector<uint8_t> addrs = {addr_};
+  for (uint8_t a : {wantAddr_, civ::kIc7300, civ::kIc9700, civ::kIcR8600})
+    if (std::find(addrs.begin(), addrs.end(), a) == addrs.end()) addrs.push_back(a);
+  for (uint8_t a : addrs) {
+    civ::Bytes on = civ::powerOn(a);
+    c.bytes.insert(c.bytes.end(), on.begin(), on.end());
+  }
   queue_.push_front(std::move(c));
 }
 
@@ -286,7 +355,7 @@ void Rig::setScopeSpeed(int s) {
 
 void Rig::armTx(bool on) {
   std::lock_guard<std::mutex> g(m_);
-  st_.txArmed = on;
+  st_.txArmed = on && radio_->hasTransmit;
   if (!on) keyWanted_ = false;  // disarming also lets go
 }
 
@@ -307,7 +376,7 @@ bool Rig::ptt(bool on) {
 
 bool Rig::tuneAtu() {
   std::lock_guard<std::mutex> g(m_);
-  if (!st_.txArmed || !st_.connected) return false;
+  if (!st_.txArmed || !st_.connected || !radio_->hasTuner) return false;
   post(K_ATU, civ::atu(addr_, 2), "start the tuner");
   st_.atu = 2;
   hold(K_ATU);
@@ -326,6 +395,7 @@ bool Rig::sendCw(const std::string& text) {
 
 void Rig::stopCw() {
   std::lock_guard<std::mutex> g(m_);
+  if (!radio_->hasTransmit) return;
   // Whatever's still queued mustn't follow the stop.
   queue_.erase(std::remove_if(queue_.begin(), queue_.end(), [](const Cmd& c) { return (c.key & 0xFF00) == (0x17u << 8); }),
                queue_.end());
@@ -334,7 +404,7 @@ void Rig::stopCw() {
 
 bool Rig::playVoice(int n) {
   std::lock_guard<std::mutex> g(m_);
-  if (n != 0 && (!st_.txArmed || !st_.connected)) return false;
+  if (!radio_->hasTransmit || (n != 0 && (!st_.txArmed || !st_.connected))) return false;
   post(key(0x28), civ::voiceMemory(addr_, n), "play that voice memory");
   return true;
 }
@@ -352,27 +422,41 @@ void Rig::buildPolls() {
     polls_.push_back({std::move(b), period, 0, w});
   };
   uint8_t a = addr_;
+  bool tx = radio_->hasTransmit;
   add(civ::frame(a, 0x19, {0x00}), 5000);
   add(civ::frame(a, 0x15, {civ::meterSub(civ::M_S)}), 100, PollItem::RX);
-  for (int m : {civ::M_PO, civ::M_SWR, civ::M_ALC, civ::M_COMP, civ::M_ID})
-    add(civ::frame(a, 0x15, {civ::meterSub(m)}), 150, PollItem::TX);
-  add(civ::frame(a, 0x15, {civ::meterSub(civ::M_VD)}), 3000);
-  add(civ::frame(a, 0x1C, {0x00}), 200);
+  if (tx) {
+    for (int m : {civ::M_PO, civ::M_SWR, civ::M_ALC, civ::M_COMP, civ::M_ID})
+      add(civ::frame(a, 0x15, {civ::meterSub(m)}), 150, PollItem::TX);
+    add(civ::frame(a, 0x15, {civ::meterSub(civ::M_VD)}), 3000);
+    add(civ::frame(a, 0x1C, {0x00}), 200);
+  } else {
+    add(civ::frame(a, 0x15, {civ::kSquelchStatus}), 200);
+    add(civ::frame(a, 0x15, {civ::kOverflowStatus}), 400);
+  }
   add(civ::frame(a, 0x03), 250);
   add(civ::frame(a, 0x04), 500);
-  add(civ::frame(a, 0x1A, {0x06}), 700);
-  add(civ::frame(a, 0x25, {0x01}), 800);
-  add(civ::frame(a, 0x26, {0x01}), 1200);
+  if (radio_->hasDataMode) add(civ::frame(a, 0x1A, {0x06}), 700);
+  if (radio_->hasOtherVfo) {
+    add(civ::frame(a, 0x25, {0x01}), 800);
+    add(civ::frame(a, 0x26, {0x01}), 1200);
+  }
   add(civ::frame(a, 0x1A, {0x03}), 800);
   // What a knob on the rig might have changed: seen within a few seconds.
-  for (int l = 0; l < civ::L_COUNT; l++) add(civ::frame(a, 0x14, {civ::levelSub(l)}), 2500);
-  for (int s = 0; s < civ::S_COUNT; s++) add(civ::frame(a, 0x16, {civ::switchSub(s)}), 2500);
+  for (int l = 0; l < civ::L_COUNT; l++)
+    if (tx || !civ::levelIsTx(l)) add(civ::frame(a, 0x14, {civ::levelSub(l)}), 2500);
+  for (int s = 0; s < civ::S_COUNT; s++)
+    if (tx || !civ::switchIsTx(s)) add(civ::frame(a, 0x16, {civ::switchSub(s)}), 2500);
   add(civ::frame(a, 0x11), 1500);
-  add(civ::frame(a, 0x0F), 1000);
-  add(civ::frame(a, 0x1C, {0x01}), 1000);
-  add(civ::frame(a, 0x21, {0x00}), 1500);
-  add(civ::frame(a, 0x21, {0x01}), 1500);
-  add(civ::frame(a, 0x21, {0x02}), 1500);
+  if (radio_->antennas > 1) add(civ::frame(a, 0x12), 1500);
+  if (radio_->hasIpPlus) add(civ::frame(a, 0x1A, {0x07}), 2500);
+  if (radio_->hasOtherVfo) add(civ::frame(a, 0x0F), 1000);
+  if (radio_->hasTuner) add(civ::frame(a, 0x1C, {0x01}), 1000);
+  if (radio_->hasRit) {
+    add(civ::frame(a, 0x21, {0x00}), 1500);
+    add(civ::frame(a, 0x21, {0x01}), 1500);
+  }
+  if (radio_->hasXit) add(civ::frame(a, 0x21, {0x02}), 1500);
   add(civ::frame(a, 0x27, {0x10}), 3000);
   add(civ::frame(a, 0x27, {0x11}), 3000);
   add(civ::frame(a, 0x27, {0x14, 0x00}), 3000);
@@ -424,6 +508,9 @@ void Rig::linkUp() {
   for (auto& p : polls_) p.last = 0;  // read everything again: it may have changed while we were away
   std::lock_guard<std::mutex> g(m_);
   st_.connected = true;
+  // Quietly: these aren't anything the person asked for, and in satellite mode, say, the rig may refuse.
+  if (radio_->hasMainSub) post(key(0x07, 0xD0), civ::selectMainBand(addr_), "");
+  if (radio_->hasMainSub && wantScope_) post(key(0x27, 0x12), civ::selectMainScope(addr_), "");
   // A power cycle forgets the data output, so it's asked for every time the rig comes back.
   if (wantScope_) {
     post(K_SCOPE_ON, civ::scopeOn(addr_, true), "turn the scope on");
@@ -432,6 +519,8 @@ void Rig::linkUp() {
 }
 
 void Rig::linkDown() {
+  identified_ = false;  // whatever comes back may be another radio on the same cable
+  probeAt_ = 0;
   std::lock_guard<std::mutex> g(m_);
   st_.connected = false;
   // Stale commands mustn't fire when it returns, or the dial would jump. Un-keying isn't queued: see
@@ -442,7 +531,44 @@ void Rig::linkDown() {
   keyWanted_ = false;
 }
 
+// Takes a reply to 19 00 as the radio saying who it is. True if we now know.
+bool Rig::identify(const civ::Frame& f) {
+  if (f.from == civ::kPc || f.to != civ::kPc || f.cmd != 0x19 || f.data.size() < 2 || f.data[0] != 0x00) return false;
+  const civ::Radio* r = forced_ ? forced_ : civ::radioForId(f.data[1]);
+  if (!r) r = civ::radioForId(f.from);       // an address that's been changed may report either
+  if (!r && f.from == wantAddr_) r = &civ::kRadio7300;  // somebody chose this address, as they always could
+  std::lock_guard<std::mutex> g(m_);
+  if (!r) {
+    st_.strangerId = f.data[1], st_.strangerAddr = f.from;
+    return false;
+  }
+  if (r != radio_) {
+    // Nothing read from the last radio applies, and being armed was a decision about that one.
+    RigState fresh;
+    fresh.portOpen = st_.portOpen;
+    fresh.txLimit = st_.txLimit;
+    fresh.txLimitHits = st_.txLimitHits;
+    fresh.lastErrorSeq = st_.lastErrorSeq;
+    st_ = fresh;
+  }
+  st_.radio = radio_ = r;
+  st_.strangerId = st_.strangerAddr = -1;
+  addr_ = f.from;
+  identified_ = true;
+  buildPolls();
+  return true;
+}
+
+void Rig::sendProbe(uint64_t now) {
+  if (lastProbeAt_ && now - lastProbeAt_ < (uint64_t)kProbeGapMs) return;
+  lastProbeAt_ = now;
+  uint8_t a = probeAddrs_[probeAt_];
+  probeAt_ = (probeAt_ + 1) % probeAddrs_.size();
+  write(civ::frame(a, 0x19, {0x00}));
+}
+
 void Rig::pumpFrame(const civ::Frame& f) {
+  if (!identified_ && !identify(f)) return;
   if (f.from != addr_) return;  // our own echo (CI-V USB Echo Back on), or another controller's
   if (f.to != civ::kPc && f.to != civ::kBroadcast) return;
   uint64_t now = nowMs();
@@ -489,7 +615,13 @@ void Rig::applyLocked(const civ::Frame& f) {
       if (!d.empty() && !held(K_SPLIT, now)) st_.split = d[0] == 1;
       break;
     case 0x11:
-      if (!d.empty() && !held(K_ATT, now)) st_.att = d[0] != 0;
+      if (!d.empty() && !held(K_ATT, now)) {
+        st_.att = d[0] != 0;
+        st_.attDb = civ::fromBcdBE(&d[0], 1);
+      }
+      break;
+    case 0x12:
+      if (!d.empty() && !held(K_ANT, now)) st_.ant = d[0];
       break;
     case 0x14:
       if (d.size() >= 3)
@@ -497,6 +629,9 @@ void Rig::applyLocked(const civ::Frame& f) {
           if (civ::levelSub(l) == d[0] && !held(key(0x14, d[0]), now)) st_.level[l] = civ::fromBcdBE(&d[1], 2);
       break;
     case 0x15:
+      // One byte rather than a level, so these are told apart by their sub-command.
+      if (d.size() >= 2 && d[0] == civ::kSquelchStatus) st_.squelchOpen = d[1] != 0;
+      if (d.size() >= 2 && d[0] == civ::kOverflowStatus) st_.overflow = d[1] != 0;
       if (d.size() >= 3)
         for (int m = 0; m < civ::M_COUNT; m++)
           if (civ::meterSub(m) == d[0]) st_.meter[m] = civ::fromBcdBE(&d[1], 2);
@@ -515,6 +650,7 @@ void Rig::applyLocked(const civ::Frame& f) {
         st_.data = d[1] != 0;
         if (st_.data && d.size() >= 3 && d[2] && !held(K_MODE, now)) st_.filter = d[2];  // data mode's own filter
       }
+      if (d.size() >= 2 && d[0] == 0x07 && !held(K_IP_PLUS, now)) st_.ipPlus = d[1] != 0;
       break;
     case 0x1C:
       if (d.size() >= 2 && d[0] == 0x00 && !held(K_TX, now)) {
@@ -554,7 +690,7 @@ void Rig::applyScopeLocked(const civ::Frame& f) {
     case 0x00: {
       // A sweep arrives in divisions, 1 of 11 (Hamlib's icom_parse_spectrum_frame):
       // 00 <scope> <division> <of> and then, in division 1 only, <mode> <5 BCD> <5 BCD> <out of range>.
-      if (d.size() < 4) return;
+      if (d.size() < 4 || d[1] != 0x00) return;  // only the main scope: a sub band's would be a different picture
       int division = civ::fromBcdBE(&d[2], 1), of = civ::fromBcdBE(&d[3], 1);
       const uint8_t* p = d.data() + 4;
       size_t n = d.size() - 4;
@@ -659,6 +795,10 @@ void Rig::sendNext(uint64_t now) {
       out_.active = true, out_.cmd = cmd, out_.sentAt = now, out_.what = c.what;
       lastSendAt_ = now;
     }
+    return;
+  }
+  if (!identified_) {
+    sendProbe(now);
     return;
   }
   if (now - lastSendAt_ < (uint64_t)kPollGapMs) return;

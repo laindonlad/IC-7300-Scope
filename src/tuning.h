@@ -12,9 +12,11 @@
 namespace tuning {
 // "14.074" 14.074MHz; "14074" 14074kHz; "14074.5" 14074.5kHz; "7" 7MHz; "198" 198kHz; "14074000" Hz.
 // A k or m suffix says so outright ("3573k", "14.074m"). "+5" and "-1.5" are kHz from the dial.
-// Without a suffix: 75 or under is MHz (the rig stops at 74.8), 76 up to 75000 is kHz, above that Hz.
+// Without a suffix it depends on where the radio stops. On a 7300 (74.8 MHz), 75 or under is MHz, 76 up to
+// 75000 is kHz, and above that Hz. On a 9700 (1300 MHz), "145.5" and "1296" are MHz and "145500" is kHz, and
+// the same on an R8600 (3 GHz), where 198 is 198 MHz and long wave wants "198k".
 // Returns the frequency, or -1 if it isn't one the rig can tune.
-inline long long parseFreq(const std::string& raw, long long dialHz) {
+inline long long parseFreq(const std::string& raw, long long dialHz, const civ::Radio& radio = civ::kRadio7300) {
   std::string s;
   for (char c : raw)
     if (c != ' ' && c != ',' && c != '_') s += c;
@@ -49,15 +51,14 @@ inline long long parseFreq(const std::string& raw, long long dialHz) {
     hz = llround(v * 1e3);
   } else if (unit == 'h') {
     hz = llround(v);
-  } else if (v <= 75) {
+  } else if (v <= ceil((double)radio.topHz() / 1e6)) {
     hz = llround(v * 1e6);
-  } else if (v <= 75000) {
+  } else if (v <= ceil((double)radio.topHz() / 1e6) * 1000) {
     hz = llround(v * 1e3);
   } else {
     hz = llround(v);
   }
-  if (hz < civ::kMinHz || hz > civ::kMaxHz) return -1;
-  return hz;
+  return radio.canTune(hz) ? hz : -1;
 }
 
 // "14.074.000": grouped the way the rig's display does it.
@@ -68,20 +69,20 @@ inline std::string formatHz(long long hz) {
   return b;
 }
 
-inline long long stepFreq(long long hz, long long step, int clicks) {
+// Stops at the edge of the range it's in, so a spun dial can't run off the end of 2 m and into nothing.
+inline long long stepFreq(long long hz, long long step, int clicks, const civ::Radio& radio = civ::kRadio7300) {
   // Landing on a whole step first, as a rig with tuning steps does: 14.074.123 up 1kHz goes to 14.075.000.
   long long snapped = clicks > 0 ? hz - hz % step + step * clicks
                                  : (hz % step ? hz - hz % step + step * (clicks + 1) : hz + step * clicks);
-  if (snapped < civ::kMinHz) return civ::kMinHz;
-  if (snapped > civ::kMaxHz) return civ::kMaxHz;
-  return snapped;
+  const civ::HzRange& r = radio.nearest(hz);
+  return snapped < r.lo ? r.lo : snapped > r.hi ? r.hi : snapped;
 }
 
 inline bool isLowerSide(int mode) { return mode == civ::LSB || mode == civ::CW_R || mode == civ::RTTY; }
 
 // The tone an RF frequency makes in the USB audio, and back. For CW the dial is where a station sounds
 // at the pitch, and for RTTY where the mark tone (2125Hz) is. SSB's dial is the suppressed carrier.
-// AM and FM don't map a tone to one RF frequency: returns -1.
+// AM, FM, WFM and the digital modes don't map a tone to one RF frequency: returns -1.
 inline double audioOffset(int mode, int cwPitchHz) {
   switch (mode) {
     case civ::CW:
@@ -92,7 +93,7 @@ inline double audioOffset(int mode, int cwPitchHz) {
   return 0;
 }
 inline long long rfFromAudio(long long dialHz, int mode, double audioHz, int cwPitchHz) {
-  if (mode == civ::AM || mode == civ::FM || mode < 0) return -1;
+  if (civ::isAmLike(mode) || mode == civ::FM || civ::hasNoFilters(mode) || mode < 0) return -1;
   double d = audioHz - audioOffset(mode, cwPitchHz);
   return dialHz + llround(isLowerSide(mode) ? -d : d);
 }

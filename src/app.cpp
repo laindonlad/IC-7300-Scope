@@ -1,3 +1,4 @@
+#define IMGUI_DEFINE_MATH_OPERATORS  // has to come before the first imgui.h
 #include "app.h"
 
 #include <GLFW/glfw3.h>
@@ -8,8 +9,10 @@
 #include <time.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <functional>
+#include <array>
 #include <map>
 #include <memory>
 #include <string>
@@ -17,8 +20,10 @@
 #include <vector>
 
 #include "audio.h"
+#include "needle.h"
 #include "bands.h"
 #include "civ.h"
+#include "clock_sync.h"
 #include "demo_audio.h"
 #include "dsp.h"
 #include "imgui.h"
@@ -55,7 +60,7 @@ const int kFftSizes[] = {2048, 4096, 8192, 16384};
 const char* const kFftNames[] = {"2048 (23 Hz)", "4096 (12 Hz)", "8192 (6 Hz)", "16384 (3 Hz)"};
 const float kAudioRanges[] = {3000, 4000, 6000, 12000, 24000};
 const char* const kAudioRangeNames[] = {"0-3 kHz", "0-4 kHz", "0-6 kHz", "0-12 kHz", "0-24 kHz"};
-const char* const kSpanNames[] = {"+/-2.5k", "+/-5k", "+/-10k", "+/-25k", "+/-50k", "+/-100k", "+/-250k", "+/-500k"};
+const char* const kSpanNames[] = {"+/-2.5k", "+/-5k", "+/-10k", "+/-25k", "+/-50k", "+/-100k", "+/-250k", "+/-500k", "+/-1M", "+/-2.5M"};
 const int kWaterfallRows = 1024;
 
 std::string utcNow(const char* fmt) {
@@ -143,6 +148,12 @@ ImU32 segmentColour(bands::Use use, int alpha) {
             : use == bands::U_FM     ? IM_COL32(225, 135, 40, 255)
             : use == bands::U_BEACON ? IM_COL32(205, 175, 40, 255)
             : use == bands::U_SAT    ? IM_COL32(40, 170, 175, 255)
+            : use == bands::U_BROADCAST ? IM_COL32(190, 90, 60, 255)
+            : use == bands::U_AIR    ? IM_COL32(70, 110, 215, 255)
+            : use == bands::U_MARINE ? IM_COL32(30, 130, 150, 255)
+            : use == bands::U_MOBILE ? IM_COL32(150, 130, 70, 255)
+            : use == bands::U_FIXED  ? IM_COL32(95, 100, 115, 255)
+            : use == bands::U_NAV    ? IM_COL32(140, 90, 180, 255)
                                      : IM_COL32(120, 125, 135, 255);
   return (c & 0x00FFFFFF) | ((ImU32)alpha << IM_COL32_A_SHIFT);
 }
@@ -173,7 +184,20 @@ class App {
   void drawVfo();
   void drawFreqDigits(long long hz, bool tx);
   void drawMeters();
+  void drawNeedleMeter(ImVec2 org, float w, float h);
+  void drawNeedleFace(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float reading);
+  struct MeterRow {
+    const char* label;
+    float frac;
+    ImU32 col;
+    std::string val;
+    float red;
+  };
+  std::array<MeterRow, 3> lowerMeters() const;
   void drawTxPanel();
+  void drawReceiverPanel();
+  void drawBandMenu();
+  void drawReceiverModes(int filter);
   void drawBandRow();
   void drawControls();
   void drawCentre();
@@ -193,6 +217,7 @@ class App {
   // helpers
   float S(float v) const { return v * scale_; }
   bool toggle(const char* label, bool on, ImVec2 size = ImVec2(0, 0), const char* name = nullptr);
+  bool panelButton(const char* label, const ImVec2& size = ImVec2(0, 0), ImGuiButtonFlags flags = 0);
   bool actionButton(const char* label, ImVec2 size, const ImVec4& col, const ImVec4& hi, const char* name = nullptr);
   void levelRow(const char* label, int level, const char* fmtOverride = nullptr);
   void switchLevelRow(const char* label, int sw, int level);
@@ -200,8 +225,12 @@ class App {
   void flow(float nextWidth);
   void note(const std::string& name);
   void say(const std::string& s) { status_ = s, statusUntil_ = glfwGetTime() + 8; }
-  void tuneTo(long long hz) { rig_.setFreq(hz); }
-  void tuneBy(long long d) { rig_.setFreq(st_.hz + d); }
+  const civ::Radio& radio() const { return *st_.radio; }
+  bool bandOnRig(const bands::Band& b) const { return radio().canTune(b.homeHz); }
+  int nextBand(int here, int dir) const;
+  std::string windowTitle() const;
+  bool tuneTo(long long hz);  // false if this radio has no such frequency, and says so
+  void tuneBy(long long d);
   void goBand(int i);
   void goMarker(const bands::Marker& m);
   void goRange(const bands::StationRange& r);
@@ -211,9 +240,12 @@ class App {
   void choosePlan(const std::string& id);
   void reloadPlans();
   void loadBandMem();
+  void useStations(bands::Stations loaded);
+  void saveMemoryHere();
   void commitEntry();
   void setStep(int i) { stepIdx_ = std::max(0, std::min(kStepCount - 1, i)); }
   void startRecording();
+  void startClockSync();
   void applyFft();
   void autoAudioLevels();
   void autoScopeLevels();
@@ -274,6 +306,8 @@ class App {
   // connection
   std::string port_;
   int baud_ = 115200, addr_ = 0x94;
+  int radioChoice_ = 0;  // Settings: 0 finds out, 1 is a 7300, 2 a 9700, 3 an R8600
+  const civ::Radio* seenRadio_ = &civ::kRadio7300;  // the last one to answer
   std::string audioIn_, audioOut_;
   std::string audioError_;
   double audioRetryAt_ = 0;
@@ -291,17 +325,27 @@ class App {
   };
   std::map<std::string, BandMem> bandMem_;  // by band name, as plans differ in which bands they have
   bands::Library plans_;
-  bands::Plan plan_;
+  bands::Plan plan_;     // the chosen plan, as it applies to the radio that's connected
+  const civ::Radio* planRadio_ = nullptr;  // which that is
   std::string plansDir_;
   bool showBandPlan_ = true;
-  bands::Stations stations_;  // the same whichever plan is chosen
+  bands::Stations allStations_;  // the same whichever plan is chosen
+  bands::Stations stations_;     // those of them for the radio that's connected
   std::string stationsDir_;
   bool showStations_ = true;
-  bool showService_[bands::S_COUNT] = {true, true, true, true, true};
+  bool onAirOnly_ = true;  // a broadcaster gets a flag only while it's scheduled
+  bool showService_[bands::S_COUNT] = {true, true, true, true, true, true, true, true, true};
   bool stationSearchOpen_ = false, stationSearchFocus_ = false;
   char stationQuery_[64] = "";
+  // Kept from frame to frame: there are thousands of stations to look through. They point into stations_.
+  std::vector<bands::StationHit> stationHits_;
+  std::string stationHitsFor_;
+  bool stationHitsStale_ = true;
   size_t stationHitCount_ = 0;
   int smeterPeak_ = 0;
+  bool needleMeter_ = false;  // the top meter is a needle rather than bars: a click swaps them
+  needle::Needle needle_;
+  float meterLamp_ = 0;       // how bright the needle meter's backlight is, 0 to 1
 
   // audio view
   std::unique_ptr<dsp::Spectrum> spectrum_;
@@ -351,6 +395,15 @@ class App {
   double statusUntil_ = 0;
   uint64_t lastErrorSeq_ = 0;
 
+  // setting the computer's clock. It can wait on the network or a permission prompt for as long as it likes,
+  // so its thread owns its half of this and is left to finish alone if the window closes first.
+  struct ClockSync {
+    std::atomic<bool> done{false};
+    clocksync::Report report;
+  };
+  std::shared_ptr<ClockSync> clockSync_;
+  std::string clockResult_;
+
   // self-test
   std::map<std::string, ImRect> rects_;
   std::vector<Step> steps_;
@@ -381,8 +434,8 @@ void App::setupStyle(float scale) {
   c[ImGuiCol_FrameBg] = ImVec4(0.14f, 0.17f, 0.21f, 1);
   c[ImGuiCol_FrameBgHovered] = ImVec4(0.19f, 0.23f, 0.28f, 1);
   c[ImGuiCol_FrameBgActive] = ImVec4(0.21f, 0.26f, 0.32f, 1);
-  c[ImGuiCol_Button] = ImVec4(0.17f, 0.20f, 0.25f, 1);
-  c[ImGuiCol_ButtonHovered] = ImVec4(0.24f, 0.29f, 0.35f, 1);
+  c[ImGuiCol_Button] = ImVec4(0.13f, 0.14f, 0.16f, 1);
+  c[ImGuiCol_ButtonHovered] = ImVec4(0.21f, 0.24f, 0.28f, 1);
   c[ImGuiCol_ButtonActive] = V_ACCENT;
   c[ImGuiCol_SliderGrab] = V_ACCENT_HI;
   c[ImGuiCol_SliderGrabActive] = ImVec4(0.3f, 0.75f, 0.9f, 1);
@@ -424,6 +477,8 @@ void App::loadSettings() {
   baud_ = cfg_.getInt("baud", 115200);
   addr_ = cfg_.getInt("addr", 0x94);
   snprintf(addrText_, sizeof addrText_, "%02X", addr_);
+  radioChoice_ = std::max(0, std::min(3, cfg_.getInt("radio", 0)));
+  if (const civ::Radio* r = civ::radioForId((uint8_t)cfg_.getInt("last_radio", civ::kIc7300))) seenRadio_ = r;
   audioIn_ = cfg_.get("audio_in");
   audioOut_ = cfg_.get("audio_out");
   monitor_ = cfg_.getInt("monitor", 0) != 0;
@@ -454,15 +509,17 @@ void App::loadSettings() {
   stationsDir_ = dir + "stations";
   if (!opt_.selfTest.empty()) {
     plans_ = bands::builtinPlans();
-    stations_ = bands::builtinStations();
+    useStations(bands::builtinStations());
   } else {
     bands::installPlans(plansDir_);
     plans_ = bands::loadPlans(plansDir_);
     bands::installStations(stationsDir_);
-    stations_ = bands::loadStations(stationsDir_);
+    useStations(bands::loadStations(stationsDir_));
     showStations_ = cfg_.getInt("show_stations", 1) != 0;
+    onAirOnly_ = cfg_.getInt("stations_on_air_only", 1) != 0;
     for (int i = 0; i < bands::S_COUNT; i++) showService_[i] = cfg_.getInt("show_service" + std::to_string(i), 1) != 0;
   }
+  needleMeter_ = opt_.needle || cfg_.getInt("needle_meter", 0) != 0;
   showBandPlan_ = !opt_.selfTest.empty() || cfg_.getInt("show_bandplan", 1) != 0;
   choosePlan(opt_.selfTest.empty() ? cfg_.get("band_plan", "uk") : "uk");
   memories_ = store::loadMemories(memPath_);
@@ -492,8 +549,14 @@ void App::choosePlan(const std::string& id) {
   const bands::Plan* p = plans_.find(id);
   if (!p) p = plans_.find("uk");
   if (!p && !plans_.plans.empty()) p = &plans_.plans[0];
-  if (p) plan_ = *p;
+  if (p) plan_ = p->forRadio(!radio().hasTransmit);
   loadBandMem();
+}
+
+void App::useStations(bands::Stations loaded) {
+  allStations_ = std::move(loaded);
+  stations_ = allStations_.forRadio(!radio().hasTransmit);
+  stationHitsStale_ = true;
 }
 
 void App::reloadPlans() {
@@ -501,7 +564,7 @@ void App::reloadPlans() {
   plans_ = bands::loadPlans(plansDir_);
   choosePlan(plan_.id);
   bands::installStations(stationsDir_);
-  stations_ = bands::loadStations(stationsDir_);
+  useStations(bands::loadStations(stationsDir_));
   say(!plans_.errors.empty()      ? "A band plan has a problem: " + plans_.errors[0]
       : !stations_.errors.empty() ? "A station list has a problem: " + stations_.errors[0]
                                   : "Band plans and stations reloaded");
@@ -511,6 +574,8 @@ void App::saveSettings() {
   cfg_.set("port", port_);
   cfg_.setInt("baud", baud_);
   cfg_.setInt("addr", addr_);
+  cfg_.setInt("radio", radioChoice_);
+  cfg_.setInt("last_radio", seenRadio_->addr);
   cfg_.set("audio_in", audioIn_);
   cfg_.set("audio_out", audioOut_);
   cfg_.setInt("monitor", monitor_);
@@ -524,6 +589,7 @@ void App::saveSettings() {
   cfg_.setDouble("scope_floor", scopeFloor_);
   cfg_.setDouble("scope_span", scopeRange_);
   cfg_.setInt("palette", palette_);
+  cfg_.setInt("needle_meter", needleMeter_);
   cfg_.setInt("scope", scopeEnabled_);
   cfg_.setInt("show_scope", showScope_);
   cfg_.setInt("show_audio", showAudio_);
@@ -534,6 +600,7 @@ void App::saveSettings() {
   cfg_.set("band_plan", plan_.id);
   cfg_.setInt("show_bandplan", showBandPlan_);
   cfg_.setInt("show_stations", showStations_);
+  cfg_.setInt("stations_on_air_only", onAirOnly_);
   for (int i = 0; i < bands::S_COUNT; i++) cfg_.setInt("show_service" + std::to_string(i), showService_[i]);
   for (const auto& e : bandMem_) {
     const BandMem& b = e.second;
@@ -559,7 +626,14 @@ void App::connect() {
   if (port_.empty()) port_ = guessRigPort(listSerialPorts());
   std::string port = port_;
   int baud = baud_;
-  rig_.start([port, baud] { return newSerialTransport(port, baud); }, (uint8_t)addr_);
+  const civ::Radio* forced = radioChoice_ == 1 ? &civ::kRadio7300 : radioChoice_ == 2 ? &civ::kRadio9700 : radioChoice_ == 3 ? &civ::kRadioR8600 : nullptr;
+  rig_.start([port, baud] { return newSerialTransport(port, baud); }, (uint8_t)addr_, forced, seenRadio_);
+}
+
+std::string App::windowTitle() const {
+  // The name covers all the radios now, so only the brackets say which this is.
+  if (opt_.demo) return std::string(APP_NAME "  [DEMO: simulated ") + seenRadio_->name + "]";
+  return std::string(APP_NAME "  [") + seenRadio_->name + "]";
 }
 
 void App::applyFft() {
@@ -663,6 +737,32 @@ void App::rememberBand() {
   m.valid = true, m.hz = st_.hz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
 }
 
+bool App::tuneTo(long long hz) {
+  // A click just past an edge means the edge. Further off, it's a frequency this radio doesn't have, such as
+  // an HF memory on a 9700, and going to whichever band happens to be closest would only surprise.
+  if (llabs(radio().clamp(hz) - hz) > 1000000) {
+    say(tuning::formatHz(hz) + " isn't on the " + radio().name + ", which tunes " + radio().rangeText);
+    return false;
+  }
+  rig_.setFreq(hz);
+  return true;
+}
+
+void App::tuneBy(long long d) {
+  const civ::HzRange& r = radio().nearest(st_.hz);
+  rig_.setFreq(std::min(r.hi, std::max(r.lo, st_.hz + d)));
+}
+
+// The next band up or down that this radio has, going round. -1 if the plan has none for it.
+int App::nextBand(int here, int dir) const {
+  int n = (int)plan_.bands.size();
+  for (int k = 1; k <= n; k++) {
+    int i = here < 0 ? (dir > 0 ? k - 1 : n - k) : ((here + dir * k) % n + n) % n;
+    if (bandOnRig(plan_.bands[(size_t)i])) return i;
+  }
+  return -1;
+}
+
 void App::goBand(int i) {
   const bands::Band& band = plan_.bands[(size_t)i];
   const BandMem& m = bandMem_[band.name];
@@ -677,20 +777,18 @@ void App::goBand(int i) {
 }
 
 void App::goMarker(const bands::Marker& m) {
-  tuneTo(m.tuneHz());
-  if (m.preset()) rig_.setMode(m.mode, m.data, 1);
+  if (tuneTo(m.tuneHz()) && m.preset()) rig_.setMode(m.mode, m.data, 1);
 }
 
 // The middle of a broadcast band is as good a place as any to start listening.
 void App::goRange(const bands::StationRange& r) {
-  tuneTo((r.lo + r.hi) / 2);
-  if (r.service == bands::S_BROADCAST) rig_.setMode(civ::AM, false, 1);
+  if (tuneTo((r.lo + r.hi) / 2) && (r.mode >= 0 || r.service == bands::S_BROADCAST)) rig_.setMode(r.mode >= 0 ? r.mode : (int)civ::AM, false, 1);
 }
 
 void App::commitEntry() {
-  long long hz = tuning::parseFreq(entry_, st_.hz);
+  long long hz = tuning::parseFreq(entry_, st_.hz, radio());
   if (hz < 0) {
-    say("\"" + entry_ + "\" isn't a frequency the rig can tune (30 kHz to 74.8 MHz)");
+    say("\"" + entry_ + "\" isn't a frequency the " + radio().name + " can tune (" + radio().rangeText + ")");
     entryErrorUntil_ = glfwGetTime() + 1.5;
     return;
   }
@@ -722,19 +820,22 @@ void App::handleKeys() {
   bool ctrl = io.KeyCtrl, shift = io.KeyShift;
   if (ctrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) stationSearchOpen_ = stationSearchFocus_ = true;
   if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
-    if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
+    if (!radio().hasTransmit) say(std::string("The ") + radio().name + " is a receiver: it can't transmit.");
+    else if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
     else rig_.ptt(!st_.tx);
   }
   if (!st_.connected) return;
   long long step = kSteps[stepIdx_] * (shift ? 10 : 1);
-  if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, true)) tuneTo(tuning::stepFreq(st_.hz, step, 1));
-  if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true)) tuneTo(tuning::stepFreq(st_.hz, step, -1));
+  if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, true)) tuneTo(tuning::stepFreq(st_.hz, step, 1, radio()));
+  if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true)) tuneTo(tuning::stepFreq(st_.hz, step, -1, radio()));
   if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false)) setStep(stepIdx_ + 1);
   if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false)) setStep(stepIdx_ - 1);
-  int nb = (int)plan_.bands.size();
   int here = plan_.bandOf(st_.hz);
-  if (ImGui::IsKeyPressed(ImGuiKey_PageUp, false)) goBand(here < 0 ? 0 : (here + 1) % nb);
-  if (ImGui::IsKeyPressed(ImGuiKey_PageDown, false)) goBand(here < 0 ? 0 : (here + nb - 1) % nb);
+  for (int dir : {1, -1})
+    if (ImGui::IsKeyPressed(dir > 0 ? ImGuiKey_PageUp : ImGuiKey_PageDown, false)) {
+      int to = nextBand(here, dir);
+      if (to >= 0) goBand(to);
+    }
   int f = st_.filter ? st_.filter : 1;
   static const struct {
     ImGuiKey key;
@@ -743,8 +844,8 @@ void App::handleKeys() {
                   {ImGuiKey_F5, civ::AM}, {ImGuiKey_F6, civ::FM}, {ImGuiKey_F7, civ::RTTY}, {ImGuiKey_F8, civ::RTTY_R}};
   for (auto& k : modeKeys)
     if (ImGui::IsKeyPressed(k.key, false)) rig_.setMode(k.mode, false, f);
-  if (ImGui::IsKeyPressed(ImGuiKey_F9, false) && civ::hasData(st_.mode)) rig_.setMode(st_.mode, !st_.data, f);
-  if (ImGui::IsKeyPressed(ImGuiKey_F10, false)) rig_.setMode(st_.mode, st_.data, f % 3 + 1);
+  if (ImGui::IsKeyPressed(ImGuiKey_F9, false) && radio().hasDataMode && civ::hasData(st_.mode)) rig_.setMode(st_.mode, !st_.data, f);
+  if (ImGui::IsKeyPressed(ImGuiKey_F10, false) && !(radio().hasReceiverModes && civ::hasNoFilters(st_.mode))) rig_.setMode(st_.mode, st_.data, f % 3 + 1);
   if (ImGui::IsKeyPressed(ImGuiKey_F11, false)) rig_.setSplit(st_.split != 1);
   if (ImGui::IsKeyPressed(ImGuiKey_F12, false)) rig_.vfoSwap();
 }
@@ -755,12 +856,76 @@ void App::note(const std::string& name) {
   if (!opt_.selfTest.empty()) rects_[name] = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
 }
 
+static ImVec4 mixColour(const ImVec4& c, float to, float t) {
+  return ImVec4(c.x + (to - c.x) * t, c.y + (to - c.y) * t, c.z + (to - c.z) * t, c.w);
+}
+
+// A rounded rectangle shaded from top to bottom. ImGui's own gradient rectangle can't round its corners.
+static void gradientRect(ImDrawList* dl, ImVec2 a, ImVec2 b, const ImVec4& top, const ImVec4& bottom, float rounding, ImDrawFlags corners = 0) {
+  int start = dl->VtxBuffer.Size;
+  // The shading replaces the colour but keeps this alpha, which is how a disabled button still fades.
+  dl->AddRectFilled(a, b, ImGui::GetColorU32(ImVec4(1, 1, 1, top.w)), rounding, corners);
+  ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, start, dl->VtxBuffer.Size, a, ImVec2(a.x, b.y), ImGui::ColorConvertFloat4ToU32(top), ImGui::ColorConvertFloat4ToU32(bottom));
+}
+
+// ImGui::Button's behaviour with a rig's front-panel look: a bevelled rim round a glossy face, the shine stopping
+// sharply halfway down. The colour still comes from the style, so toggles and red and amber buttons keep theirs.
+bool App::panelButton(const char* label, const ImVec2& sizeArg, ImGuiButtonFlags flags) {
+  ImGuiWindow* window = ImGui::GetCurrentWindow();
+  if (window->SkipItems) return false;
+  const ImGuiStyle& style = ImGui::GetStyle();
+  ImGuiID id = window->GetID(label);
+  ImVec2 textSize = ImGui::CalcTextSize(label, nullptr, true);
+  ImVec2 pos = window->DC.CursorPos;
+  if ((flags & ImGuiButtonFlags_AlignTextBaseLine) && style.FramePadding.y < window->DC.CurrLineTextBaseOffset)
+    pos.y += window->DC.CurrLineTextBaseOffset - style.FramePadding.y;
+  ImVec2 size = ImGui::CalcItemSize(sizeArg, textSize.x + style.FramePadding.x * 2, textSize.y + style.FramePadding.y * 2);
+  ImRect bb(pos, pos + size);
+  ImGui::ItemSize(size, style.FramePadding.y);
+  if (!ImGui::ItemAdd(bb, id)) return false;
+  bool hovered, held;
+  bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, flags);
+  bool down = held && hovered;
+  ImGui::RenderNavCursor(bb, id);
+
+  ImVec4 c = style.Colors[down ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button];
+  ImDrawList* dl = window->DrawList;
+  // Whole pixels, or the rim and the line across the face go soft.
+  ImVec2 a = ImFloor(bb.Min), b = ImFloor(bb.Max);
+  float rim = std::max(1.f, (float)(int)S(1.25f));
+  float r = style.FrameRounding + rim;
+  ImVec2 inset(rim, rim);
+  dl->AddRectFilled(a, b, ImGui::GetColorU32(ImVec4(0, 0, 0, 0.55f)), r);
+  ImVec2 ra = a + ImVec2(1, 1), rb = b - ImVec2(1, 1);
+  ImVec2 fa = ra + inset, fb = rb - inset;
+  float mid = (float)(int)((fa.y + fb.y) / 2);
+  float faceR = style.FrameRounding;
+  if (down) {
+    // Pushed in: the light now catches the lower edge of the rim, and the shine has gone.
+    gradientRect(dl, ra, rb, mixColour(c, 0, 0.45f), mixColour(c, 1, 0.30f), r - 1);
+    gradientRect(dl, fa, fb, mixColour(c, 0, 0.50f), mixColour(c, 0, 0.10f), faceR);
+  } else {
+    gradientRect(dl, ra, rb, mixColour(c, 1, 0.50f), mixColour(c, 1, 0.12f), r - 1);
+    gradientRect(dl, fa, ImVec2(fb.x, mid), mixColour(c, 1, 0.30f), mixColour(c, 1, 0.09f), faceR, ImDrawFlags_RoundCornersTop);
+    gradientRect(dl, ImVec2(fa.x, mid), fb, mixColour(c, 0, 0.50f), mixColour(c, 0, 0.08f), faceR, ImDrawFlags_RoundCornersBottom);
+  }
+
+  ImVec2 push = down ? ImVec2(0, std::max(1.f, (float)(int)S(1))) : ImVec2(0, 0);
+  ImVec2 shadow(0, std::max(1.f, (float)(int)S(1)));
+  ImVec2 ta = bb.Min + style.FramePadding + push, tb = bb.Max - style.FramePadding + push;
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 0.8f));
+  ImGui::RenderTextClipped(ta + shadow, tb + shadow, label, nullptr, &textSize, style.ButtonTextAlign, &bb);
+  ImGui::PopStyleColor();
+  ImGui::RenderTextClipped(ta, tb, label, nullptr, &textSize, style.ButtonTextAlign, &bb);
+  return pressed;
+}
+
 bool App::toggle(const char* label, bool on, ImVec2 size, const char* name) {
   if (on) {
     ImGui::PushStyleColor(ImGuiCol_Button, V_ACCENT);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, V_ACCENT_HI);
   }
-  bool r = ImGui::Button(label, size);
+  bool r = panelButton(label, size);
   if (on) ImGui::PopStyleColor(2);
   note(name ? name : label);
   return r;
@@ -770,7 +935,7 @@ bool App::actionButton(const char* label, ImVec2 size, const ImVec4& col, const 
   ImGui::PushStyleColor(ImGuiCol_Button, col);
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hi);
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, hi);
-  bool r = ImGui::Button(label, size);
+  bool r = panelButton(label, size);
   ImGui::PopStyleColor(3);
   note(name ? name : label);
   return r;
@@ -838,10 +1003,12 @@ void App::drawFreqDigits(long long hz, bool tx) {
   ImDrawList* dl = ImGui::GetWindowDrawList();
   ImU32 col = tx ? C_RED : C_AMBER;
   float x = p.x;
-  long long pow10 = 10000000;
-  for (int i = 0; i < 8; i++, pow10 /= 10) {
+  // 74.800.000 on a 7300, 1296.200.000 on a 9700.
+  int digits = radio().topHz() >= 1000000000 ? 10 : 8;
+  long long pow10 = digits == 10 ? 1000000000 : 10000000;
+  for (int i = 0; i < digits; i++, pow10 /= 10) {
     int d = hz < 0 ? 0 : (int)(hz / pow10 % 10);
-    bool blank = hz >= 0 && i == 0 && hz < 10000000;
+    bool blank = hz >= 0 && i < digits - 7 && hz < pow10;
     ImGui::PushID(i);
     ImGui::SetCursorScreenPos(ImVec2(x, p.y));
     ImGui::InvisibleButton("##digit", ImVec2(dw, h));
@@ -862,7 +1029,7 @@ void App::drawFreqDigits(long long hz, bool tx) {
     }
     ImGui::PopID();
     x += dw;
-    if (i == 1 || i == 4) {
+    if (i == digits - 7 || i == digits - 4) {
       dl->AddText(ImVec2(x - dotW * 0.5f, p.y), hz < 0 ? C_DIM : col, ".");
       x += dotW;
     }
@@ -875,7 +1042,7 @@ void App::drawVfo() {
   ImGui::BeginChild("vfo", ImVec2(S(405), S(124)), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
   if (!entry_.empty()) {
     // What's being typed, and what it'll be taken to mean.
-    long long hz = tuning::parseFreq(entry_, st_.hz);
+    long long hz = tuning::parseFreq(entry_, st_.hz, radio());
     bool bad = glfwGetTime() < entryErrorUntil_;
     ImGui::PushFont(fFreq_);
     ImGui::TextColored(ImColor(bad ? C_RED : C_ACCENT), "%s_", entry_.c_str());
@@ -892,7 +1059,8 @@ void App::drawVfo() {
     ImGui::SameLine();
     int w = civ::widthHz(st_.mode, st_.width);
     ImGui::AlignTextToFramePadding();
-    if (st_.filter > 0 && w > 0 && st_.mode != civ::FM) ImGui::Text("FIL%d  %.2f kHz", st_.filter, w / 1000.0);
+    if (radio().hasReceiverModes && civ::hasNoFilters(st_.mode) && w > 0) ImGui::Text("%.2f kHz", w / 1000.0);
+    else if (st_.filter > 0 && w > 0 && st_.mode != civ::FM) ImGui::Text("FIL%d  %.2f kHz", st_.filter, w / 1000.0);
     else if (st_.filter > 0) ImGui::Text("FIL%d", st_.filter);
     if (st_.split == 1) {
       ImGui::SameLine();
@@ -907,14 +1075,28 @@ void App::drawVfo() {
       ImGui::TextColored(ImColor(C_RED), "LOCK");
     }
   }
-  // The other VFO, always in view: it's where a split transmits.
-  ImGui::TextDisabled("Other VFO");
-  ImGui::SameLine();
-  ImGui::PushFont(fFreqSmall_);
-  ImGui::TextUnformatted(tuning::formatHz(st_.otherHz).c_str());
-  ImGui::PopFont();
-  ImGui::SameLine();
-  ImGui::TextDisabled("%s", modeLabel(st_.otherMode, st_.otherData).c_str());
+  if (radio().hasOtherVfo) {
+    // The other VFO, always in view: it's where a split transmits.
+    ImGui::TextDisabled("Other VFO");
+    ImGui::SameLine();
+    ImGui::PushFont(fFreqSmall_);
+    ImGui::TextUnformatted(tuning::formatHz(st_.otherHz).c_str());
+    ImGui::PopFont();
+    ImGui::SameLine();
+    ImGui::TextDisabled("%s", modeLabel(st_.otherMode, st_.otherData).c_str());
+  } else {
+    // A receiver has the one VFO, so what's worth seeing here is what it's listening with.
+    ImGui::TextDisabled("Listening on");
+    ImGui::SameLine();
+    ImGui::PushFont(fFreqSmall_);
+    bool hf = st_.hz < radio().antennaSwitchBelowHz;
+    ImGui::Text("ANT%d", hf && st_.ant >= 0 ? st_.ant + 1 : 1);
+    ImGui::PopFont();
+    if (st_.ipPlus == 1) {
+      ImGui::SameLine();
+      ImGui::TextColored(ImColor(C_ACCENT), "IP+");
+    }
+  }
   ImGui::EndChild();
 }
 
@@ -922,7 +1104,16 @@ void App::drawMeters() {
   ImGui::BeginChild("meters", ImVec2(S(340), S(124)), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
   ImDrawList* dl = ImGui::GetWindowDrawList();
   ImVec2 org = ImGui::GetCursorScreenPos();
-  float w = ImGui::GetContentRegionAvail().x;
+  float w = ImGui::GetContentRegionAvail().x, panelH = ImGui::GetContentRegionAvail().y;
+  if (ImGui::InvisibleButton("meterswap", ImVec2(w, panelH))) needleMeter_ = !needleMeter_;
+  note("meters");
+  if (ImGui::IsItemHovered()) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+  ImGui::SetItemTooltip(needleMeter_ ? "Click for the bar meter" : "Click for the needle meter");
+  if (needleMeter_) {
+    drawNeedleMeter(org, w, panelH);
+    ImGui::EndChild();
+    return;
+  }
   float labelW = S(40), valW = S(62), barW = w - labelW - valW;
 
   auto bar = [&](float y, float h, const char* label, float frac, ImU32 col, const std::string& val, float red = 2.f) {
@@ -962,40 +1153,265 @@ void App::drawMeters() {
       dl->AddText(fSmall_, S(12.5f), ImVec2(px - S(4), y), t.raw > 120 ? C_RED : C_DIM, t.t);
     }
     y += S(16);
+    if (!radio().hasTransmit) {
+      // Nothing to show for power or SWR. What matters on a receiver is whether it's overloaded.
+      float ty = y + S(6);
+      dl->AddText(ImVec2(org.x, ty), st_.squelchOpen == 1 ? C_GREEN : C_DIM, st_.squelchOpen == 1 ? "Squelch open" : "Squelch closed");
+      const char* over = st_.overflow == 1 ? "OVERLOAD" : "No overload";
+      float ow = ImGui::CalcTextSize(over).x;
+      dl->AddText(ImVec2(org.x + w - ow, ty), st_.overflow == 1 ? C_RED : C_DIM, over);
+      ImGui::EndChild();
+      return;
+    }
   } else {
     int raw = st_.meter[civ::M_PO];
-    double watts = raw < 0 ? 0 : civ::powerWatts(raw);
+    double watts = raw < 0 ? 0 : civ::powerWatts(raw, radio(), st_.hz);
+    int fullWatts = radio().maxWattsAt(st_.hz);
     char b[32];
-    snprintf(b, sizeof b, "%.0f W", watts);
-    bar(y, S(28), "Po", (float)(watts / 100.0), C_AMBER, b, 1.0f);
+    snprintf(b, sizeof b, fullWatts <= 10 ? "%.1f W" : "%.0f W", watts);
+    bar(y, S(28), "Po", (float)(watts / fullWatts), C_AMBER, b, 1.0f);
     y += S(45);
   }
   float h = S(15);
+  for (const MeterRow& r : lowerMeters()) {
+    bar(y, h, r.label, r.frac, r.col, r.val, r.red);
+    y += h + S(3);
+  }
+  ImGui::EndChild();
+}
+
+// The smaller meters under the top one, which are the same whichever kind that is.
+std::array<App::MeterRow, 3> App::lowerMeters() const {
+  bool tx = st_.tx;
   char b[32];
   double swr = st_.meter[civ::M_SWR] < 0 ? 1 : civ::swrRatio(st_.meter[civ::M_SWR]);
   snprintf(b, sizeof b, "%.1f", swr);
-  bar(y, h, "SWR", tx ? (float)((swr - 1) / 2.0) : 0, C_GREEN, tx ? b : "--", 0.5f);
-  y += h + S(3);
+  MeterRow swrRow{"SWR", tx ? (float)((swr - 1) / 2.0) : 0, C_GREEN, tx ? b : "--", 0.5f};
   int alc = st_.meter[civ::M_ALC];
-  bar(y, h, "ALC", tx && alc > 0 ? alc / 120.f : 0, C_GREEN, tx && alc >= 0 ? std::to_string(alc * 100 / 120) + " %" : "--", 1.0f);
-  y += h + S(3);
+  MeterRow alcRow{"ALC", tx && alc > 0 ? alc / 120.f : 0, C_GREEN, tx && alc >= 0 ? std::to_string(alc * 100 / 120) + " %" : "--", 1.0f};
   if (tx) {
     int comp = st_.meter[civ::M_COMP];
-    snprintf(b, sizeof b, "%.0f dB", comp < 0 ? 0.0 : civ::compDb(comp));
-    bar(y, h, "COMP", comp < 0 ? 0 : comp / 241.f, C_ACCENT, b);
-  } else {
-    int vd = st_.meter[civ::M_VD];
-    if (vd >= 0) snprintf(b, sizeof b, "%.1f V", civ::voltsVd(vd));
-    else snprintf(b, sizeof b, "--");
-    bar(y, h, "Vd", vd < 0 ? 0 : (float)(civ::voltsVd(vd) / 16.0), C_ACCENT, b);
+    snprintf(b, sizeof b, "%.0f dB", comp < 0 ? 0.0 : civ::compDb(comp, radio()));
+    return {swrRow, alcRow, MeterRow{"COMP", comp < 0 ? 0 : comp / 241.f, C_ACCENT, b, 2.f}};
   }
+  int vd = st_.meter[civ::M_VD];
+  if (vd >= 0) snprintf(b, sizeof b, "%.1f V", civ::voltsVd(vd));
+  else snprintf(b, sizeof b, "--");
+  return {swrRow, alcRow, MeterRow{"Vd", vd < 0 ? 0 : (float)(civ::voltsVd(vd) / 16.0), C_ACCENT, b, 2.f}};
+}
+
+// The needle takes the left of the panel. The right keeps the numbers and the meters a needle can't show,
+// because SWR and ALC still matter while transmitting.
+void App::drawNeedleMeter(ImVec2 org, float w, float h) {
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  bool tx = st_.tx;
+  float reading = 0;
+  char top[32];
+  if (tx) {
+    int raw = st_.meter[civ::M_PO];
+    double watts = raw < 0 ? 0 : civ::powerWatts(raw, radio(), st_.hz);
+    int fullWatts = radio().maxWattsAt(st_.hz);
+    reading = needle::powerShare(watts, fullWatts);
+    snprintf(top, sizeof top, fullWatts <= 10 ? "%.1f W" : "%.0f W", watts);
+  } else {
+    int raw = st_.meter[civ::M_S];
+    if (st_.connected) reading = needle::signalShare(raw);
+    snprintf(top, sizeof top, "%s", smeterText(raw).c_str());
+  }
+  float dt = ImGui::GetIO().DeltaTime;
+  needle_.update(reading, dt);
+  // The lamp warms up and fades rather than switching, and a dead radio leaves it nearly dark.
+  meterLamp_ += ((st_.connected ? 1.f : 0.1f) - meterLamp_) * (1.f - expf(-dt / 0.25f));
+
+  float faceW = S(208);
+  drawNeedleFace(dl, org, ImVec2(org.x + faceW, org.y + h), needle_.pos);
+
+  float x0 = org.x + faceW + S(8), x1 = org.x + w;
+  auto rightText = [&](ImFont* font, float size, float y, ImU32 col, const char* t) {
+    dl->AddText(font, size, ImVec2(x1 - font->CalcTextSizeA(size, FLT_MAX, 0, t).x, y), col, t);
+  };
+  dl->AddText(fSmall_, S(12.5f), ImVec2(x0, org.y + S(5)), C_DIM, tx ? "Po" : "S");
+  rightText(fMid_, S(19), org.y, C_TEXT, top);
+  float y = org.y + S(25);
+  float rowH = (org.y + h - y) / 3;
+  if (!radio().hasTransmit) {
+    // Nothing to show for power or SWR. What matters on a receiver is whether it's overloaded.
+    bool open = st_.squelchOpen == 1, over = st_.overflow == 1;
+    dl->AddText(fSmall_, S(12.5f), ImVec2(x0, y + rowH * 0.5f), open ? C_GREEN : C_DIM, open ? "Squelch open" : "Squelch closed");
+    dl->AddText(fSmall_, S(12.5f), ImVec2(x0, y + rowH * 1.5f), over ? C_RED : C_DIM, over ? "OVERLOAD" : "No overload");
+    return;
+  }
+  for (const MeterRow& r : lowerMeters()) {
+    dl->AddText(fSmall_, S(12.5f), ImVec2(x0, y), C_DIM, r.label);
+    rightText(fSmall_, S(12.5f), y, C_TEXT, r.val.c_str());
+    float by = y + S(16), bh = S(5), f = needle::clampShare(r.frac);
+    dl->AddRectFilled(ImVec2(x0, by), ImVec2(x1, by + bh), IM_COL32(10, 12, 15, 255), 2);
+    if (f > 0) {
+      float split = x0 + (x1 - x0) * std::min(f, r.red);
+      dl->AddRectFilled(ImVec2(x0, by), ImVec2(split, by + bh), r.col, 2);
+      if (f > r.red) dl->AddRectFilled(ImVec2(split, by), ImVec2(x0 + (x1 - x0) * f, by + bh), C_RED, 2);
+    }
+    y += rowH;
+  }
+}
+
+// A backlit meter face: a warm card lit from a lamp behind the bottom edge, printed with its scales, under a
+// needle whose pivot hides behind a black cowl. All of it's in proportion to the height, 100 units.
+void App::drawNeedleFace(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float reading) {
+  const float kPi = 3.14159265f;
+  const float kHalfSweep = 44.f * kPi / 180.f;
+  float k = (p1.y - p0.y) / 100.f;
+  float inset = 2.5f * k;
+  ImVec2 f0(p0.x + inset, p0.y + inset), f1(p1.x - inset, p1.y - inset);
+  float cx = (p0.x + p1.x) / 2, pivotY = p0.y + 130 * k;
+  ImVec2 pivot(cx, pivotY);
+  auto angleOf = [&](float share) { return (share - 0.5f) * 2 * kHalfSweep; };
+  auto at = [&](float share, float r) { float a = angleOf(share); return ImVec2(cx + r * sinf(a), pivotY - r * cosf(a)); };
+
+  // The lit card, as a mesh so the light can fall away from the lamp and into the corners.
+  auto mix = [](float a, float b, float t) { return a + (b - a) * t; };
+  auto faceColour = [&](float x, float y) {
+    float dx = (x - cx) / ((f1.x - f0.x) * 0.62f), dy = (y - (f1.y + 8 * k)) / ((f1.y - f0.y) * 1.05f);
+    float glow = expf(-(dx * dx + dy * dy) * 1.5f);
+    float lit = meterLamp_;
+    int r = (int)mix(46, mix(176, 255, glow), lit), g = (int)mix(40, mix(100, 222, glow), lit), b = (int)mix(32, mix(26, 138, glow), lit);
+    return (ImU32)IM_COL32(r, g, b, 255);
+  };
+  const int kCols = 24, kRows = 12;
+  dl->PrimReserve(kCols * kRows * 6, (kCols + 1) * (kRows + 1));
+  ImVec2 uv = ImGui::GetFontTexUvWhitePixel();
+  unsigned int first = dl->_VtxCurrentIdx;
+  for (int j = 0; j <= kRows; j++)
+    for (int i = 0; i <= kCols; i++) {
+      float x = mix(f0.x, f1.x, (float)i / kCols), y = mix(f0.y, f1.y, (float)j / kRows);
+      dl->PrimWriteVtx(ImVec2(x, y), uv, faceColour(x, y));
+    }
+  for (int j = 0; j < kRows; j++)
+    for (int i = 0; i < kCols; i++) {
+      unsigned int a = first + j * (kCols + 1) + i, b = a + 1, c = a + kCols + 1, d = c + 1;
+      dl->PrimWriteIdx((ImDrawIdx)a), dl->PrimWriteIdx((ImDrawIdx)b), dl->PrimWriteIdx((ImDrawIdx)d);
+      dl->PrimWriteIdx((ImDrawIdx)a), dl->PrimWriteIdx((ImDrawIdx)d), dl->PrimWriteIdx((ImDrawIdx)c);
+    }
+
+  dl->PushClipRect(f0, f1, true);
+  // Printed ink, so the red only looks red with the lamp behind it.
+  const ImU32 ink = IM_COL32(40, 26, 14, 255), inkRed = IM_COL32((int)mix(66, 172, meterLamp_), (int)mix(36, 28, meterLamp_), (int)mix(26, 18, meterLamp_), 255);
+  auto arc = [&](float r, float from, float to, ImU32 col, float thick) {
+    dl->PathArcTo(pivot, r, angleOf(from) - kPi / 2, angleOf(to) - kPi / 2, 48);
+    dl->PathStroke(col, ImDrawFlags_None, thick);
+  };
+  auto tick = [&](float share, float r0, float r1, ImU32 col, float thick) { dl->AddLine(at(share, r0), at(share, r1), col, thick); };
+  auto label = [&](ImVec2 c, float size, ImU32 col, const char* t) {
+    ImVec2 sz = fSmall_->CalcTextSizeA(size, FLT_MAX, 0, t);
+    dl->AddText(fSmall_, size, ImVec2(c.x - sz.x / 2, c.y - sz.y / 2), col, t);
+  };
+
+  // The S scale along the top: black to S9, then the red band.
+  const float kR1 = 106 * k, kS9 = needle::signalShare(120);
+  arc(kR1, 0, kS9, ink, 1.3f * k);
+  arc(kR1 + 1.2f * k, kS9, 1, inkRed, 3.4f * k);
+  static const struct {
+    int raw;
+    const char* t;
+  } kSTicks[] = {{10, "1"}, {20, nullptr}, {30, "3"}, {45, nullptr}, {60, "5"}, {75, nullptr}, {90, "7"}, {105, nullptr}, {120, "9"},
+                 {139, nullptr}, {158, "+20"}, {177, nullptr}, {195, "+40"}, {214, nullptr}, {233, "+60"}};
+  for (auto& t : kSTicks) {
+    float share = needle::signalShare(t.raw);
+    ImU32 col = t.raw > 120 ? inkRed : ink;
+    tick(share, kR1, kR1 + (t.t ? 7 : 4.5f) * k, col, (t.t ? 1.6f : 1.1f) * k);
+    if (t.t) label(at(share, kR1 + 15 * k), S(12), col, t.t);
+  }
+  label(at(-0.07f, kR1 - 2 * k), S(12.5f), ink, "S");
+
+  // The power scale under it, in percent so that it holds for every band's full power.
+  const float kR2 = 83 * k;
+  if (radio().hasTransmit) {
+    arc(kR2, 0, needle::kPoFull, ink, 1.1f * k);
+    arc(kR2 - 0.6f * k, needle::kPoFull, 1, inkRed, 2.4f * k);
+    for (int pct = 0; pct <= 100; pct += 5) {
+      bool major = pct % 25 == 0;
+      float share = needle::kPoFull * pct / 100.f;
+      tick(share, kR2, kR2 - (major ? 6 : 3) * k, ink, (major ? 1.4f : 0.9f) * k);
+      if (major) {
+        char t[8];
+        snprintf(t, sizeof t, "%d", pct);
+        label(at(share, kR2 - 13 * k), S(10.5f), ink, t);
+      }
+    }
+    label(at(-0.13f, kR2 - 3 * k), S(10.5f), ink, "Po %");
+  } else {
+    label(ImVec2(cx, pivotY - kR2), S(10.5f), ink, "SIGNAL");
+  }
+
+  // The transmit lamp, in the corner of the card.
+  if (radio().hasTransmit) {
+    ImVec2 led(f0.x + 10 * k, f0.y + 10 * k);
+    bool tx = st_.tx;
+    if (tx) dl->AddCircleFilled(led, 7 * k, IM_COL32(255, 60, 30, 70), 20);
+    dl->AddCircleFilled(led, 3.2f * k, tx ? IM_COL32(255, 70, 40, 255) : IM_COL32(96, 40, 22, 255), 16);
+    dl->AddText(fSmall_, S(10.5f), ImVec2(led.x + 6 * k, led.y - S(6)), ink, "TX");
+  }
+
+  // The needle throws a soft shadow on the card, and goes behind the cowl.
+  ImVec2 a0 = at(reading, 40 * k), a1 = at(reading, kR1 + 5 * k);
+  ImVec2 off(1.6f * k, 1.2f * k);
+  dl->AddLine(ImVec2(a0.x + off.x, a0.y + off.y), ImVec2(a1.x + off.x, a1.y + off.y), IM_COL32(40, 20, 0, (int)(70 * meterLamp_)), 2.0f * k);
+  dl->AddLine(a0, a1, IM_COL32(20, 16, 14, 255), 1.5f * k);
+  dl->AddCircleFilled(pivot, 52 * k, IM_COL32(20, 20, 23, 255), 64);
+  dl->AddCircle(pivot, 52 * k, IM_COL32(255, 205, 130, (int)(90 * meterLamp_)), 64, 1.0f * k);
+
+  // Glass: the shade under the top of the case, and a faint reflection.
+  dl->AddRectFilledMultiColor(f0, ImVec2(f1.x, f0.y + 9 * k), IM_COL32(0, 0, 0, 120), IM_COL32(0, 0, 0, 120), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0));
+  dl->AddQuadFilled(ImVec2(f0.x + 24 * k, f0.y), ImVec2(f0.x + 62 * k, f0.y), ImVec2(f0.x + 30 * k, f1.y), ImVec2(f0.x - 8 * k, f1.y), IM_COL32(255, 255, 255, 12));
+  dl->PopClipRect();
+
+  // The case.
+  dl->AddRect(ImVec2(p0.x + inset / 2, p0.y + inset / 2), ImVec2(p1.x - inset / 2, p1.y - inset / 2), IM_COL32(14, 14, 16, 255), 4 * k, 0, inset + 0.5f * k);
+  dl->AddRect(p0, p1, IM_COL32(70, 74, 82, 255), 4.5f * k, 0, 0.8f * k);
+}
+
+void App::saveMemoryHere() {
+  store::Memory m;
+  m.hz = st_.hz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
+  m.name = utcNow("%H%MZ");
+  memories_.push_back(m);
+  store::saveMemories(memPath_, memories_);
+  say("Saved " + tuning::formatHz(m.hz) + " to memories");
+}
+
+// Where a transceiver has its transmit buttons, a receiver has its antennas.
+void App::drawReceiverPanel() {
+  ImGui::BeginChild("tx", ImVec2(0, S(124)), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  float gap = ImGui::GetStyle().ItemSpacing.x;
+  int count = radio().antennas;
+  float w = (ImGui::GetContentRegionAvail().x - gap * (float)(count - 1)) / (float)count;
+  bool hf = st_.hz < radio().antennaSwitchBelowHz;
+  static const char* const kPorts[] = {"Type-N, 50 ohms: 10 kHz to 3 GHz", "SO-239, 50 ohms: 10 kHz to 30 MHz", "RCA, 500 ohms: 10 kHz to 30 MHz"};
+  ImGui::BeginDisabled(!st_.connected);
+  for (int i = 0; i < count; i++) {
+    char label[8], name[8];
+    snprintf(label, sizeof label, "ANT%d", i + 1);
+    snprintf(name, sizeof name, "ant:%d", i + 1);
+    if (i) ImGui::SameLine();
+    ImGui::BeginDisabled(i > 0 && !hf);
+    bool on = hf ? st_.ant == i : i == 0;
+    if (toggle(label, on, ImVec2(w, S(52)), name)) rig_.setAntenna(i);
+    ImGui::SetItemTooltip("%s", kPorts[std::min(i, 2)]);
+    ImGui::EndDisabled();
+  }
+  if (panelButton("Save to memories", ImVec2(-1, 0))) saveMemoryHere();
+  note("quickmem");
+  ImGui::SetItemTooltip("Save this frequency and mode to memories");
+  ImGui::EndDisabled();
+  ImGui::TextDisabled(hf ? "Receive only. Hold the mouse over an antenna for its port." : "Receive only. Above 30 MHz it can only use ANT1.");
   ImGui::EndChild();
 }
 
 void App::drawTxPanel() {
   ImGui::BeginChild("tx", ImVec2(0, S(124)), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
   float gap = ImGui::GetStyle().ItemSpacing.x;
-  float w = (ImGui::GetContentRegionAvail().x - gap * 3) / 4;
+  bool tuner = radio().hasTuner;
+  float w = tuner ? (ImGui::GetContentRegionAvail().x - gap * 3) / 4 : (ImGui::GetContentRegionAvail().x - gap) / 2;
   float h = S(52);
   bool armed = st_.txArmed;
   if (actionButton(armed ? "ARMED" : "ARM TX", ImVec2(w, h), armed ? V_AMBER : ImGui::GetStyle().Colors[ImGuiCol_Button],
@@ -1009,15 +1425,17 @@ void App::drawTxPanel() {
     else rig_.ptt(!st_.tx);
   }
   ImGui::SetItemTooltip("Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).", st_.txLimit);
-  ImGui::SameLine();
-  if (actionButton(st_.atu == 2 ? "TUNING" : "TUNE", ImVec2(w, h), st_.atu == 2 ? V_RED_HI : ImGui::GetStyle().Colors[ImGuiCol_Button], V_RED_HI, "tune")) {
-    if (!armed) say("Transmit isn't armed. Press ARM TX first.");
-    else rig_.tuneAtu();
+  if (tuner) {
+    ImGui::SameLine();
+    if (actionButton(st_.atu == 2 ? "TUNING" : "TUNE", ImVec2(w, h), st_.atu == 2 ? V_RED_HI : ImGui::GetStyle().Colors[ImGuiCol_Button], V_RED_HI, "tune")) {
+      if (!armed) say("Transmit isn't armed. Press ARM TX first.");
+      else rig_.tuneAtu();
+    }
+    ImGui::SetItemTooltip("Starts the rig's antenna tuner. This transmits a carrier.");
+    ImGui::SameLine();
+    if (toggle("ATU", st_.atu >= 1, ImVec2(w, h))) rig_.setAtu(st_.atu < 1);
+    ImGui::SetItemTooltip("The antenna tuner in or out of line");
   }
-  ImGui::SetItemTooltip("Starts the rig's antenna tuner. This transmits a carrier.");
-  ImGui::SameLine();
-  if (toggle("ATU", st_.atu >= 1, ImVec2(w, h))) rig_.setAtu(st_.atu < 1);
-  ImGui::SetItemTooltip("The antenna tuner in or out of line");
 
   float w5 = (ImGui::GetContentRegionAvail().x - gap * 3) / 4;
   ImGui::BeginDisabled(!st_.connected);
@@ -1036,21 +1454,14 @@ void App::drawTxPanel() {
     ImGui::EndPopup();
   }
   ImGui::SameLine();
-  if (ImGui::Button("A/B", ImVec2(w5, 0))) rig_.vfoSwap();
+  if (panelButton("A/B", ImVec2(w5, 0))) rig_.vfoSwap();
   note("swap");
   ImGui::SetItemTooltip("Swap the two VFOs");
   ImGui::SameLine();
-  if (ImGui::Button("A=B", ImVec2(w5, 0))) rig_.vfoEqual();
+  if (panelButton("A=B", ImVec2(w5, 0))) rig_.vfoEqual();
   ImGui::SetItemTooltip("Copy this VFO to the other");
   ImGui::SameLine();
-  if (ImGui::Button("Mem", ImVec2(w5, 0))) {
-    store::Memory m;
-    m.hz = st_.hz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
-    m.name = utcNow("%H%MZ");
-    memories_.push_back(m);
-    store::saveMemories(memPath_, memories_);
-    say("Saved " + tuning::formatHz(m.hz) + " to memories");
-  }
+  if (panelButton("Mem", ImVec2(w5, 0))) saveMemoryHere();
   note("quickmem");
   ImGui::SetItemTooltip("Save this frequency and mode to memories");
   ImGui::EndDisabled();
@@ -1072,25 +1483,105 @@ void App::drawTxPanel() {
 void App::drawHeader() {
   ImGui::BeginDisabled(!st_.connected);
   drawVfo();
-  ImGui::SameLine();
-  drawMeters();
   ImGui::EndDisabled();
   ImGui::SameLine();
-  drawTxPanel();
+  drawMeters();  // stays clickable with no radio, for swapping the meter
+  ImGui::SameLine();
+  if (radio().hasTransmit) drawTxPanel();
+  else drawReceiverPanel();
+}
+
+// A receiver's coverage runs to far too many bands for a row of buttons, so they go on a menu by what they're for.
+void App::drawBandMenu() {
+  int here = plan_.bandOf(st_.hz);
+  std::string label = (here >= 0 ? plan_.bands[(size_t)here].title() : std::string("Bands")) + "##bandmenu";
+  if (panelButton(label.c_str(), ImVec2(S(150), S(30)))) ImGui::OpenPopup("bandmenu");
+  note("bandmenu");
+  ImGui::SetItemTooltip("The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order.");
+  if (!ImGui::BeginPopup("bandmenu")) return;
+  std::vector<std::string> groups;
+  auto groupOf = [](const bands::Band& b) { return b.group.empty() ? std::string("Amateur") : b.group; };
+  for (const bands::Band& b : plan_.bands)
+    if (std::find(groups.begin(), groups.end(), groupOf(b)) == groups.end()) groups.push_back(groupOf(b));
+  for (const std::string& g : groups) {
+    bool open = ImGui::BeginMenu(g.c_str());
+    note("bandgroup:" + g);
+    if (!open) continue;
+    for (int i = 0; i < (int)plan_.bands.size(); i++) {
+      const bands::Band& band = plan_.bands[(size_t)i];
+      if (groupOf(band) != g) continue;
+      ImGui::PushID(i);
+      bool anyPreset = false;
+      for (const bands::Marker& p : band.markers) anyPreset = anyPreset || p.preset();
+      if (!anyPreset) {
+        if (ImGui::MenuItem(band.title().c_str(), nullptr, here == i)) goBand(i);
+        note("band:" + band.name);
+      } else if (ImGui::BeginMenu(band.title().c_str())) {
+        if (ImGui::MenuItem("Go to the band", nullptr, here == i)) goBand(i);
+        note("band:" + band.name);
+        ImGui::Separator();
+        for (const bands::Marker& p : band.markers)
+          if (p.preset()) {
+            char b[64];
+            snprintf(b, sizeof b, "%-5s  %s", p.label.c_str(), tuning::formatHz(p.hz).c_str());
+            if (ImGui::MenuItem(b)) goMarker(p);
+            if (!p.note.empty()) ImGui::SetItemTooltip("%s", p.note.c_str());
+          }
+        ImGui::EndMenu();
+      }
+      ImGui::PopID();
+    }
+    ImGui::EndMenu();
+  }
+  ImGui::EndPopup();
+}
+
+// WFM, and the modes a transceiver hasn't got. Most of these are for one service or another, so they're on menus.
+void App::drawReceiverModes(int filter) {
+  if (toggle("WFM", st_.mode == civ::WFM, ImVec2(S(46), S(30)), "mode:WFM")) rig_.setMode(civ::WFM, false, filter);
+  ImGui::SetItemTooltip("Wide FM, for FM broadcast and other wide signals");
+  ImGui::SameLine();
+  auto menu = [&](const char* button, const char* id, const std::vector<std::pair<const char*, int>>& modes, const char* tip) {
+    bool on = false;
+    const char* shown = button;
+    for (const auto& m : modes)
+      if (st_.mode == m.second) on = true, shown = m.first;
+    if (toggle((std::string(shown) + "##" + id).c_str(), on, ImVec2(S(72), S(30)), id)) ImGui::OpenPopup(id);
+    ImGui::SetItemTooltip("%s", tip);
+    if (ImGui::BeginPopup(id)) {
+      for (const auto& m : modes) {
+        if (ImGui::MenuItem(m.first, nullptr, st_.mode == m.second)) rig_.setMode(m.second, false, filter);
+        note(std::string("mode:") + m.first);
+      }
+      ImGui::EndPopup();
+    }
+    ImGui::SameLine();
+  };
+  menu("S-AM", "modes:sam", {{"S-AM", civ::S_AM}, {"S-AM(L)", civ::S_AM_L}, {"S-AM(U)", civ::S_AM_U}},
+       "Synchronous AM: both sidebands, or just the lower or upper one to dodge interference");
+  menu("Digital", "modes:digital", {{"DV", civ::DV}, {"P25", civ::P25}, {"dPMR", civ::DPMR}, {"NXDN-VN", civ::NXDN_VN}, {"NXDN-N", civ::NXDN_N}, {"DCR", civ::DCR}},
+       "D-STAR, P25, dPMR, NXDN and DCR digital voice");
 }
 
 void App::drawBandRow() {
   ImGui::BeginDisabled(!st_.connected);
   int here = plan_.bandOf(st_.hz);
   float bw = S(37);
-  for (int i = 0; i < (int)plan_.bands.size(); i++) {
+  bool anyBand = false;
+  if (!radio().hasTransmit) {
+    drawBandMenu();
+    anyBand = true;
+  }
+  for (int i = 0; i < (int)plan_.bands.size() && radio().hasTransmit; i++) {
     const bands::Band& band = plan_.bands[(size_t)i];
-    if (i) ImGui::SameLine();
+    if (!bandOnRig(band)) continue;
+    if (anyBand) ImGui::SameLine();
+    anyBand = true;
     ImGui::PushID(i);
     if (toggle(band.name.c_str(), here == i, ImVec2(bw, S(30)), ("band:" + band.name).c_str())) goBand(i);
-    ImGui::SetItemTooltip("%s m. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.", band.name.c_str());
+    ImGui::SetItemTooltip("%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.", band.title().c_str());
     if (ImGui::BeginPopupContextItem("presets")) {
-      ImGui::TextDisabled("%s m", band.name.c_str());
+      ImGui::TextDisabled("%s", band.title().c_str());
       for (const bands::Marker& p : band.markers)
         if (p.preset()) {
           char b[64];
@@ -1101,6 +1592,10 @@ void App::drawBandRow() {
       ImGui::EndPopup();
     }
     ImGui::PopID();
+  }
+  if (!anyBand) {
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled("The %s plan has no bands for the %s", plan_.name.c_str(), radio().name);
   }
   ImGui::SameLine(0, S(14));
   static const struct {
@@ -1113,17 +1608,32 @@ void App::drawBandRow() {
     if (toggle(m.name, st_.mode == m.mode, ImVec2(mw, S(30)), (std::string("mode:") + m.name).c_str())) rig_.setMode(m.mode, false, filter);
     ImGui::SameLine();
   }
-  ImGui::BeginDisabled(!civ::hasData(st_.mode));
-  if (toggle("DATA", st_.data, ImVec2(S(46), S(30)), "data")) rig_.setMode(st_.mode, !st_.data, filter);
-  ImGui::SetItemTooltip("Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)");
-  ImGui::EndDisabled();
+  if (radio().hasDigitalVoice) {
+    if (toggle("DV", st_.mode == civ::DV, ImVec2(S(38), S(30)), "mode:DV")) rig_.setMode(civ::DV, false, filter);
+    ImGui::SetItemTooltip("D-STAR digital voice");
+    ImGui::SameLine();
+    ImGui::BeginDisabled(st_.hz < 1240000000);  // only the 1200 MHz band has it
+    if (toggle("DD", st_.mode == civ::DD, ImVec2(S(38), S(30)), "mode:DD")) rig_.setMode(civ::DD, false, filter);
+    ImGui::SetItemTooltip("D-STAR high-speed data, on 23 cm only");
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+  }
+  if (radio().hasReceiverModes) drawReceiverModes(filter);
+  if (radio().hasDataMode) {
+    ImGui::BeginDisabled(!civ::hasData(st_.mode));
+    if (toggle("DATA", st_.data, ImVec2(S(46), S(30)), "data")) rig_.setMode(st_.mode, !st_.data, filter);
+    ImGui::SetItemTooltip("Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)");
+    ImGui::EndDisabled();
+  }
   ImGui::SameLine(0, S(14));
+  ImGui::BeginDisabled(civ::hasNoFilters(st_.mode) && radio().hasReceiverModes);
   for (int f = 1; f <= 3; f++) {
     char b[8];
     snprintf(b, sizeof b, "FIL%d", f);
     if (toggle(b, st_.filter == f, ImVec2(S(38), S(30)), b)) rig_.setMode(st_.mode, st_.data, f);
     ImGui::SameLine();
   }
+  ImGui::EndDisabled();
   ImGui::EndDisabled();
   flow(S(125));
   ImGui::AlignTextToFramePadding();
@@ -1152,11 +1662,40 @@ void App::drawControls() {
   levelRow("AF", civ::L_AF);
   levelRow("RF gain", civ::L_RF);
   levelRow("Squelch", civ::L_SQL);
-  radioRow("Preamp", civ::S_PREAMP, {{"OFF", 0}, {"P1", 1}, {"P2", 2}});
+  if (radio().hasExtPreamp) {
+    radioRow("Preamp", civ::S_PREAMP, {{"OFF", 0}, {"ON", 1}, {"EXT", 2}, {"BOTH", 3}});
+    ImGui::SetItemTooltip("The internal preamp, and any external one the rig powers (set up in its menu)");
+  } else if (radio().singlePreamp) {
+    radioRow("Preamp", civ::S_PREAMP, {{"OFF", 0}, {"ON", 1}});
+  } else {
+    radioRow("Preamp", civ::S_PREAMP, {{"OFF", 0}, {"P1", 1}, {"P2", 2}});
+  }
+  if (radio().hasIpPlus) {
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("IP+");
+    ImGui::SameLine(S(84));
+    if (toggle(st_.ipPlus == 1 ? "ON##ipplus" : "OFF##ipplus", st_.ipPlus == 1, ImVec2(-1, 0), "ipplus")) rig_.setIpPlus(st_.ipPlus != 1);
+    ImGui::SetItemTooltip("Improves how it copes with strong signals, at some cost in sensitivity");
+  }
   ImGui::AlignTextToFramePadding();
   ImGui::TextUnformatted("Attenuator");
   ImGui::SameLine(S(84));
-  if (toggle("20 dB", st_.att == 1, ImVec2(-1, 0), "att")) rig_.setAtt(st_.att != 1);
+  if (radio().attSteps > 1) {
+    int steps = radio().attSteps + 1;
+    float aw = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * (float)(steps - 1)) / (float)steps;
+    for (int i = 0; i < steps; i++) {
+      int db = radio().attDb * i;
+      char attLabel[24], attName[16];
+      snprintf(attLabel, sizeof attLabel, i ? "%d##att" : "OFF##att", db);
+      snprintf(attName, sizeof attName, "att:%d", db);
+      if (i) ImGui::SameLine();
+      if (toggle(attLabel, st_.att >= 0 && st_.attDb == db, ImVec2(aw, 0), attName)) rig_.setAttDb(db);
+    }
+  } else {
+    char attLabel[16];
+    snprintf(attLabel, sizeof attLabel, "%d dB", radio().attDb);
+    if (toggle(attLabel, st_.att == 1, ImVec2(-1, 0), "att")) rig_.setAtt(st_.att != 1);
+  }
   radioRow("AGC", civ::S_AGC, {{"FAST", 1}, {"MID", 2}, {"SLOW", 3}});
 
   heading("FILTER");
@@ -1188,7 +1727,7 @@ void App::drawControls() {
   pbt("PBT inner", civ::L_PBT_IN);
   pbt("PBT outer", civ::L_PBT_OUT);
   ImGui::SetCursorPosX(S(84) + ImGui::GetStyle().WindowPadding.x);
-  if (ImGui::Button("Centre PBT", ImVec2(-1, 0))) {
+  if (panelButton("Centre PBT", ImVec2(-1, 0))) {
     rig_.setLevel(civ::L_PBT_IN, 128);
     rig_.setLevel(civ::L_PBT_OUT, 128);
   }
@@ -1203,25 +1742,41 @@ void App::drawControls() {
   ImGui::SameLine(S(84));
   if (toggle("AN", st_.sw[civ::S_AN] == 1, ImVec2(-1, 0), "an")) rig_.setSwitch(civ::S_AN, st_.sw[civ::S_AN] == 1 ? 0 : 1);
 
-  heading("RIT / XIT");
-  {
-    float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3;
+  if (radio().hasRit) {
+    heading("RIT / XIT");
+    bool xit = radio().hasXit;
+    float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * (xit ? 2 : 1)) / (xit ? 3 : 2);
     if (toggle("RIT", st_.ritOn == 1, ImVec2(w, 0))) rig_.setRitOn(st_.ritOn != 1);
     ImGui::SameLine();
-    if (toggle("XIT", st_.xitOn == 1, ImVec2(w, 0))) rig_.setXitOn(st_.xitOn != 1);
-    ImGui::SameLine();
-    if (ImGui::Button("Clear", ImVec2(w, 0))) rig_.setRit(0);
+    if (xit) {
+      if (toggle("XIT", st_.xitOn == 1, ImVec2(w, 0))) rig_.setXitOn(st_.xitOn != 1);
+      ImGui::SameLine();
+    }
+    if (panelButton("Clear", ImVec2(w, 0))) rig_.setRit(0);
     int v = st_.ritHz;
     ImGui::SetNextItemWidth(-1);
     if (ImGui::SliderInt("##rit", &v, -2000, 2000, "%+d Hz")) rig_.setRit(v);
     if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.f) rig_.setRit(st_.ritHz + (int)ImGui::GetIO().MouseWheel * 10);
   }
 
+  if (!radio().hasTransmit) {
+    // CW pitch is the one thing here that still means something: it's where the receiver puts a CW signal.
+    heading("CW");
+    char fmt[32];
+    snprintf(fmt, sizeof fmt, "%d Hz", tuning::cwPitchHz(st_.level[civ::L_CW_PITCH]));
+    levelRow("CW pitch", civ::L_CW_PITCH, fmt);
+    ImGui::EndDisabled();
+    ImGui::EndChild();
+    return;
+  }
+
   heading("TRANSMIT");
   {
     int v = std::max(0, st_.level[civ::L_POWER]);
     char fmt[32];
-    snprintf(fmt, sizeof fmt, "%d W", (int)lround(v * 100.0 / 255.0));
+    int fullWatts = radio().maxWattsAt(st_.hz);
+    if (fullWatts <= 10) snprintf(fmt, sizeof fmt, "%.1f W", v * (double)fullWatts / 255.0);
+    else snprintf(fmt, sizeof fmt, "%d W", (int)lround(v * (double)fullWatts / 255.0));
     levelRow("RF power", civ::L_POWER, fmt);
   }
   levelRow("Mic gain", civ::L_MIC);
@@ -1304,13 +1859,17 @@ App::PlotArea App::drawPlot(const char* id, double xLo, double xHi, const std::v
   // Axis.
   dl->AddRectFilled(ImVec2(a.p0.x, s1.y), ImVec2(a.p1.x, a.w0.y), IM_COL32(18, 21, 27, 255));
   if (axisStep > 0 && xHi > xLo) {
+    float labelEnd = a.p0.x;  // a long label pushed in from the edge mustn't run into the next
     for (double v = ceil(xLo / axisStep) * axisStep; v < xHi; v += axisStep) {
       float x = a.p0.x + (float)((v - xLo) / (xHi - xLo)) * w;
       dl->AddLine(ImVec2(x, s0.y), ImVec2(x, s1.y), IM_COL32(255, 255, 255, 18));
       dl->AddLine(ImVec2(x, a.w0.y - S(3)), ImVec2(x, a.w0.y), C_DIM);
       std::string t = axisLabel(v);
       float tw = ImGui::CalcTextSize(t.c_str()).x * (S(12.5f) / ImGui::GetFontSize());
-      dl->AddText(fSmall_, S(12.5f), ImVec2(std::max(a.p0.x + S(2), x - tw / 2), s1.y + S(1)), C_TEXT, t.c_str());
+      float tx = std::max(a.p0.x + S(2), x - tw / 2);
+      if (tx < labelEnd) continue;
+      dl->AddText(fSmall_, S(12.5f), ImVec2(tx, s1.y + S(1)), C_TEXT, t.c_str());
+      labelEnd = tx + tw + S(4);
     }
   }
   // Waterfall.
@@ -1347,7 +1906,7 @@ void App::drawBandMap(double viewLo, double viewHi) {
   };
   auto widthOf = [&](const std::string& t) { return fSmall_->CalcTextSizeA(S(12.5f), FLT_MAX, 0, t.c_str()).x; };
   // Where it begins, on the left, and where it ends, on the right.
-  std::string left = band.name + " m  " + edge(band.lo), right = edge(band.hi);
+  std::string left = band.title() + "  " + edge(band.lo), right = edge(band.hi);
   dl->AddText(fSmall_, S(12.5f), ImVec2(p0.x + S(4), textY), C_TEXT, left.c_str());
   float rightW = widthOf(right);
   dl->AddText(fSmall_, S(12.5f), ImVec2(p1.x - rightW - S(4), textY), C_TEXT, right.c_str());
@@ -1427,6 +1986,10 @@ ImU32 serviceColour(bands::Service s) {
     case bands::S_GOVERNMENT: return IM_COL32(95, 105, 125, 255);
     case bands::S_NAVAL: return IM_COL32(25, 110, 165, 255);
     case bands::S_MILITARY: return IM_COL32(120, 125, 40, 255);
+    case bands::S_AMATEUR: return IM_COL32(40, 135, 90, 255);
+    case bands::S_AVIATION: return IM_COL32(50, 90, 190, 255);
+    case bands::S_SPACE: return IM_COL32(105, 75, 170, 255);
+    case bands::S_LAND: return IM_COL32(125, 105, 60, 255);
     default: return IM_COL32(170, 85, 40, 255);
   }
 }
@@ -1437,9 +2000,11 @@ void App::drawStationOverlay(const PlotArea& a, double lo, double hi, float stri
   ImDrawList* dl = ImGui::GetWindowDrawList();
   auto toX = [&](double f) { return a.p0.x + (float)((f - lo) / (hi - lo)) * (a.p1.x - a.p0.x); };
   float specBottom = a.w0.y - stripH - S(17);
+  long long now = (long long)time(nullptr);
+  int weekday = (int)((now / 86400 + 3) % 7), minute = (int)(now % 86400 / 60);  // 1 January 1970 was a Thursday
   for (const bands::StationFile& f : stations_.files)
     for (const bands::Station& s : f.stations)
-      if (showService_[s.service] && (double)s.hz >= lo && (double)s.hz <= hi)
+      if (showService_[s.service] && (double)s.hz >= lo && (double)s.hz <= hi && (!onAirOnly_ || s.onAir(weekday, minute)))
         drawFlag(a, lo, hi, stripH, l, s, serviceColour(s.service), true, "station:" + std::to_string(s.hz));
   for (const bands::StationFile& f : stations_.files)
     for (const bands::StationRange& r : f.ranges) {
@@ -1470,7 +2035,8 @@ void App::drawPlanOverlay(const PlotArea& a, double lo, double hi, float stripH,
 
   auto outOfBand = [&](double from, double to) {
     float x0 = toX(from), x1 = toX(to);
-    if (x1 - x0 < 1.f) return;
+    // "Out of band" is about where you may transmit, which is nothing to a receiver.
+    if (x1 - x0 < 1.f || !radio().hasTransmit) return;
     dl->AddRectFilled(ImVec2(x0, a.p0.y), ImVec2(x1, specBottom), IM_COL32(0, 0, 0, 150));
     dl->AddRectFilled(ImVec2(x0, a.w0.y), ImVec2(x1, a.p1.y), IM_COL32(0, 0, 0, 150));
     dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(70, 18, 18, 255));
@@ -1505,9 +2071,9 @@ void App::drawPlanOverlay(const PlotArea& a, double lo, double hi, float stripH,
   };
   for (const bands::Band& band : plan_.bands) {
     char b[64];
-    snprintf(b, sizeof b, "%s m begins %s", band.name.c_str(), tuning::formatHz(band.lo).c_str());
+    snprintf(b, sizeof b, "%s begins %s", band.title().c_str(), tuning::formatHz(band.lo).c_str());
     edgeLabel((double)band.lo, b, true);
-    snprintf(b, sizeof b, "%s m ends %s", band.name.c_str(), tuning::formatHz(band.hi).c_str());
+    snprintf(b, sizeof b, "%s ends %s", band.title().c_str(), tuning::formatHz(band.hi).c_str());
     edgeLabel((double)band.hi, b, false);
   }
 
@@ -1527,9 +2093,11 @@ void App::drawStationsMenu() {
   if (!ImGui::BeginMenu("Stations")) return;
   if (ImGui::MenuItem("Find a station...", "Ctrl+F")) stationSearchOpen_ = stationSearchFocus_ = true;
   ImGui::MenuItem("Show on the scope", nullptr, &showStations_);
+  ImGui::MenuItem("Only what's scheduled now", nullptr, &onAirOnly_);
+  ImGui::SetItemTooltip("Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it.");
   ImGui::Separator();
-  auto item = [&](const std::string& text, const std::string& tip) {
-    bool chosen = ImGui::MenuItem(text.c_str(), nullptr, false, st_.connected);
+  auto item =[&](const std::string& text, const std::string& tip, long long hz) {
+    bool chosen = ImGui::MenuItem(text.c_str(), nullptr, false, st_.connected && radio().canTune(hz));
     if (!tip.empty()) ImGui::SetItemTooltip("%s", tip.c_str());
     return chosen;
   };
@@ -1547,7 +2115,7 @@ void App::drawStationsMenu() {
         if (f.stations[s].service == service && ImGui::BeginMenu((group + "##" + f.id).c_str())) {
           for (size_t k = s; k < end; k++) {
             const bands::Station& st = f.stations[k];
-            if (item(st.label + "   " + tuning::formatHz(st.hz), st.note)) goMarker(st);
+            if (item(st.label + "   " + tuning::formatHz(st.hz), st.note, st.tuneHz())) goMarker(st);
           }
           ImGui::EndMenu();
         }
@@ -1557,7 +2125,7 @@ void App::drawStationsMenu() {
       for (const bands::StationRange& r : f.ranges) any = any || r.service == service;
       if (any && ImGui::BeginMenu(("Bands##" + f.id).c_str())) {
         for (const bands::StationRange& r : f.ranges)
-          if (r.service == service && item(r.label + "   " + tuning::formatHz(r.lo) + " to " + tuning::formatHz(r.hi), r.note)) goRange(r);
+          if (r.service == service && item(r.label + "   " + tuning::formatHz(r.lo) + " to " + tuning::formatHz(r.hi), r.note, (r.lo + r.hi) / 2)) goRange(r);
         ImGui::EndMenu();
       }
     }
@@ -1579,7 +2147,12 @@ void App::drawStationSearch() {
   ImGui::SetNextItemWidth(-1);
   bool enter = ImGui::InputTextWithHint("##stationquery", "Name, type, place or frequency in kHz", stationQuery_, sizeof stationQuery_, ImGuiInputTextFlags_EnterReturnsTrue);
   note("stationquery");
-  std::vector<bands::StationHit> hits = stations_.search(stationQuery_);
+  if (stationHitsStale_ || stationHitsFor_ != stationQuery_) {
+    stationHits_ = stations_.search(stationQuery_);
+    stationHitsFor_ = stationQuery_;
+    stationHitsStale_ = false;
+  }
+  const std::vector<bands::StationHit>& hits = stationHits_;
   stationHitCount_ = hits.size();
   ImGui::TextDisabled(st_.connected ? "%d found. Click one to go there, or press Enter for the first." : "%d found. Connect the rig to go there.", (int)hits.size());
   ImGui::BeginChild("stationhits", ImVec2(0, 0), ImGuiChildFlags_Borders);
@@ -1588,22 +2161,28 @@ void App::drawStationSearch() {
     if (h.station) goMarker(*h.station);
     else goRange(*h.range);
   };
-  for (size_t i = 0; i < hits.size(); i++) {
-    const bands::StationHit& h = hits[i];
-    const std::string& label = h.station ? h.station->label : h.range->label;
-    const std::string& tip = h.station ? h.station->note : h.range->note;
-    ImGui::PushID((int)i);
-    if (ImGui::Selectable("##hit", false, ImGuiSelectableFlags_AllowOverlap)) go(h);
-    note("stationhit:" + std::to_string(i));
-    if (!tip.empty()) ImGui::SetItemTooltip("%s", tip.c_str());
-    ImGui::SameLine(S(6));
-    ImGui::TextUnformatted(label.c_str());
-    ImGui::SameLine(S(160));
-    ImGui::TextUnformatted(tuning::formatHz(h.hz).c_str());
-    ImGui::SameLine(S(270));
-    ImGui::TextDisabled("%s", h.station ? h.station->group.c_str() : bands::serviceName(h.range->service));
-    ImGui::PopID();
-  }
+  // Only the rows in view are drawn.
+  ImGuiListClipper clipper;
+  clipper.Begin((int)hits.size());
+  while (clipper.Step())
+    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) {
+      const bands::StationHit& h = hits[(size_t)i];
+      const std::string& label = h.station ? h.station->label : h.range->label;
+      const std::string& tip = h.station ? h.station->note : h.range->note;
+      ImGui::PushID(i);
+      ImGui::BeginDisabled(!radio().canTune(h.station ? h.station->tuneHz() : (h.range->lo + h.range->hi) / 2));
+      if (ImGui::Selectable("##hit", false, ImGuiSelectableFlags_AllowOverlap)) go(h);
+      note("stationhit:" + std::to_string(i));
+      if (!tip.empty()) ImGui::SetItemTooltip("%s", tip.c_str());
+      ImGui::SameLine(S(6));
+      ImGui::TextUnformatted(label.c_str());
+      ImGui::SameLine(S(160));
+      ImGui::TextUnformatted(tuning::formatHz(h.hz).c_str());
+      ImGui::SameLine(S(270));
+      ImGui::TextDisabled("%s", h.station ? h.station->group.c_str() : bands::serviceName(h.range->service));
+      ImGui::EndDisabled();
+      ImGui::PopID();
+    }
   ImGui::EndDisabled();
   ImGui::EndChild();
   if (enter && !hits.empty() && st_.connected) go(hits[0]);
@@ -1624,12 +2203,12 @@ void App::drawScopePane() {
   }
   ImGui::SetItemTooltip("Streams the rig's own spectrum scope over CI-V");
   int spanIdx = 4;
-  for (int i = 0; i < 8; i++)
+  for (int i = 0; i < radio().scopeSpans; i++)
     if (st_.scopeSpan == civ::kScopeSpans[i]) spanIdx = i;
   flow(S(80));
   ImGui::SetNextItemWidth(S(80));
   if (ImGui::BeginCombo("##span", kSpanNames[spanIdx])) {
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < radio().scopeSpans; i++)
       if (ImGui::Selectable(kSpanNames[i], i == spanIdx)) rig_.setScopeSpan(civ::kScopeSpans[i]);
     ImGui::EndCombo();
   }
@@ -1657,10 +2236,10 @@ void App::drawScopePane() {
   ImGui::SetItemTooltip("Sweep speed");
   ImGui::EndDisabled();
   flow(S(50));
-  if (ImGui::Button("Auto##s")) autoScopeLevels();
+  if (panelButton("Auto##s")) autoScopeLevels();
   ImGui::SetItemTooltip("Set the colours from the noise floor");
   flow(S(60));
-  if (ImGui::Button("Display##s")) ImGui::OpenPopup("scopedisplay");
+  if (panelButton("Display##s")) ImGui::OpenPopup("scopedisplay");
   if (ImGui::BeginPopup("scopedisplay")) {
     ImGui::SetNextItemWidth(S(160));
     ImGui::SliderFloat("Floor", &scopeFloor_, 0.f, 120.f, "%.0f");
@@ -1743,7 +2322,8 @@ void App::drawScopePane() {
     std::string t = tuning::formatHz(llround(a.x / 100) * 100);
     if (showBandPlan_) {
       const bands::Segment* seg = plan_.segmentAt(llround(a.x));
-      t += seg ? "  " + portionName(*seg) : "  Out of band";
+      if (seg) t += "  " + portionName(*seg);
+      else if (radio().hasTransmit) t += "  Out of band";
     }
     if (const bands::StationRange* r = rangeHere(llround(a.x))) t += "  " + r->label;
     float tw = ImGui::CalcTextSize(t.c_str()).x;
@@ -1761,7 +2341,7 @@ void App::drawScopePane() {
       if (marker) goMarker(*marker);
       else tuneTo(hz);
     }
-    if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1));
+    if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1, radio()));
     if (a.rclicked) {
       scopeMenuHz_ = hz;
       ImGui::OpenPopup("scopemenu");
@@ -1771,7 +2351,7 @@ void App::drawScopePane() {
     long long lastHz = scopeMenuHz_;
     ImGui::TextDisabled("%s", tuning::formatHz(lastHz).c_str());
     if (ImGui::MenuItem("Tune here")) tuneTo(lastHz);
-    if (ImGui::MenuItem("Transmit here (split)")) {
+    if (radio().hasTransmit && ImGui::MenuItem("Transmit here (split)")) {
       rig_.setOtherFreq(lastHz);
       rig_.setOtherMode(st_.mode, st_.data, st_.filter ? st_.filter : 1);
       rig_.setSplit(true);
@@ -1824,10 +2404,10 @@ void App::drawAudioPane() {
     ImGui::EndCombo();
   }
   flow(S(50));
-  if (ImGui::Button("Auto##a")) autoAudioLevels();
+  if (panelButton("Auto##a")) autoAudioLevels();
   ImGui::SetItemTooltip("Set the colours from the noise floor");
   flow(S(60));
-  if (ImGui::Button("Display##a")) ImGui::OpenPopup("audiodisplay");
+  if (panelButton("Display##a")) ImGui::OpenPopup("audiodisplay");
   if (ImGui::BeginPopup("audiodisplay")) {
     ImGui::SetNextItemWidth(S(160));
     ImGui::SliderFloat("Floor", &audioFloorDb_, -140.f, -30.f, "%.0f dB");
@@ -1857,7 +2437,7 @@ void App::drawAudioPane() {
       say("Saved " + rec_.path());
       rec_.close();
     }
-  } else if (ImGui::Button("Rec")) {
+  } else if (panelButton("Rec")) {
     startRecording();
   }
   ImGui::SetItemTooltip("Record the receiver to a WAV file");
@@ -1945,7 +2525,7 @@ void App::drawAudioPane() {
   if (a.hovered && st_.connected) {
     if (a.clicked && target > 0) tuneTo(tuning::dialToCentre(st_.hz, st_.mode, a.x, target));
     else if (a.clicked && st_.data) say("Data mode: the dial stays put, so your digital program keeps its place");
-    if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1));
+    if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1, radio()));
   }
   ImGui::EndChild();
 }
@@ -2029,11 +2609,11 @@ void App::drawDial() {
     if (!live || st_.tx) dial_.stop();
     clicks = dial_.idle(io.DeltaTime);
   }
-  if (clicks && live) tuneTo(tuning::stepFreq(st_.hz, clickHz, clicks));
+  if (clicks && live) tuneTo(tuning::stepFreq(st_.hz, clickHz, clicks, radio()));
   if (hovered && live && io.MouseWheel != 0.f) {
     int notch = io.MouseWheel > 0 ? 1 : -1;
     dial_.nudge(notch * tuning::Dial::kClicksPerStep);
-    tuneTo(tuning::stepFreq(st_.hz, step, notch));
+    tuneTo(tuning::stepFreq(st_.hz, step, notch, radio()));
   }
   if ((hovered || active) && live) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
   ImGui::SetItemTooltip("Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.");
@@ -2093,7 +2673,7 @@ void App::drawDial() {
 
 void App::drawKeypad() {
   drawDial();
-  ImGui::TextDisabled("Or just type: 14.074  7  198k  +5");
+  ImGui::TextDisabled(radio().topHz() > 1000000000 ? "Or just type: 145.5  433.5  1296.2  +5" : "Or just type: 14.074  7  198k  +5");
   ImGui::PushFont(fMid_);
   float gap = ImGui::GetStyle().ItemSpacing.x;
   float w = (ImGui::GetContentRegionAvail().x - gap * 3) / 4, h = S(28);
@@ -2102,7 +2682,7 @@ void App::drawKeypad() {
     for (int c = 0; c < 4; c++) {
       if (c) ImGui::SameLine();
       const char* k = rows[r][c];
-      if (ImGui::Button(k, ImVec2(w, h))) {
+      if (panelButton(k, ImVec2(w, h))) {
         if (!strcmp(k, "<")) {
           if (!entry_.empty()) entry_.pop_back();
         } else if (!strcmp(k, "Clr")) {
@@ -2136,7 +2716,7 @@ void App::drawKeypad() {
   int here = plan_.bandOf(st_.hz);
   if (here >= 0) {
     const bands::Band& band = plan_.bands[(size_t)here];
-    ImGui::TextColored(ImColor(C_ACCENT), "ON %s m", band.name.c_str());
+    ImGui::TextColored(ImColor(C_ACCENT), "ON %s", band.title().c_str());
     if (const bands::Segment* seg = band.segmentAt(st_.hz)) {
       ImGui::SameLine();
       ImGui::TextColored(ImColor(segmentColour(seg->use, 255)), "%s", portionName(*seg).c_str());
@@ -2150,7 +2730,7 @@ void App::drawKeypad() {
       if (p.preset()) {
         char b[64];
         snprintf(b, sizeof b, "%-5s  %s", p.label.c_str(), tuning::formatHz(p.hz).c_str());
-        if (ImGui::Button(b, ImVec2(-1, 0))) goMarker(p);
+        if (panelButton(b, ImVec2(-1, 0))) goMarker(p);
       }
     ImGui::EndDisabled();
   } else if (st_.hz > 0) {
@@ -2165,7 +2745,7 @@ void App::drawMemories() {
   note("memname");
   ImGui::SameLine();
   ImGui::BeginDisabled(!st_.connected);
-  if (ImGui::Button("Save", ImVec2(-1, 0))) {
+  if (panelButton("Save", ImVec2(-1, 0))) {
     store::Memory m;
     m.name = memName_[0] ? memName_ : utcNow("%H%MZ");
     m.hz = st_.hz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
@@ -2198,8 +2778,7 @@ void App::drawMemories() {
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
       if (ImGui::Selectable(m.name.c_str(), m.hz == st_.hz, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap) && st_.connected) {
-        tuneTo(m.hz);
-        rig_.setMode(m.mode, m.data, m.filter);
+        if (tuneTo(m.hz)) rig_.setMode(m.mode, m.data, m.filter);
       }
       note("mem:" + std::to_string(i));
       ImGui::TableNextColumn();
@@ -2207,7 +2786,9 @@ void App::drawMemories() {
       ImGui::TableNextColumn();
       ImGui::TextUnformatted(modeLabel(m.mode, m.data).c_str());
       ImGui::TableNextColumn();
-      if (ImGui::SmallButton("x")) del = i;
+      ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, 0));
+      if (panelButton("x", ImVec2(0, 0), ImGuiButtonFlags_AlignTextBaseLine)) del = i;
+      ImGui::PopStyleVar();
       ImGui::PopID();
     }
     ImGui::EndTable();
@@ -2244,7 +2825,7 @@ void App::drawLog() {
   enter |= ImGui::InputTextWithHint("##lnotes", "Notes", logNotes_, sizeof logNotes_, ImGuiInputTextFlags_EnterReturnsTrue);
   ImGui::TextDisabled("%s  %s  %s UTC", tuning::formatHz(st_.hz).c_str(), modeLabel(st_.mode, st_.data).c_str(), utcNow("%H:%M").c_str());
   ImGui::BeginDisabled(!logCall_[0]);
-  bool add = ImGui::Button("Log it", ImVec2(w, 0));
+  bool add = panelButton("Log it", ImVec2(w, 0));
   ImGui::EndDisabled();
   if ((add || enter) && logCall_[0]) {
     store::LogEntry e;
@@ -2257,7 +2838,7 @@ void App::drawLog() {
     logFocusCall_ = true;
   }
   ImGui::SameLine();
-  if (ImGui::Button("Export ADIF", ImVec2(w, 0))) {
+  if (panelButton("Export ADIF", ImVec2(w, 0))) {
     std::string path = store::dataDir() + "log.adi";
     if (store::exportAdif(path, log_, callsign_)) say("Exported " + std::to_string(log_.size()) + " QSOs to " + path);
     else say("Couldn't write " + path);
@@ -2310,7 +2891,7 @@ void App::drawCwVoice() {
     ImGui::PushID(i);
     char label[8];
     snprintf(label, sizeof label, "M%d", i + 1);
-    if (ImGui::Button(label, ImVec2(S(34), 0))) send(macros_[i]);
+    if (panelButton(label, ImVec2(S(34), 0))) send(macros_[i]);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1);
     ImGui::InputText("##m", macros_[i], sizeof macros_[i]);
@@ -2328,7 +2909,7 @@ void App::drawCwVoice() {
     if ((i - 1) % 4) ImGui::SameLine();
     char b[8];
     snprintf(b, sizeof b, "T%d", i);
-    if (ImGui::Button(b, ImVec2(w, 0))) {
+    if (panelButton(b, ImVec2(w, 0))) {
       if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
       else rig_.playVoice(i);
     }
@@ -2354,7 +2935,7 @@ void App::drawRightTabs() {
       drawLog();
       ImGui::EndTabItem();
     }
-    if (tab("CW / Voice", 3)) {
+    if (radio().hasTransmit && tab("CW / Voice", 3)) {
       drawCwVoice();
       ImGui::EndTabItem();
     }
@@ -2378,28 +2959,64 @@ void App::drawStatus() {
   } else if (opt_.noRig) {
     ImGui::TextDisabled("Audio only: leaving the serial port alone");
   } else if (st_.connected) {
-    ImGui::Text("%s  %d baud", port_.c_str(), baud_);
+    ImGui::Text("%s  %s  %d baud", radio().name, port_.c_str(), baud_);
   } else if (!st_.portError.empty()) {
     bool busy = st_.portError.find("in use") != std::string::npos;
     ImGui::TextColored(ImColor(C_RED), "%s%s", st_.portError.c_str(), busy ? ". Close the other program: a port has one owner." : "");
+  } else if (st_.portOpen && st_.strangerId >= 0) {
+    ImGui::TextColored(ImColor(C_AMBER), "A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address.",
+                       st_.strangerAddr, st_.strangerId, st_.strangerAddr);
   } else if (st_.portOpen) {
-    ImGui::TextColored(ImColor(C_AMBER), "%s open, but no answer: is the rig on? CI-V address %02Xh, %d baud?", port_.c_str(), addr_, baud_);
+    ImGui::TextColored(ImColor(C_AMBER), "%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one.", port_.c_str(), baud_);
   } else {
     ImGui::TextDisabled("Connecting...");
   }
   double now = glfwGetTime();
   if (st_.lastErrorSeq != lastErrorSeq_) {
     lastErrorSeq_ = st_.lastErrorSeq;
-    if (!st_.lastError.empty()) say(st_.lastError);
+    // Main and sub can't share a band, so a band change can be refused for that. It may not be the reason.
+    bool maybeSub = radio().hasMainSub && st_.lastError.find("frequency") != std::string::npos;
+    if (!st_.lastError.empty()) say(st_.lastError + (maybeSub ? ". Is the SUB band on that band?" : ""));
   }
   if (now < statusUntil_) {
     ImGui::SameLine(0, S(20));
     ImGui::TextColored(ImColor(C_AMBER), "%s", status_.c_str());
   }
+  if (clockSync_ && clockSync_->done) {
+    clockResult_ = clockSync_->report.message;
+    say(clockResult_);
+    clockSync_.reset();
+  }
   std::string right = utcNow("%H:%M:%S UTC");
-  float rw = ImGui::CalcTextSize(right.c_str()).x;
-  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - rw);
+  float rw = ImGui::CalcTextSize(right.c_str()).x, bw = S(58);
+  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - rw - bw - ImGui::GetStyle().ItemSpacing.x);
+  ImGui::BeginDisabled(clockSync_ != nullptr);
+  if (toggle(clockSync_ ? "Wait##clocksync" : "Sync##clocksync", false, ImVec2(bw, 0), "clocksync")) startClockSync();
+  ImGui::EndDisabled();
+  if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+    ImGui::SetTooltip("%s%s%s",
+                      opt_.demo ? "Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it."
+                                : "Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.",
+                      clockResult_.empty() ? "" : "\n\nLast time: ", clockResult_.c_str());
+  }
+  ImGui::SameLine();
   ImGui::TextUnformatted(right.c_str());
+}
+
+void App::startClockSync() {
+  auto job = std::make_shared<ClockSync>();
+  clockSync_ = job;
+  if (!opt_.selfTest.empty()) {  // a scripted run has no business on the network
+    job->report.ok = true;
+    job->report.message = "Self-test: no time server asked.";
+    job->done = true;
+    return;
+  }
+  bool change = !opt_.demo;  // the demo touches nothing real
+  std::thread([job, change] {
+    job->report = clocksync::jog(change);
+    job->done = true;
+  }).detach();
 }
 
 void App::drawMenu() {
@@ -2436,11 +3053,17 @@ void App::drawSettings() {
     ImGui::OpenPopup("Settings");
     openSettings_ = false;
   }
-  ImGui::SetNextWindowSize(ImVec2(S(560), 0));
+  ImGui::SetNextWindowSize(ImVec2(S(1000), 0));
   if (!ImGui::BeginPopupModal("Settings", nullptr, ImGuiWindowFlags_NoResize)) return;
+  // Two columns: the band plan and station notes would make one column too tall.
+  if (!ImGui::BeginTable("settingsColumns", 2, ImGuiTableFlags_SizingStretchSame)) {
+    ImGui::EndPopup();
+    return;
+  }
+  ImGui::TableNextColumn();
   ImGui::TextColored(ImColor(C_ACCENT), "THE RIG");
   ImGui::Separator();
-  ImGui::SetNextItemWidth(S(380));
+  ImGui::SetNextItemWidth(S(340));
   if (ImGui::BeginCombo("Port", port_.empty() ? "(choose)" : port_.c_str())) {
     for (const SerialPortInfo& p : ports_) {
       std::string l = p.name + (p.desc.empty() ? "" : "  " + p.desc);
@@ -2454,21 +3077,26 @@ void App::drawSettings() {
       if (ImGui::Selectable(std::to_string(b).c_str(), b == baud_)) baud_ = b;
     ImGui::EndCombo();
   }
+  static const char* const kRadioChoices[] = {"Find out by asking it", "IC-7300", "IC-9700", "IC-R8600"};
+  ImGui::SetNextItemWidth(S(200));
+  ImGui::Combo("Radio", &radioChoice_, kRadioChoices, 4);
+  ImGui::SetItemTooltip("It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed.");
   ImGui::SetNextItemWidth(S(60));
   ImGui::InputText("CI-V address (hex)", addrText_, sizeof addrText_, ImGuiInputTextFlags_CharsHexadecimal);
+  ImGui::SetItemTooltip("Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address.");
   ImGui::TextDisabled("The scope stream needs 115200.");
 
   ImGui::Spacing();
   ImGui::TextColored(ImColor(C_ACCENT), "SOUND");
   ImGui::Separator();
-  ImGui::SetNextItemWidth(S(380));
+  ImGui::SetNextItemWidth(S(340));
   if (ImGui::BeginCombo("From the rig", audioIn_.empty() ? "(find the USB Audio CODEC)" : audioIn_.c_str())) {
     if (ImGui::Selectable("(find the USB Audio CODEC)", audioIn_.empty())) audioIn_.clear();
     for (const std::string& d : inDevs_)
       if (ImGui::Selectable(d.c_str(), d == audioIn_)) audioIn_ = d;
     ImGui::EndCombo();
   }
-  ImGui::SetNextItemWidth(S(380));
+  ImGui::SetNextItemWidth(S(340));
   if (ImGui::BeginCombo("Listen on", audioOut_.empty() ? "(system default)" : audioOut_.c_str())) {
     if (ImGui::Selectable("(system default)", audioOut_.empty())) audioOut_.clear();
     for (const std::string& d : outDevs_)
@@ -2485,10 +3113,10 @@ void App::drawSettings() {
   ImGui::SliderInt("PTT time limit", &txLimit_, 5, 600, "%d s");
   ImGui::SetItemTooltip("PTT from this program lets go by itself after this long");
 
-  ImGui::Spacing();
+  ImGui::TableNextColumn();
   ImGui::TextColored(ImColor(C_ACCENT), "BAND PLAN");
   ImGui::Separator();
-  ImGui::SetNextItemWidth(S(380));
+  ImGui::SetNextItemWidth(S(340));
   if (ImGui::BeginCombo("Country or region", plan_.name.c_str())) {
     std::string chosen;
     for (const bands::Plan& p : plans_.plans)
@@ -2509,17 +3137,17 @@ void App::drawSettings() {
     ImGui::TextWrapped("%s", e.c_str());
     ImGui::PopStyleColor();
   }
-  if (ImGui::Button("Open plans folder")) {
+  if (panelButton("Open plans folder")) {
     bands::installPlans(plansDir_);
     store::openFolder(plansDir_);
   }
   ImGui::SetItemTooltip("Each plan is a JSON file you can edit. README.txt there explains the format.");
   ImGui::SameLine();
-  if (ImGui::Button("Reload")) reloadPlans();
+  if (panelButton("Reload")) reloadPlans();
   ImGui::SetItemTooltip("Reads the files again, after you've edited one");
   ImGui::SameLine();
   ImGui::BeginDisabled(!builtin);
-  if (ImGui::Button("Reset this plan")) {
+  if (panelButton("Reset this plan")) {
     if (bands::resetPlan(plansDir_, plan_.id)) reloadPlans();
     else say("Can't write to " + plansDir_);
   }
@@ -2541,21 +3169,25 @@ void App::drawSettings() {
     ImGui::TextWrapped("%s", e.c_str());
     ImGui::PopStyleColor();
   }
-  if (ImGui::Button("Open stations folder")) {
+  if (panelButton("Open stations folder")) {
     bands::installStations(stationsDir_);
     store::openFolder(stationsDir_);
   }
   ImGui::SetItemTooltip("Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.");
   ImGui::SameLine();
-  if (ImGui::Button("Reset station list")) {
-    if (bands::resetStations(stationsDir_, "worldwide")) reloadPlans();
+  if (panelButton("Reset station list")) {
+    bool ok = bands::resetStations(stationsDir_, "worldwide") && bands::resetStations(stationsDir_, "broadcast");
+    if (ok && !radio().hasTransmit) ok = bands::resetStations(stationsDir_, "receiver");
+    if (ok) reloadPlans();
     else say("Can't write to " + stationsDir_);
   }
-  ImGui::SetItemTooltip("Puts the built-in worldwide list back. Your file is kept as worldwide.json.bak");
+  ImGui::SetItemTooltip(radio().hasTransmit ? "Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak"
+                                            : "Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak");
+  ImGui::EndTable();
 
   ImGui::Spacing();
   ImGui::Separator();
-  if (ImGui::Button("Apply and reconnect", ImVec2(S(170), 0))) {
+  if (panelButton("Apply and reconnect", ImVec2(S(170), 0))) {
     addr_ = (int)strtol(addrText_, nullptr, 16);
     if (addr_ <= 0 || addr_ > 0xDF) addr_ = 0x94;
     snprintf(addrText_, sizeof addrText_, "%02X", addr_);
@@ -2567,7 +3199,7 @@ void App::drawSettings() {
     ImGui::CloseCurrentPopup();
   }
   ImGui::SameLine();
-  if (ImGui::Button("Close", ImVec2(S(90), 0))) {
+  if (panelButton("Close", ImVec2(S(90), 0))) {
     rig_.setTxLimit(txLimit_);
     ImGui::CloseCurrentPopup();
   }
@@ -2586,7 +3218,7 @@ void App::drawHelp() {
     ImGui::BulletText("CI-V USB Port: Unlink from [REMOTE]");
     ImGui::BulletText("CI-V USB Baud Rate: 115200");
     ImGui::BulletText("CI-V USB Echo Back: OFF  (ON works too)");
-    ImGui::BulletText("CI-V Address: 94h");
+    ImGui::BulletText("CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700");
     ImGui::BulletText("USB AF Output Level (Connectors): raise it until the level bar sits below red");
     ImGui::BulletText("USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF");
     ImGui::Spacing();
@@ -2621,7 +3253,7 @@ void App::drawHelp() {
       ImGui::EndTable();
     }
     ImGui::Spacing();
-    if (ImGui::Button("Close", ImVec2(S(90), 0))) ImGui::CloseCurrentPopup();
+    if (panelButton("Close", ImVec2(S(90), 0))) ImGui::CloseCurrentPopup();
     ImGui::EndPopup();
   }
 
@@ -2636,7 +3268,7 @@ void App::drawHelp() {
       ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel", ImVec2(S(90), 0))) ImGui::CloseCurrentPopup();
+    if (panelButton("Cancel", ImVec2(S(90), 0))) ImGui::CloseCurrentPopup();
     ImGui::EndPopup();
   }
 }
@@ -2644,6 +3276,19 @@ void App::drawHelp() {
 void App::frame() {
   frameCount_++;
   st_ = rig_.state();
+  if (st_.radio != planRadio_) {
+    // A receiver has more bands and stations than a transceiver would want to see.
+    planRadio_ = st_.radio;
+    choosePlan(plan_.id);
+    stations_ = allStations_.forRadio(!radio().hasTransmit);
+    stationHitsStale_ = true;
+  }
+  if (st_.connected && st_.radio != seenRadio_) {
+    seenRadio_ = st_.radio;
+    rects_.clear();  // the self-test's record of what's on screen: buttons are about to come and go
+    say(std::string("This is an ") + seenRadio_->name + (seenRadio_->hasTransmit ? "" : ", a receiver: it can't transmit"));
+    glfwSetWindowTitle(win_, windowTitle().c_str());
+  }
   if (opt_.demo) {
     demoAudio_.dialHz = st_.hz > 0 ? st_.hz : 14074000;
     demoAudio_.mode = st_.mode >= 0 ? st_.mode : civ::USB;
@@ -2961,6 +3606,25 @@ void App::buildSelfTest() {
   step(settle, [this] { expect("keyed again", sim_->tx()); click("arm"); });
   step(settle, [this] { expect("disarming releases", !sim_->tx() && !st_.txArmed); });
 
+  // ---- the needle meter: a click on the meter swaps it, and it follows what the bars follow
+  step(1, [this] { needleMeter_ = false; click("meters"); });
+  step(10, [this] { expect("a click on the meter gives the needle", needleMeter_); });
+  step(90, [this] {
+    expect("the needle sits on the S reading", fabsf(needle_.pos - needle::signalShare(st_.meter[civ::M_S])) < 0.2f);
+    expect("the backlight is on with a radio connected", meterLamp_ > 0.9f);
+    click("arm");
+  });
+  step(10, [this] { click("ptt"); });
+  step(60, [this] {
+    expect("transmitting, the needle reads power", st_.tx && fabsf(needle_.pos - needle::powerShare(civ::powerWatts(st_.meter[civ::M_PO], radio(), st_.hz), radio().maxWattsAt(st_.hz))) < 0.1f);
+    click("arm");
+  });
+  step(settle, [this] {
+    expect("the needle meter doesn't stop PTT letting go", !sim_->tx());
+    click("meters");
+  });
+  step(10, [this] { expect("another click brings the bars back", !needleMeter_); });
+
   // ---- memories
   step(1, [this, hoverOut] {
     hoverOut();
@@ -2979,6 +3643,198 @@ void App::buildSelfTest() {
     expect("clicking a memory recalls it", sim_->hz() == 7030000);
     if (!memories_.empty()) memories_.pop_back();
     store::saveMemories(memPath_, memories_);
+  });
+
+  // ---- the same window, and now the cable goes to an IC-9700
+  step(1, [this] {
+    rig_.stop();
+    sim_.reset(new SimRig(civ::kRadio9700));
+    rects_.clear();
+    rig_.start([this] { return sim_->newTransport(); });
+  });
+  step(90, [this] {
+    expect("9700: found by asking, with the 7300's address still chosen", st_.connected && st_.radio == &civ::kRadio9700 && st_.rigId == civ::kIc9700);
+    expect("9700: the band buttons are its own", rects_.count("band:2") && rects_.count("band:70") && rects_.count("band:23") && !rects_.count("band:20") && !rects_.count("band:6"));
+    expect("9700: no tuner buttons", !rects_.count("tune"));
+    expect("9700: the title says so", windowTitle().find("IC-9700") != std::string::npos);
+    click("band:70");
+  });
+  step(settle, [this] {
+    expect("9700: 70 goes to 70 cm", sim_->hz() >= 430000000 && sim_->hz() <= 450000000);
+    click("band:23");
+  });
+  step(settle, [this] {
+    expect("9700: 23 goes to 23 cm", sim_->hz() >= 1240000000 && sim_->hz() <= 1300000000);
+    click("mode:DD");
+  });
+  step(settle, [this] {
+    expect("9700: DD can be chosen on 23 cm", sim_->mode() == civ::DD);
+    pressKey(ImGuiKey_PageUp);
+  });
+  step(settle, [this] {
+    expect("9700: Page Up wraps round its own bands", sim_->hz() >= 144000000 && sim_->hz() <= 148000000);
+    pressKey(ImGuiKey_PageDown);
+  });
+  step(settle, [this] {
+    expect("9700: Page Down wraps back", sim_->hz() >= 1240000000);
+    typeText("145.5");
+    pressKey(ImGuiKey_Enter);
+  });
+  step(settle, [this] {
+    expect("9700: typed 145.5 is MHz", sim_->hz() == 145500000);
+    typeText("1296200");
+    pressKey(ImGuiKey_Enter);
+  });
+  step(settle, [this] {
+    expect("9700: typed 1296200 is kHz", sim_->hz() == 1296200000);
+    typeText("14.074");
+    pressKey(ImGuiKey_Enter);
+  });
+  step(settle, [this] {
+    expect("9700: 14.074 is refused", sim_->hz() == 1296200000 && !entry_.empty());
+    pressKey(ImGuiKey_Escape);
+  });
+  step(10, [this] {
+    goMarker(stations_.files[0].stations[0]);
+    expect("9700: an HF station doesn't send it elsewhere", status_.find("isn't on the IC-9700") != std::string::npos);
+    for (const bands::Station& s : stations_.files[0].stations)
+      if (s.hz == 145800000) goMarker(s);
+  });
+  step(settle, [this] {
+    expect("9700: a 2 m station tunes it and sets the mode", sim_->hz() == 145800000 && sim_->mode() == civ::FM);
+    expect("9700: and has its flag on the scope", rects_.count("station:145800000") == 1);
+    typeText("148");
+    pressKey(ImGuiKey_Enter);
+  });
+  step(settle, [this] { setStep(2); pressKey(ImGuiKey_RightArrow); });
+  step(settle, [this] {
+    expect("9700: tuning stops at the top of 2 m", sim_->hz() == 148000000);
+    typeText("145.5");
+    pressKey(ImGuiKey_Enter);
+    rig_.setOtherFreq(145600000);
+  });
+  step(settle, [this] { click("swap"); });
+  step(settle, [this] {
+    expect("9700: A/B swaps the VFOs", sim_->hz() == 145600000 && sim_->otherHz() == 145500000);
+    expect("9700: A/B doesn't exchange MAIN and SUB", !sim_->mainSubExchanged());
+    click("att");
+  });
+  step(settle, [this] {
+    expect("9700: the attenuator takes its own code", sim_->att() == 0x10 && st_.lastError.find("attenuator") == std::string::npos);
+    click("att");
+  });
+  step(settle, [this] {
+    click("mode:DV");
+    expect("9700: nothing has been refused", st_.lastError.empty());
+  });
+  step(settle, [this] { expect("9700: DV is a mode", sim_->mode() == civ::DV); });
+
+  // ---- and now to an IC-R8600, which can't transmit and has a good deal less to control
+  step(1, [this] {
+    rig_.stop();
+    sim_.reset(new SimRig(civ::kRadioR8600));
+    rects_.clear();
+    rig_.start([this] { return sim_->newTransport(); });
+  });
+  step(90, [this] {
+    expect("R8600: found by asking", st_.connected && st_.radio == &civ::kRadioR8600 && st_.rigId == civ::kIcR8600);
+    expect("R8600: the title says so", windowTitle().find("IC-R8600") != std::string::npos);
+    needleMeter_ = true;  // the rest of the receiver's run shows the needle with no power scale on it
+    expect("R8600: nothing that transmits is shown", !rects_.count("arm") && !rects_.count("ptt") && !rects_.count("tune") && !rects_.count("swap"));
+    expect("R8600: no data button", !rects_.count("data"));
+    expect("R8600: three antennas, three attenuator steps", rects_.count("ant:1") && rects_.count("ant:2") && rects_.count("ant:3") && rects_.count("att:30"));
+    expect("R8600: the bands are on a menu", rects_.count("bandmenu") && !rects_.count("band:20"));
+    expect("R8600: the plan has its whole coverage", plan_.bandOf(198000) >= 0 && plan_.bandOf(100000000) >= 0 && plan_.bandOf(1575420000) >= 0 && plan_.bandOf(14074000) >= 0);
+    click("ant:2");
+  });
+  step(settle, [this] {
+    expect("R8600: ANT2 below 30 MHz", sim_->antenna() == 1 && st_.ant == 1);
+    click("ant:3");
+  });
+  step(settle, [this] {
+    expect("R8600: ANT3 below 30 MHz", sim_->antenna() == 2);
+    click("att:20");
+  });
+  step(settle, [this] {
+    expect("R8600: the attenuator takes 20 dB", sim_->att() == 0x20 && st_.attDb == 20);
+    click("att:0");
+  });
+  step(settle, [this] {
+    expect("R8600: and off again", sim_->att() == 0);
+    click("ipplus");
+  });
+  step(settle, [this] {
+    expect("R8600: IP+", sim_->ipPlus() && st_.ipPlus == 1);
+    click("Preamp:ON");
+  });
+  step(settle, [this] {
+    expect("R8600: the preamp is just on or off", st_.sw[civ::S_PREAMP] == 1 && !rects_.count("Preamp:P2"));
+    typeText("100");
+    pressKey(ImGuiKey_Enter);
+  });
+  step(settle, [this] {
+    expect("R8600: typed 100 is MHz", sim_->hz() == 100000000);
+    click("mode:WFM");
+  });
+  step(settle, [this] {
+    expect("R8600: WFM, with no filter byte", sim_->mode() == civ::WFM && sim_->received(0x06).back() == civ::Bytes{civ::WFM});
+    click("ant:1");
+  });
+  step(settle, [this] {
+    expect("R8600: above 30 MHz, only ANT1", st_.ant == 0);
+    click("ant:2");  // disabled, so nothing should come of it
+  });
+  step(settle, [this] {
+    expect("R8600: ANT2 does nothing above 30 MHz", st_.ant == 0 && st_.lastError.find("antenna") == std::string::npos);
+    click("modes:digital");
+  });
+  step(settle, [this] { click("mode:P25"); });
+  step(settle, [this] {
+    expect("R8600: a digital mode from its menu", sim_->mode() == civ::P25);
+    click("bandmenu");
+  });
+  step(settle, [this] {
+    expect("R8600: the band menu opens on its groups", rects_.count("bandgroup:Amateur") && rects_.count("bandgroup:Aviation"));
+    pressKey(ImGuiKey_Escape);
+  });
+  step(settle, [this] {
+    int b = plan_.bandOf(121500000);
+    expect("R8600: 121.5 MHz is on a band", b >= 0 && plan_.bands[(size_t)b].group == "Aviation");
+    if (b >= 0) goBand(b);
+  });
+  step(settle, [this] {
+    expect("R8600: a band's mode goes with it", sim_->mode() == civ::AM && sim_->hz() >= 118000000 && sim_->hz() <= 137000000);
+    bool found = false;
+    for (const bands::Station& s : stations_.find("receiver")->stations)
+      if (s.hz == 156800000) {
+        goMarker(s);
+        found = true;
+      }
+    expect("R8600: marine channel 16 is listed", found);
+  });
+  step(settle, [this] {
+    expect("R8600: a station sets its mode", sim_->hz() == 156800000 && sim_->mode() == civ::FM);
+    expect("R8600: and has its flag on the scope", rects_.count("station:156800000") == 1);
+    expect("R8600: never asked to transmit", sim_->received(0x1C).empty() && !sim_->tx());
+    expect("R8600: never asked for a second VFO", sim_->received(0x0F).empty() && sim_->received(0x21).empty() && sim_->received(0x25).empty() && sim_->received(0x26).empty());
+    expect("R8600: nothing has been refused", sim_->refusals() == 0);
+  });
+  // ---- and back, in case the receiver's bands and stations have stuck
+  step(1, [this] {
+    rig_.stop();
+    sim_.reset(new SimRig(civ::kRadio7300));
+    rects_.clear();
+    rig_.start([this] { return sim_->newTransport(); });
+  });
+  step(90, [this] {
+    expect("7300 again: its buttons are back", st_.radio == &civ::kRadio7300 && rects_.count("band:20") && rects_.count("arm") && !rects_.count("ant:1"));
+    expect("7300 again: the receiver's bands are gone", plan_.bandOf(100000000) < 0 && plan_.bandOf(9700000) < 0);
+    expect("7300 again: so are its stations", stations_.find("receiver") == nullptr);
+    expect("the clock button is beside the time", rects_.count("clocksync") == 1);
+    click("clocksync");
+  });
+  step(settle, [this] {
+    expect("the clock button reports back", status_.find("no time server asked") != std::string::npos && !clockSync_);
   });
   step(5, [this] { testDone_ = true; });
 }
@@ -3009,7 +3865,10 @@ void App::runSelfTest() {
 int App::run() {
   loadSettings();
   openSettings_ = opt_.settings;
-  if (opt_.demo) sim_.reset(new SimRig);
+  if (opt_.demo) {
+    seenRadio_ = opt_.demoRadio == 9700 ? &civ::kRadio9700 : opt_.demoRadio == 8600 ? &civ::kRadioR8600 : &civ::kRadio7300;
+    sim_.reset(new SimRig(*seenRadio_));
+  }
 
   glfwSetErrorCallback(glfwError);
   if (!glfwInit()) return 1;
@@ -3049,8 +3908,7 @@ int App::run() {
     w = std::min(w, waW);
     h = std::min(h, waH - (int)(40 * scale_));  // room for the title bar
   }
-  std::string title = opt_.demo ? "IC-7300 Console  [DEMO: simulated radio]" : "IC-7300 Console";
-  win_ = glfwCreateWindow(w, h, title.c_str(), nullptr, nullptr);
+  win_ = glfwCreateWindow(w, h, windowTitle().c_str(), nullptr, nullptr);
   if (!win_) {
     glfwTerminate();
     return 1;

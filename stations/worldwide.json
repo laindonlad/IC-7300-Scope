@@ -1,7 +1,7 @@
 {
   "name": "Worldwide stations",
   "revision": "2026-11",
-  "source": "NOAA Worldwide Marine Radiofacsimile Broadcast Schedules (7 March 2025); NWS USCG broadcast pages; 47 CFR 80.1077 (GMDSS); Australian Bureau of Meteorology; Priyom (French Navy, HFGCS); M7SPI list after Priyom (Russia, 2022); G4NSJ (Volmet, LDOC); Milcom Monitoring Post (NAT, 2015); hfunderground wiki (DWD RTTY, ZLM); udxf.nl (HFDL); Wikipedia (time signals, long wave at September 2026, broadcast bands).",
+  "source": "NOAA Worldwide Marine Radiofacsimile Broadcast Schedules (7 March 2025); NWS USCG broadcast pages; 47 CFR 80.1077 (GMDSS); Australian Bureau of Meteorology; Priyom (French Navy, HFGCS); M7SPI list after Priyom (Russia, 2022); G4NSJ (Volmet, LDOC); Milcom Monitoring Post (NAT, 2015); hfunderground wiki (DWD RTTY, ZLM); udxf.nl (HFDL); Wikipedia (time signals, long wave at September 2026, broadcast bands); ARISS station status, 27 October 2026 (ISS); AMSAT FM and linear satellite frequency summaries, 31 October 2026 (satellites); oz7igy.dk and GB3NGI's keeper (beacons); Motorola Solutions and the PMR446 and LPD433 channel plans (licence-free bands).",
   "note": "For listening only: nothing here is yours to transmit on, and most is someone's safety or working traffic. Some countries, the UK among them, make it an offence to listen to messages not meant for you or to pass them on. These lists come from public and hobby sources of varying age, so a flag doesn't promise a signal.",
   "groups": [
     {
@@ -473,6 +473,64 @@
         {"khz": 252, "label": "Alger", "note": "Alger Chaine 3, Algeria. Intermittent"}
       ]
     }
+,
+    {
+      "service": "amateur", "name": "International Space Station", "mode": "FM",
+      "note": "Status from ARISS at 27 October 2026; the radios are often reconfigured or off. Passes last minutes and Doppler moves the signal, by about 3 kHz on 2 m and 10 kHz on 70 cm, so look either side of the flag.",
+      "stations": [
+        {"khz": 145800, "label": "ISS", "note": "Scheduled voice contacts and SSTV events"},
+        {"khz": 145825, "label": "ISS APRS", "mode": "FM-D", "note": "The usual packet frequency. Not in use at the date below: APRS was on 437.825 instead"},
+        {"khz": 437800, "label": "ISS rpt", "note": "Cross-band voice repeater downlink. Active"},
+        {"khz": 437825, "label": "ISS APRS", "mode": "FM-D", "note": "APRS, RS0ISS. Active, while the radio is being tested"}
+      ]
+    },
+    {
+      "service": "amateur", "name": "Satellites: FM", "mode": "FM",
+      "note": "Amateur FM satellites, from AMSAT's summary of 31 October 2026. Many only switch on to a schedule. Passes last minutes and Doppler moves the signal, by about 3 kHz on 2 m and 10 kHz on 70 cm, so look either side of the flag.",
+      "stations": [
+        {"khz": 145900, "label": "PO-101", "note": "Diwata-2. Appears to be failing. Transponder runs to a schedule"},
+        {"khz": 145960, "label": "AO-91", "note": "RadFxSat / Fox-1B. Weak battery, so sunlit passes only"},
+        {"khz": 435400, "label": "AO-123", "note": "ASRTU-1"},
+        {"khz": 435880, "label": "IO-86", "mode": "FM-D", "note": "LAPAN-A2. APRS, on a schedule. Passes within 30 degrees of the equator"},
+        {"khz": 436795, "label": "SO-50", "note": "SaudiSat-1C. Only on when a user has armed its 10-minute timer"},
+        {"khz": 436950, "label": "RS95S", "note": "QMR-KWT-2. Active during testing, including SSTV images"},
+        {"khz": 437200, "label": "CAS-3H", "note": "LilacSat-2. No set schedule. Telemetry here when the transponder is off"}
+      ]
+    },
+    {
+      "service": "amateur", "name": "Satellites: linear transponders", "mode": "USB",
+      "note": "Amateur SSB and CW satellites, from AMSAT's summary of 31 October 2026. The flag sits mid-passband; the note gives its edges. Passes last minutes and Doppler moves the signal, by about 3 kHz on 2 m and 10 kHz on 70 cm, so look either side of the flag.",
+      "stations": [
+        {"khz": 145865, "label": "JO-97", "note": "JY1Sat. Passband 145.855-145.875. Telemetry inoperative"},
+        {"khz": 145925, "label": "TO-108", "note": "CAS-6. Passband 145.915-145.935. Intermittent, about 2 seconds on and 5 off"},
+        {"khz": 145950, "label": "AO-7", "note": "Mode B. Passband 145.925-145.975. Launched in 1974 and works in sunlight only"},
+        {"khz": 145960, "label": "AO-73", "note": "FUNcube-1. Passband 145.950-145.970. Works in eclipse"},
+        {"khz": 435640, "label": "RS-44", "note": "Passband 435.610-435.670"},
+        {"khz": 435850, "label": "FO-29", "note": "JAS-2. Passband 435.800-435.900. Runs to a schedule, in sunlight"}
+      ]
+    },
+    {
+      "service": "amateur", "name": "Satellites: beacons", "mode": "CW",
+      "note": "Telemetry beacons, the easiest way to find a satellite on the scope. From AMSAT's summary of 31 October 2026. Passes last minutes and Doppler moves the signal, by about 3 kHz on 2 m and 10 kHz on 70 cm, so look either side of the flag.",
+      "stations": [
+        {"khz": 145910, "label": "TO-108 bcn", "note": "CAS-6. Currently carrier only"},
+        {"khz": 145935, "label": "AO-73 tlm", "mode": "USB-D", "note": "FUNcube-1. 1k2 BPSK telemetry, decoded by PC software"},
+        {"khz": 435605, "label": "RS-44 bcn", "note": "RS-44 CW beacon"},
+        {"khz": 435795, "label": "FO-29 bcn", "note": "JAS-2 CW beacon"}
+      ]
+    },
+    {
+      "service": "amateur", "name": "Beacons: 2 m, 70 cm and 23 cm", "mode": "CW",
+      "note": "A few long-running beacons, from their keepers' own pages. There are many more: this isn't a full list, and few will be heard without a tropo opening.",
+      "stations": [
+        {"khz": 144471, "label": "OZ7IGY", "note": "Denmark. On the air on 2 m since 1957"},
+        {"khz": 144482, "label": "GB3NGI", "note": "Northern Ireland"},
+        {"khz": 432471, "label": "OZ7IGY", "note": "Denmark"},
+        {"khz": 432482, "label": "GB3NGI", "note": "Northern Ireland"},
+        {"khz": 1296905, "label": "GB3NGI", "note": "Northern Ireland"},
+        {"khz": 1296930, "label": "OZ7IGY", "note": "Denmark"}
+      ]
+    }
   ],
   "ranges": [
     {"from": 148.5, "to": 283.5, "service": "broadcast", "label": "Long wave broadcast", "note": "Regions 1 and 3 only"},
@@ -490,6 +548,8 @@
     {"from": 17480, "to": 17900, "service": "broadcast", "label": "16 m broadcast"},
     {"from": 18900, "to": 19020, "service": "broadcast", "label": "15 m broadcast"},
     {"from": 21450, "to": 21850, "service": "broadcast", "label": "13 m broadcast"},
-    {"from": 25670, "to": 26100, "service": "broadcast", "label": "11 m broadcast"}
+    {"from": 25670, "to": 26100, "service": "broadcast", "label": "11 m broadcast"},
+    {"from": 433050, "to": 434790, "service": "commercial", "label": "LPD433", "note": "Licence-free low-power radios, 69 channels from 433.075 to 434.775 MHz, plus remote controls and sensors. Europe. It shares the 70 cm amateur band"},
+    {"from": 446000, "to": 446200, "service": "commercial", "label": "PMR446", "note": "Licence-free handheld radios, 16 channels. Channel 1, 446.00625 MHz, is the usual calling channel. Europe and elsewhere. An IC-9700 that stops at 440 MHz refuses this"}
   ]
 }

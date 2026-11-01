@@ -12,7 +12,8 @@ std::string guessRigPort(const std::vector<SerialPortInfo>& ports) {
       if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
     return s;
   };
-  for (const char* want : {"ic-7300", "ic7300", "cp210", "silicon labs", "slab_usb"})
+  // A 9700's dual bridge shows two ports. CI-V is on the one called Enhanced; Standard carries other data.
+  for (const char* want : {"ic-7300", "ic7300", "ic-9700", "ic9700", "ic-r8600", "icr8600", "enhanced com", "cp210", "silicon labs", "slab_usb"})
     for (const auto& p : ports)
       if (lower(p.desc + " " + p.name).find(want) != std::string::npos) return p.name;
   return "";

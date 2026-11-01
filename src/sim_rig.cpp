@@ -40,10 +40,15 @@ std::vector<SimSignal> simSignals(long long loHz, long long hiHz) {
 
 struct SimRig::Shared {
   std::mutex m;
+  const civ::Radio* radio = &civ::kRadio7300;
+  uint8_t addr = civ::kIc7300, id = civ::kIc7300;
+  bool exchanged = false;
   long long hz = 14074000, otherHz = 14200000;
   int mode = civ::USB, filter = 1, otherMode = civ::USB, otherFilter = 1, width = 34, split = 0, att = 0, atu = 1;
   bool data = true, otherData = false, tx = false;
   int ritHz = 0, ritOn = 0, xitOn = 0;
+  int ant = 0, ipPlus = 0;
+  int refusals = 0;
   int level[civ::L_COUNT], sw[civ::S_COUNT];
   int scopeOn = 1, scopeOut = 0, scopeMode = civ::SCOPE_CENTER, scopeSpeed = 1;
   long long scopeSpan = 100000;
@@ -70,13 +75,37 @@ struct SimRig::Shared {
 
   void reply(uint8_t cmd, const civ::Bytes& d, uint8_t to = civ::kPc) {
     if (silent) return;
-    civ::Bytes f = {0xFE, 0xFE, to, civ::kIc7300, cmd};
+    civ::Bytes f = {0xFE, 0xFE, to, addr, cmd};
     f.insert(f.end(), d.begin(), d.end());
     f.push_back(0xFD);
     rx.insert(rx.end(), f.begin(), f.end());
   }
   void ok() { reply(civ::kOk, {}); }
-  void ng() { reply(civ::kNg, {}); }
+  void ng() {
+    refusals++;
+    reply(civ::kNg, {});
+  }
+  // What a receiver has no such command for, going by its CI-V guide.
+  bool absent(const civ::Frame& f, uint8_t sub) const {
+    if (radio->hasTransmit) return false;
+    switch (f.cmd) {
+      case 0x07: return !f.data.empty();  // 07 alone is "VFO mode"; there's no second VFO to do anything with
+      case 0x0F: case 0x17: case 0x21: case 0x28: return true;
+      case 0x14:
+        for (int l = 0; l < civ::L_COUNT; l++)
+          if (civ::levelSub(l) == sub) return civ::levelIsTx(l);
+        return false;
+      case 0x15: return sub != civ::meterSub(civ::M_S) && sub != civ::kSquelchStatus && sub != civ::kOverflowStatus;
+      case 0x16:
+        for (int s = 0; s < civ::S_COUNT; s++)
+          if (civ::switchSub(s) == sub) return civ::switchIsTx(s);
+        return false;
+      case 0x1A: return sub == 0x06;
+      case 0x1C: return sub != 0x02;
+      case 0x25: case 0x26: return sub != 0x00;
+    }
+    return false;
+  }
 
   static civ::Bytes prefixed(uint8_t a, const civ::Bytes& b) {
     civ::Bytes d = {a};
@@ -100,7 +129,8 @@ struct SimRig::Shared {
 
   void handle(const civ::Frame& f) {
     log.push_back(f);
-    if (f.to != civ::kIc7300) return;
+    // It only takes "who's there" from the broadcast address: that's all anything sends it.
+    if (f.to != addr && !(f.to == civ::kBroadcast && f.cmd == 0x19)) return;
     if (refuse == f.cmd) {
       refuse = -1;
       ng();
@@ -108,21 +138,26 @@ struct SimRig::Shared {
     }
     const civ::Bytes& d = f.data;
     uint8_t sub = d.empty() ? 0xFF : d[0];
+    if (absent(f, sub)) return ng();
     switch (f.cmd) {
       case 0x03: reply(0x03, civ::bcdLE(hz, 5)); break;
       case 0x04: reply(0x04, {(uint8_t)mode, (uint8_t)filter}); break;
       case 0x05:
-        if (d.size() >= 5) hz = civ::fromBcdLE(d.data(), 5), setFreqs++, ok();
+        if (d.size() >= 5 && radio->canTune(civ::fromBcdLE(d.data(), 5))) hz = civ::fromBcdLE(d.data(), 5), setFreqs++, ok();
         else ng();
         break;
       case 0x06:
+        if (!radio->hasTransmit && !d.empty() && d[0] == civ::DD) return ng();
         if (!d.empty()) mode = d[0];
         if (d.size() >= 2) filter = d[1];
         ok();
         break;
       case 0x07:
+        if (sub == 0xD0 && !radio->hasMainSub) return ng();
         if (sub == 0xA0) otherHz = hz, otherMode = mode, otherData = data, otherFilter = filter;
-        if (sub == 0xB0) {
+        if (sub == 0xB0 && radio->hasMainSub) {
+          exchanged = true;
+        } else if (sub == 0xB0) {
           std::swap(hz, otherHz);
           std::swap(mode, otherMode);
           std::swap(data, otherData);
@@ -135,8 +170,24 @@ struct SimRig::Shared {
         else split = d[0], ok();
         break;
       case 0x11:
-        if (d.empty()) reply(0x11, {(uint8_t)att});
-        else att = d[0], ok();
+        if (d.empty()) {
+          reply(0x11, {(uint8_t)att});
+        } else {
+          bool known = d[0] == 0;
+          for (int i = 1; i <= radio->attSteps; i++) known = known || civ::fromBcdBE(&d[0], 1) == radio->attDb * i;
+          if (known) att = d[0], ok();
+          else ng();
+        }
+        break;
+      case 0x12:
+        if (radio->antennas <= 1) return ng();
+        if (d.empty()) {
+          reply(0x12, {(uint8_t)(hz < radio->antennaSwitchBelowHz ? ant : 0)});
+        } else if (d[0] >= radio->antennas || (d[0] > 0 && hz >= radio->antennaSwitchBelowHz)) {
+          ng();
+        } else {
+          ant = d[0], ok();
+        }
         break;
       case 0x14:
         for (int l = 0; l < civ::L_COUNT; l++)
@@ -148,6 +199,8 @@ struct SimRig::Shared {
         ng();
         break;
       case 0x15:
+        if (sub == civ::kSquelchStatus) return reply(0x15, {sub, 1});
+        if (sub == civ::kOverflowStatus) return reply(0x15, {sub, 0});
         for (int m = 0; m < civ::M_COUNT; m++)
           if (civ::meterSub(m) == sub) {
             reply(0x15, prefixed(sub, civ::bcdBE(meter(m), 2)));
@@ -158,6 +211,7 @@ struct SimRig::Shared {
       case 0x16:
         for (int s = 0; s < civ::S_COUNT; s++)
           if (civ::switchSub(s) == sub) {
+            if (d.size() >= 2 && s == civ::S_PREAMP && radio->singlePreamp && d[1] > 1) return ng();
             if (d.size() >= 2) sw[s] = d[1], ok();
             else reply(0x16, {sub, (uint8_t)sw[s]});
             return;
@@ -169,7 +223,7 @@ struct SimRig::Shared {
       case 0x28:
         ok();
         break;
-      case 0x19: reply(0x19, {0x00, civ::kIc7300}); break;
+      case 0x19: reply(0x19, {0x00, id}); break;
       case 0x1A:
         if (sub == 0x03) {
           if (d.size() >= 2) width = civ::fromBcdBE(&d[1], 1), ok();
@@ -177,6 +231,9 @@ struct SimRig::Shared {
         } else if (sub == 0x06) {
           if (d.size() >= 2) data = d[1] != 0, ok();
           else reply(0x1A, {0x06, (uint8_t)(data ? 1 : 0), (uint8_t)(data ? filter : 0)});
+        } else if (sub == 0x07 && radio->hasIpPlus) {
+          if (d.size() >= 2) ipPlus = d[1], ok();
+          else reply(0x1A, {0x07, (uint8_t)ipPlus});
         } else {
           ng();
         }
@@ -192,7 +249,7 @@ struct SimRig::Shared {
           } else {
             reply(0x1C, {0x00, (uint8_t)(tx ? 1 : 0)});
           }
-        } else if (sub == 0x01) {
+        } else if (sub == 0x01 && radio->hasTuner) {
           if (d.size() >= 2) atu = d[1] == 2 ? 1 : d[1], ok();
           else reply(0x1C, {0x01, (uint8_t)atu});
         } else {
@@ -212,7 +269,7 @@ struct SimRig::Shared {
         } else if (sub == 0x01) {
           if (d.size() >= 2) ritOn = d[1], ok();
           else reply(0x21, {0x01, (uint8_t)ritOn});
-        } else if (sub == 0x02) {
+        } else if (sub == 0x02 && radio->hasXit) {
           if (d.size() >= 2) xitOn = d[1], ok();
           else reply(0x21, {0x02, (uint8_t)xitOn});
         } else {
@@ -242,6 +299,7 @@ struct SimRig::Shared {
 
   void handleScope(const civ::Bytes& d) {
     if (d.empty()) return ng();
+    if (d[0] == 0x12 && radio->hasMainSub) return ok();
     switch (d[0]) {
       case 0x10:
         if (d.size() >= 2) scopeOn = d[1], ok();
@@ -378,7 +436,24 @@ class SimTransport : public Transport {
 };
 }  // namespace
 
-SimRig::SimRig() : s_(std::make_shared<Shared>()) {}
+SimRig::SimRig(const civ::Radio& radio) : s_(std::make_shared<Shared>()) {
+  s_->radio = &radio;
+  s_->addr = s_->id = radio.addr;
+  if (radio.addr == civ::kIc9700) {
+    // On 2 m, listening to the FM calling frequency's neighbourhood. No tuner, and the attenuator off.
+    s_->hz = 145500000, s_->otherHz = 145600000;
+    s_->mode = s_->otherMode = civ::FM;
+    s_->data = false;
+    s_->width = 0;
+  }
+  if (radio.addr == civ::kIcR8600) {
+    // A shortwave broadcaster, so the antennas can be changed from the start. The second VFO's values are never asked for.
+    s_->hz = 9700000, s_->otherHz = 9700000;
+    s_->mode = s_->otherMode = civ::AM;
+    s_->data = false;
+    s_->width = 34;
+  }
+}
 SimRig::~SimRig() = default;
 Transport* SimRig::newTransport() { return new SimTransport(s_); }
 
@@ -389,6 +464,18 @@ bool SimRig::data() { LOCKED; return s_->data; }
 int SimRig::filter() { LOCKED; return s_->filter; }
 bool SimRig::tx() { LOCKED; return s_->tx; }
 bool SimRig::scopeOutput() { LOCKED; return s_->scopeOut != 0; }
+long long SimRig::otherHz() { LOCKED; return s_->otherHz; }
+int SimRig::otherMode() { LOCKED; return s_->otherMode; }
+int SimRig::att() { LOCKED; return s_->att; }
+int SimRig::antenna() { LOCKED; return s_->ant; }
+bool SimRig::ipPlus() { LOCKED; return s_->ipPlus != 0; }
+int SimRig::refusals() { LOCKED; return s_->refusals; }
+bool SimRig::mainSubExchanged() { LOCKED; return s_->exchanged; }
+void SimRig::setCivAddress(uint8_t addr, bool idFollows) {
+  LOCKED;
+  s_->addr = addr;
+  if (idFollows) s_->id = addr;
+}
 int SimRig::setFreqCount() { LOCKED; return s_->setFreqs; }
 int SimRig::pttOffCount() { LOCKED; return s_->pttOffs; }
 std::vector<civ::Bytes> SimRig::received(uint8_t cmd) {

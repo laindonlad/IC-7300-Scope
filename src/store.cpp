@@ -245,6 +245,7 @@ std::string adifRecord(const LogEntry& e, const std::string& stationCall) {
   else if (e.mode == "RTTY" || e.mode == "RTTY-R") mode = "RTTY";
   else if (e.mode == "AM") mode = "AM";
   else if (e.mode == "FM") mode = "FM";
+  else if (e.mode == "DV") mode = "DIGITALVOICE", adifField(out, "SUBMODE", "DSTAR");
   else if (!e.mode.empty()) notes = notes.empty() ? "Rig mode " + e.mode : notes + " (rig mode " + e.mode + ")";
   adifField(out, "MODE", mode);
   adifField(out, "RST_SENT", e.rstSent);
@@ -257,7 +258,7 @@ std::string adifRecord(const LogEntry& e, const std::string& stationCall) {
 }
 
 bool exportAdif(const std::string& path, const std::vector<LogEntry>& log, const std::string& stationCall) {
-  std::string t = "IC-7300 Console log export\n<ADIF_VER:5>3.1.4 <PROGRAMID:14>IC7300 Console <EOH>\n";
+  std::string t = APP_NAME " log export\n<ADIF_VER:5>3.1.4 <PROGRAMID:" + std::to_string(sizeof(APP_NAME) - 1) + ">" APP_NAME " <EOH>\n";
   for (const LogEntry& e : log) t += adifRecord(e, stationCall);
   return saveText(path, t);
 }

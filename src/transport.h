@@ -26,5 +26,5 @@ struct SerialPortInfo {
 std::vector<SerialPortInfo> listSerialPorts();
 // Opening never raises RTS or DTR for long, as the 7300 can be set to key on either.
 Transport* newSerialTransport(const std::string& port, int baud);
-// The port most likely to be an IC-7300's (its USB bridge is a Silicon Labs CP210x), or "".
+// The port most likely to be the radio's (the USB bridge is a Silicon Labs CP210x), or "".
 std::string guessRigPort(const std::vector<SerialPortInfo>& ports);

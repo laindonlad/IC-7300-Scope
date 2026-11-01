@@ -3,6 +3,7 @@
 
 struct AppOptions {
   bool demo = false;      // a simulated rig and audio; touches no hardware and no saved settings
+  int demoRadio = 7300;   // with demo: which radio to pretend to be, 7300, 9700 or 8600
   bool noRig = false;     // audio only: leaves the serial port alone
   std::string port;       // overrides the saved port for this run
   std::string screenshot; // saves the window as a BMP after screenshotFrames, then quits
@@ -12,6 +13,7 @@ struct AppOptions {
   int tab = 0;            // which right-hand tab starts open, for screenshots
   bool settings = false;  // starts with the Settings dialog open, for screenshots
   long long tuneHz = 0;   // tunes here soon after starting, for screenshots
+  bool needle = false;    // starts with the needle meter, for screenshots
   std::string find;       // starts with Find a station showing this search, for screenshots
 };
 

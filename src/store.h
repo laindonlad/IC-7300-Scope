@@ -4,6 +4,11 @@
 #include <string>
 #include <vector>
 
+// The program's name, wherever people read it. A literal, so it can join other literals.
+// Not the executables' or the data folder's names: those can't hold a slash, and renaming the folder would
+// strand everyone's settings, memories and log.
+#define APP_NAME "IC-7300 / IC9700 / IC-R8600 Receiver Console"
+
 namespace store {
 // Per-user folder: %APPDATA%\IC7300Console, ~/Library/Application Support/IC7300Console, or
 // ~/.config/ic7300console. Created if needed.

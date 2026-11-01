@@ -14,7 +14,9 @@
 
 #include "bands.h"
 #include "civ.h"
+#include "clock_sync.h"
 #include "dsp.h"
+#include "needle.h"
 #include "rig.h"
 #include "sim_rig.h"
 #include "store.h"
@@ -161,6 +163,39 @@ static void testTuning() {
   CHECK(parseFreq("0", d) == -1);
   CHECK(parseFreq("144.8m", d) == -1);   // beyond the rig
   CHECK(parseFreq("10k", d) == -1);      // below it
+  // A 9700's numbers mean something else, and it has gaps between its bands.
+  {
+    const civ::Radio& r = civ::kRadio9700;
+    CHECK(parseFreq("145.5", 145000000, r) == 145500000);
+    CHECK(parseFreq("145500", 145000000, r) == 145500000);
+    CHECK(parseFreq("145500000", 145000000, r) == 145500000);
+    CHECK(parseFreq("433.5", 145000000, r) == 433500000);
+    CHECK(parseFreq("1296", 145000000, r) == 1296000000);
+    CHECK(parseFreq("1296.200.000", 145000000, r) == 1296200000);
+    CHECK(parseFreq("1296200", 145000000, r) == 1296200000);
+    CHECK(parseFreq("145.5m", 145000000, r) == 145500000);
+    CHECK(parseFreq("+5", 145000000, r) == 145005000);
+    CHECK(parseFreq("14.074", 145000000, r) == -1);  // HF
+    CHECK(parseFreq("200", 145000000, r) == -1);     // between bands
+    CHECK(parseFreq("+5000", 145000000, r) == -1);   // off the top of 2 m
+    CHECK(tuning::stepFreq(147999000, 1000, 5, r) == 148000000);
+    CHECK(tuning::stepFreq(144000000, 1000, -1, r) == 144000000);
+    CHECK(tuning::stepFreq(1296200123, 1000, 1, r) == 1296201000);
+    CHECK(tuning::formatHz(1296200000) == "1296.200.000");
+    CHECK(r.clamp(148000001) == 148000000);
+    CHECK(r.clamp(200000000) == 148000000);
+    CHECK(r.clamp(400000000) == 430000000);
+    CHECK(r.maxWattsAt(145000000) == 100 && r.maxWattsAt(433000000) == 75 && r.maxWattsAt(1296000000) == 10);
+    CHECK(civ::kRadio7300.clamp(100000000) == 74800000);
+  }
+  CHECK(tuning::rfFromAudio(145000000, civ::DV, 1000, 600) == -1);
+  CHECK(civ::widthCodeMax(civ::DV) == -1 && civ::widthCodeMax(civ::DD) == -1);
+  CHECK(std::string(civ::modeName(civ::DV)) == "DV");
+  CHECK(fabs(civ::powerWatts(143, civ::kRadio9700, 433000000) - 37.5) < 0.01);  // 143 is half power
+  CHECK(fabs(civ::powerWatts(213, civ::kRadio9700, 1296000000) - 10) < 0.01);
+  CHECK(fabs(civ::powerWatts(143, civ::kRadio7300, 14000000) - 50) < 0.01);
+  CHECK(fabs(civ::compDb(210, civ::kRadio9700) - 25.5) < 0.01);
+  CHECK(civ::radioForId(0x94) == &civ::kRadio7300 && civ::radioForId(0xA2) == &civ::kRadio9700 && !civ::radioForId(0x98));
 
   CHECK(tuning::formatHz(14074000) == "14.074.000");
   CHECK(tuning::formatHz(7000500) == "7.000.500");
@@ -201,6 +236,8 @@ static void testBandPlans() {
   for (const std::string& e : lib.errors) printf("  %s\n", e.c_str());
   CHECK(lib.errors.empty());
   CHECK(lib.plans.size() == 9);
+  // What a transceiver sees. A receiver's own bands are tested below.
+  for (bands::Plan& p : lib.plans) p = p.forRadio(false);
   for (const bands::Plan& plan : lib.plans) {
     CHECK(!plan.name.empty() && !plan.source.empty() && !plan.revision.empty());
     for (const bands::Band& b : plan.bands) {
@@ -211,7 +248,7 @@ static void testBandPlans() {
       }
       for (size_t i = 1; i < b.segments.size(); i++) CHECK(b.segments[i].lo >= b.segments[i - 1].hi);
     }
-    for (size_t i = 1; i < plan.bands.size(); i++) CHECK(plan.bands[i].lo > plan.bands[i - 1].hi);
+    for (size_t i = 1; i < plan.bands.size(); i++) CHECK(plan.bands[i].lo >= plan.bands[i - 1].hi);
   }
 
   const bands::Plan* uk = lib.find("uk");
@@ -242,6 +279,32 @@ static void testBandPlans() {
   CHECK(std::string(bands::adifBand(3900000)) == "80M");
   CHECK(std::string(bands::adifBand(14074000)) == "20M");
   CHECK(std::string(bands::adifBand(15000000)).empty());
+  CHECK(std::string(bands::adifBand(145500000)) == "2M");
+  CHECK(std::string(bands::adifBand(433500000)) == "70CM");
+  CHECK(std::string(bands::adifBand(1296200000)) == "23CM");
+
+  // Every plan has the 9700's three bands, each somewhere the radio can go, and a 7300 is told nothing new.
+  for (const bands::Plan& plan : lib.plans) {
+    int onNine = 0;
+    for (const bands::Band& b : plan.bands) {
+      bool nine = civ::kRadio9700.canTune(b.homeHz), seven = civ::kRadio7300.canTune(b.homeHz);
+      CHECK(nine != seven);  // each band belongs to exactly one radio
+      if (!nine) continue;
+      onNine++;
+      CHECK(b.unit == (b.name == "2" ? "m" : "cm"));
+      for (const bands::Marker& m : b.markers)
+        if (m.preset()) {
+          if (!civ::kRadio9700.canTune(m.tuneHz())) printf("  %s %s: preset %s is off the radio\n", plan.id.c_str(), b.name.c_str(), m.label.c_str());
+          CHECK(civ::kRadio9700.canTune(m.tuneHz()));
+          CHECK(m.label.size() <= 5);
+        }
+    }
+    if (onNine != 3) printf("  %s has %d bands for the 9700\n", plan.id.c_str(), onNine);
+    CHECK(onNine == 3);
+  }
+  CHECK(std::string(uk->bands[uk->bandOf(145500000)].title()) == "2 m");
+  CHECK(std::string(uk->bands[uk->bandOf(433500000)].title()) == "70 cm");
+  CHECK(uk->bands[uk->bandOf(14074000)].title() == "20 m");
 
   // What goes wrong in a file somebody's edited.
   auto errorOf = [](const std::string& json) {
@@ -294,6 +357,20 @@ static void testBandPlans() {
   bands::installPlans(dir.string());
   CHECK(read("uk.json") == plan(good));
   CHECK(bands::loadPlans(dir.string()).find("uk")->name == "T");
+  // A copy from before the VHF plans still gets them, without touching the file, and stays in order.
+  {
+    bands::Library l = bands::loadPlans(dir.string());
+    const bands::Plan* edited = l.find("uk");
+    CHECK(edited->bandOf(7010000) >= 0 && edited->bandOf(145500000) >= 0 && edited->bandOf(1296200000) >= 0);
+    for (size_t i = 1; i < edited->bands.size(); i++) CHECK(edited->bands[i].lo >= edited->bands[i - 1].hi);
+    CHECK(read("uk.json") == plan(good));
+  }
+  // But one with a VHF band of its own has decided for itself.
+  write("uk.json", "{\"name\": \"T\", \"bands\": [{\"name\": \"2\", \"home_khz\": 145000, \"home_mode\": \"FM\", \"segments\": [{\"from\": 144000, \"to\": 146000, \"use\": \"fm\"}]}]}");
+  CHECK(bands::loadPlans(dir.string()).find("uk")->bandOf(433500000) == -1);
+  write("uk.json", plan(good));
+  // A unit's checked, and defaults to metres.
+  CHECK(errorOf(plan(good, "\"home_khz\": 7010, \"home_mode\": \"CW\", \"unit\": \"ft\"")).find("unit") != std::string::npos);
   // A new file is a new plan.
   write("ireland.json", plan(good));
   CHECK(bands::loadPlans(dir.string()).plans.size() == 10);
@@ -315,20 +392,22 @@ static void testBandPlans() {
 
 static void testStations() {
   namespace fs = std::filesystem;
-  bands::Stations lib = bands::builtinStations();
+  // What a transceiver sees. A receiver's own stations are tested below.
+  bands::Stations lib = bands::builtinStations().forRadio(false);
   for (const std::string& e : lib.errors) printf("  %s\n", e.c_str());
   CHECK(lib.errors.empty());
+  CHECK(lib.find("receiver") == nullptr);
   const bands::StationFile* w = lib.find("worldwide");
   CHECK(w != nullptr);
   if (!w) return;
   CHECK(!w->source.empty() && !w->revision.empty() && !w->note.empty());
   CHECK(w->stations.size() > 300);
-  bool service[bands::S_COUNT] = {};
+  bool service[bands::S_AVIATION] = {};  // the services before those only a receiver's list uses
   std::map<long long, const bands::Station*> at;
   for (const bands::Station& s : w->stations) {
     service[s.service] = true;
     CHECK(s.preset());
-    CHECK(s.tuneHz() >= 30000 && s.tuneHz() <= 74800000);
+    CHECK(civ::kRadio7300.canTune(s.tuneHz()) || civ::kRadio9700.canTune(s.tuneHz()));
     CHECK(!s.label.empty() && !s.group.empty() && !s.note.empty());
     at[s.hz] = &s;
     // Nothing's listed twice in one group.
@@ -347,6 +426,21 @@ static void testStations() {
   // Stations that have closed down.
   CHECK(!at.count(3330000) && !at.count(7850000) && !at.count(14670000));  // CHU, June 2026
   CHECK(!at.count(198000));  // BBC Radio 4 long wave, June 2026
+  // The 9700's bands have stations too, each on a band of its own.
+  {
+    int on[3] = {};
+    for (const bands::Station& s : w->stations) {
+      on[0] += s.hz >= 144000000 && s.hz <= 148000000;
+      on[1] += s.hz >= 430000000 && s.hz <= 450000000;
+      on[2] += s.hz >= 1240000000 && s.hz <= 1300000000;
+    }
+    CHECK(on[0] > 0 && on[1] > 0 && on[2] > 0);
+    CHECK(at.count(145800000) && at[145800000]->service == bands::S_AMATEUR && at[145800000]->mode == civ::FM);
+    CHECK(at.count(436795000) && !civ::kRadio7300.canTune(436795000) && civ::kRadio9700.canTune(436795000));
+    CHECK(lib.search("so-50").size() == 1);
+    CHECK(lib.rangeAt(446100000) && lib.rangeAt(446100000)->service == bands::S_COMMERCIAL);
+    CHECK(lib.rangeAt(145800000) == nullptr);
+  }
   CHECK(lib.rangeAt(9500000) && lib.rangeAt(9500000)->service == bands::S_BROADCAST);
   CHECK(lib.rangeAt(14074000) == nullptr);
   bool none[bands::S_COUNT] = {};
@@ -354,7 +448,11 @@ static void testStations() {
 
   // Search: any case, every word, and what it names first.
   auto count = [&](const char* q) { return lib.search(q).size(); };
-  CHECK(count("") == w->stations.size() + w->ranges.size());
+  {
+    size_t everything = 0;
+    for (const bands::StationFile& f : lib.files) everything += f.stations.size() + f.ranges.size();
+    CHECK(count("") == everything);
+  }
   CHECK(count("NORTHWOOD") == 4);
   CHECK(count("northwood 8040") == 1);
   CHECK(count("navtex") >= 3);
@@ -368,7 +466,53 @@ static void testStations() {
     CHECK(!hits.empty() && hits[0].range && hits[0].range->lo == 9400000);
     // GYA's label names it, and comes first although lower ones only mention the word.
     hits = lib.search("gya");
-    CHECK(hits.size() == 4 && hits[0].named && hits[0].station->hz == 2618500);
+    CHECK(hits.size() >= 4 && hits[0].named && hits[0].station->hz == 2618500 && hits[3].named);
+  }
+
+  // The broadcasters. Their schedule changes each season, so these are the names rather than the frequencies.
+  const bands::StationFile* broadcast = lib.find("broadcast");
+  CHECK(broadcast != nullptr);
+  if (!broadcast) return;
+  CHECK(!broadcast->source.empty() && !broadcast->revision.empty() && !broadcast->note.empty());
+  CHECK(broadcast->stations.size() > 1000);
+  {
+    std::map<std::string, int> seen;
+    for (const bands::Station& s : broadcast->stations) {
+      CHECK(s.service == bands::S_BROADCAST && s.mode == civ::AM && !s.data);
+      CHECK(civ::kRadio7300.canTune(s.hz) && !s.note.empty() && !s.label.empty() && !s.group.empty());
+      CHECK(++seen[s.group + "/" + s.label + "/" + std::to_string(s.hz)] == 1);
+      // What EiBi lists that isn't a broadcaster.
+      for (const char* word : {"Volmet", "Jammer", "Spy", "Coastguard", "DIGITAL", "Fax"}) CHECK(s.label.find(word) == std::string::npos);
+    }
+  }
+  for (const char* name : {"voice of america", "voa", "world service", "voice of china", "china radio international", "romania", "vatican", "voice of korea"}) {
+    if (count(name) < 5) printf("  %s: %d\n", name, (int)count(name));
+    CHECK(count(name) >= 5);
+  }
+  // The exact name comes ahead of those that only have its words somewhere, like a service to North America.
+  CHECK(lib.search("voice of america")[0].station->label.find("VOA") == 0);
+  CHECK(lib.search("world service")[0].station->label == "BBC");
+  CHECK(lib.search("voice of china")[0].phrase);
+  CHECK(count("kfi 640") == 1);  // a US clear channel station, with no schedule, so always on
+  for (const bands::StationHit& h : lib.search("kfi 640")) CHECK(h.station && h.station->airTimes.empty());
+
+  // When they're on, in UTC.
+  {
+    bands::StationFile f;
+    std::string e;
+    CHECK(bands::parseStations("{\"name\": \"T\", \"groups\": [{\"name\": \"G\", \"service\": \"broadcast\", \"mode\": \"AM\", \"stations\": ["
+                               "{\"khz\": 6000, \"label\": \"A\", \"on\": [\"0100-0230\", \"2300-0100 135\"]},"
+                               "{\"khz\": 6001, \"label\": \"B\"},"
+                               "{\"khz\": 6002, \"label\": \"C\", \"on\": [\"0000-2400 7\"]}]}]}", "t", f, e));
+    const bands::Station& a = f.stations[0];
+    CHECK(a.onAir(1, 60) && a.onAir(1, 149) && !a.onAir(1, 150));
+    CHECK(a.onAir(0, 23 * 60 + 30) && !a.onAir(1, 23 * 60 + 30));   // it starts on Monday, and not on Tuesday
+    CHECK(a.onAir(1, 30) && !a.onAir(2, 30));                       // so it's still on early on Tuesday, and not Wednesday
+    CHECK(!a.onAir(0, 30) && !a.onAir(4, 30) && a.onAir(5, 30));    // nothing starts on Sunday or Thursday; Friday's runs into Saturday
+    CHECK(f.stations[1].onAir(3, 700));
+    CHECK(f.stations[2].onAir(6, 0) && f.stations[2].onAir(6, 1439) && !f.stations[2].onAir(0, 0));
+    for (const char* bad : {"\"2500-0100\"", "\"0100-0100\"", "\"0160-0200\"", "\"0100-0200 8\"", "\"0100-0200 \"", "\"0100\"", "5"})
+      CHECK(!bands::parseStations(std::string("{\"name\": \"T\", \"groups\": [{\"name\": \"G\", \"service\": \"broadcast\", \"mode\": \"AM\", \"stations\": [{\"khz\": 6000, \"label\": \"A\", \"on\": [") + bad + "]}]}]}", "t", f, e));
   }
 
   // What goes wrong in a file somebody's edited.
@@ -387,7 +531,7 @@ static void testStations() {
   CHECK(errorOf(file("\"service\": \"naval\", \"mode\": \"SSB\"", good)).find("SSB") != std::string::npos);
   CHECK(errorOf(file(naval, "{\"khz\": 8040}")).find("label") != std::string::npos);
   CHECK(errorOf(file(naval, "{\"label\": \"X\"}")).find("khz") != std::string::npos);
-  CHECK(errorOf(file(naval, "{\"khz\": 25, \"label\": \"RJH\"}")).find("receive") != std::string::npos);
+  CHECK(errorOf(file(naval, "{\"khz\": 5, \"label\": \"RJH\"}")).find("receive") != std::string::npos);  // below even an R8600
   CHECK(errorOf("{\"name\": \"T\"}").find("no \"groups\"") != std::string::npos);
   CHECK(errorOf("{\"name\": \"T\",\n\"groups\" []}").find("line 2") == 0);
   CHECK(errorOf("{\"name\": \"T\", \"ranges\": [{\"from\": 9, \"to\": 8, \"service\": \"broadcast\", \"label\": \"X\"}]}").find("before it begins") != std::string::npos);
@@ -413,12 +557,27 @@ static void testStations() {
   write("worldwide.json", file(naval, good));
   bands::installStations(dir.string());
   CHECK(read("worldwide.json") == file(naval, good));
+  // A copy from before the VHF stations still gets them, without touching the file. Groups stay together.
+  {
+    bands::Stations l = bands::loadStations(dir.string());
+    const bands::StationFile* edited = l.find("worldwide");
+    int below = 0, above = 0;
+    for (const bands::Station& s : edited->stations) (s.hz < 100000000 ? below : above)++;
+    CHECK(below == 1 && above > 0);
+    CHECK(edited->stations[0].hz < 100000000);
+    CHECK(l.rangeAt(446100000) != nullptr);
+    CHECK(read("worldwide.json") == file(naval, good));
+  }
+  // But one with a VHF station of its own has decided for itself.
+  write("worldwide.json", file(naval, "{\"khz\": 145000, \"label\": \"V\"}"));
   CHECK(bands::loadStations(dir.string()).find("worldwide")->stations.size() == 1);
+  write("worldwide.json", file(naval, good));
   // Your own list goes alongside, and search covers it.
   write("mine.json", file(naval, "{\"khz\": 9000, \"label\": \"Mine\"}"));
   {
     bands::Stations l = bands::loadStations(dir.string());
-    CHECK(l.files.size() == 2 && l.search("mine").size() == 1);
+    auto hits = l.search("mine");
+    CHECK(l.files.size() == 4 && !hits.empty() && hits[0].named && hits[0].station->label == "Mine");
   }
   write("worldwide.json", "{ broken");
   {
@@ -558,6 +717,49 @@ static void testDsp() {
   CHECK(fabs(dsp::levelToDb(dsp::dbToLevel(-70)) - (-70)) < 1.f);
 }
 
+static void testNeedle() {
+  // Both meters agree on where things are: S9 is at 120 of 241, and nothing leaves the scale.
+  CHECK(fabs(needle::signalShare(120) - 120 / 241.f) < 1e-6);
+  CHECK(needle::signalShare(-1) == 0);
+  CHECK(needle::signalShare(500) == 1);
+  CHECK(fabs(needle::powerShare(50, 100) - needle::kPoFull / 2) < 1e-6);
+  CHECK(fabs(needle::powerShare(10, 10) - needle::powerShare(100, 100)) < 1e-6);
+  CHECK(needle::powerShare(1000, 100) == 1);
+  CHECK(needle::powerShare(5, 0) == 0);
+
+  // It gets to a reading quickly, swings past it only a little, and settles there.
+  needle::Needle n;
+  float peak = 0, at200ms = 0;
+  for (int i = 0; i < 120; i++) {
+    n.update(0.5f, 1 / 60.f);
+    peak = std::max(peak, n.pos);
+    if (i == 11) at200ms = n.pos;
+  }
+  CHECK(at200ms > 0.4f);
+  CHECK(peak > 0.5f && peak < 0.55f);
+  CHECK(fabs(n.pos - 0.5f) < 0.001f);
+
+  // It falls back more slowly than it rises.
+  needle::Needle up, down;
+  down.pos = 1;
+  for (int i = 0; i < 6; i++) up.update(1, 1 / 60.f), down.update(0, 1 / 60.f);
+  CHECK(up.pos > 1 - down.pos);
+
+  // The stops hold it, and the same reading settles the same at any frame rate, even through a stall.
+  needle::Needle pegged;
+  pegged.pos = 1, pegged.vel = 50;
+  pegged.update(1, 0.1f);
+  CHECK(pegged.pos <= needle::kStop);
+  needle::Needle rest;
+  rest.vel = -50;
+  rest.update(0, 0.1f);
+  CHECK(rest.pos >= 0);
+  needle::Needle slow, fast;
+  for (int i = 0; i < 30; i++) slow.update(0.7f, 0.1f);
+  for (int i = 0; i < 720; i++) fast.update(0.7f, 1 / 240.f);
+  CHECK(fabs(slow.pos - fast.pos) < 0.001f);
+}
+
 static void testStore() {
   store::LogEntry e;
   e.utc = "2026-10-31 19:05";
@@ -584,6 +786,12 @@ static void testStore() {
   CHECK(store::adifRecord(e, "").find("<MODE:2>CW") != std::string::npos);
   e.hz = 13000000;
   CHECK(store::adifRecord(e, "").find("<BAND") == std::string::npos);  // no band, no guess
+  {
+    store::LogEntry dv = e;
+    dv.mode = "DV", dv.hz = 145375000;
+    std::string r = store::adifRecord(dv, "");
+    CHECK(r.find("<MODE:12>DIGITALVOICE") != std::string::npos && r.find("<SUBMODE:5>DSTAR") != std::string::npos && r.find("<BAND:2>2M") != std::string::npos);
+  }
 
   std::vector<std::string> f = store::splitCsv(store::joinCsv({"a,b", "c\"d", "", "e"}));
   CHECK(f.size() == 4 && f[0] == "a,b" && f[1] == "c\"d" && f[2] == "" && f[3] == "e");
@@ -639,6 +847,414 @@ static void testRigBasics() {
   h.rig.vfoSwap();
   CHECK(h.rig.state().hz == 14300000);
   CHECK(waitFor([&] { return h.sim.hz() == 14300000; }));
+}
+
+// Finding out which radio is on the cable, whatever address was chosen.
+static void testDetection() {
+  auto startOn = [](SimRig& sim, Rig& rig, uint8_t addr, const civ::Radio* forced = nullptr) {
+    rig.start([&sim] { return sim.newTransport(); }, addr, forced);
+  };
+  auto up = [](Rig& rig) { return waitFor([&] { return rig.state().connected && rig.state().hz > 0; }); };
+  {  // The ordinary case for anyone who's used this program: 94h saved, a 9700 plugged in.
+    SimRig sim(civ::kRadio9700);
+    Rig rig;
+    startOn(sim, rig, civ::kIc7300);
+    CHECK(!rig.state().connected);
+    CHECK(up(rig));
+    CHECK(rig.state().radio == &civ::kRadio9700);
+    CHECK(waitFor([&] { return rig.state().rigId == civ::kIc9700; }));
+    CHECK(rig.state().hz == 145500000);
+    CHECK(waitFor([&] { return !sim.received(0x07).empty(); }));
+    CHECK(sim.received(0x07)[0] == civ::Bytes{0xD0});  // takes the main band
+    // Nothing it doesn't have is asked for.
+    sleepMs(1500);
+    for (const civ::Bytes& d : sim.received(0x1C)) CHECK(d.empty() || d[0] != 0x01);
+    for (const civ::Bytes& d : sim.received(0x21)) CHECK(d.empty() || d[0] != 0x02);
+    CHECK(rig.state().lastError.empty());
+  }
+  {  // A 7300 is found first time, at its own address, and asked nothing of a 9700's.
+    SimRig sim;
+    Rig rig;
+    startOn(sim, rig, civ::kIc7300);
+    CHECK(up(rig));
+    CHECK(rig.state().radio == &civ::kRadio7300);
+    int first = 0;
+    for (const civ::Bytes& d : sim.received(0x19)) first += d == civ::Bytes{0x00};
+    CHECK(first >= 1);
+  }
+  {  // Its address changed in the menu, and 19 00 still reporting the model.
+    SimRig sim(civ::kRadio9700);
+    sim.setCivAddress(0x70, false);
+    Rig rig;
+    startOn(sim, rig, civ::kIc7300);
+    CHECK(up(rig));  // found through the broadcast address
+    CHECK(rig.state().radio == &civ::kRadio9700);
+  }
+  {  // Changed, and 19 00 reporting the new address: it can't tell which, so it needs telling.
+    SimRig sim(civ::kRadio9700);
+    sim.setCivAddress(0x70, true);
+    Rig rig;
+    startOn(sim, rig, civ::kIc7300);
+    CHECK(waitFor([&] { return rig.state().strangerAddr == 0x70 && rig.state().strangerId == 0x70; }));
+    CHECK(!rig.state().connected);  // nothing's sent to a radio we don't know
+    CHECK(sim.received(0x05).empty() && sim.received(0x14).empty());
+    Rig told;
+    startOn(sim, told, 0x70, &civ::kRadio9700);
+    CHECK(up(told));
+    CHECK(told.state().radio == &civ::kRadio9700);
+  }
+  {  // Somebody chose this address long ago, for a radio we don't list. It goes on working as a 7300.
+    SimRig sim;
+    sim.setCivAddress(0x70, true);
+    Rig rig;
+    startOn(sim, rig, 0x70);
+    CHECK(up(rig));
+    CHECK(rig.state().radio == &civ::kRadio7300);
+  }
+  {  // A different radio on the same cable after a gap: found afresh, disarmed, with nothing kept.
+    SimRig seven, nine(civ::kRadio9700);
+    SimRig* on = &seven;
+    Rig rig;
+    rig.start([&on] { return on->newTransport(); });
+    CHECK(up(rig));
+    rig.armTx(true);
+    CHECK(rig.state().txArmed);
+    seven.setPortFails(true);
+    CHECK(waitFor([&] { return !rig.state().connected; }));
+    on = &nine;
+    CHECK(waitFor([&] { return rig.state().connected && rig.state().radio == &civ::kRadio9700; }, 6000));
+    CHECK(!rig.state().txArmed);
+    CHECK(waitFor([&] { return rig.state().hz == 145500000; }));
+  }
+  {  // The 9700's differences, in the bytes that reach it.
+    SimRig sim(civ::kRadio9700);
+    Rig rig;
+    startOn(sim, rig, civ::kIc7300);
+    CHECK(up(rig));
+    CHECK(waitFor([&] { return rig.state().otherHz == 145600000 && rig.state().otherMode == civ::FM && rig.state().mode == civ::FM; }));
+    rig.setAtt(true);
+    CHECK(waitFor([&] { return sim.att() == 0x10; }));
+    rig.setAtt(false);
+    CHECK(waitFor([&] { return sim.att() == 0; }));
+    rig.setFreq(433500000);
+    CHECK(waitFor([&] { return sim.hz() == 433500000; }));
+    rig.setFreq(1296200000);
+    CHECK(waitFor([&] { return sim.hz() == 1296200000; }));
+    rig.setFreq(200000000);                    // no such frequency: the nearest edge, not a refusal
+    CHECK(rig.state().hz == 148000000);
+    CHECK(waitFor([&] { return sim.hz() == 148000000; }));
+    rig.setFreq(145500000);
+    CHECK(waitFor([&] { return sim.hz() == 145500000; }));
+    // A/B is two writes, as 07 B0 would swap its bands round.
+    sleepMs(500);
+    rig.setOtherFreq(145600000);
+    CHECK(waitFor([&] { return sim.otherHz() == 145600000; }));
+    sleepMs(500);
+    rig.vfoSwap();
+    CHECK(rig.state().hz == 145600000 && rig.state().otherHz == 145500000);
+    CHECK(waitFor([&] { return sim.hz() == 145600000 && sim.otherHz() == 145500000; }));
+    CHECK(!sim.mainSubExchanged());
+    // A tuner it hasn't got: not even armed does anything go out.
+    rig.armTx(true);
+    CHECK(!rig.tuneAtu());
+    rig.setAtu(true);
+    rig.setXitOn(true);
+    sleepMs(100);
+    for (const civ::Bytes& d : sim.received(0x1C)) CHECK(d.empty() || d[0] != 0x01);
+    for (const civ::Bytes& d : sim.received(0x21)) CHECK(d.empty() || d[0] != 0x02);
+    rig.armTx(false);
+    // DV has no filter byte.
+    rig.setMode(civ::DV, false, 2);
+    CHECK(waitFor([&] { return sim.mode() == civ::DV; }));
+    CHECK(sim.received(0x06).back() == civ::Bytes{civ::DV});
+    // The other VFO's mode with data off: no filter, as the guide wants.
+    rig.setOtherMode(civ::USB, false, 2);
+    CHECK(waitFor([&] { return sim.otherMode() == civ::USB; }));
+    CHECK(sim.received(0x26).back() == civ::Bytes({0x01, civ::USB, 0x00, 0x00}));
+    // The scope works with the 1.2 GHz edges, and the sub scope is left out.
+    rig.setFreq(1296200000);
+    rig.setScope(true);
+    ScopeLine line;
+    CHECK(waitFor([&] { return rig.popScope(line) && line.loHz < 1296200000 && line.hiHz > 1296200000; }));
+    CHECK(line.levels.size() == civ::kScopePoints);
+    rig.setScope(false);
+  }
+  {  // An R8600 is found at its own address, whatever was chosen, and nothing's armed.
+    SimRig sim(civ::kRadioR8600);
+    Rig rig;
+    startOn(sim, rig, civ::kIc7300);
+    CHECK(up(rig));
+    CHECK(rig.state().radio == &civ::kRadioR8600);
+    CHECK(waitFor([&] { return rig.state().rigId == civ::kIcR8600 && rig.state().hz == 9700000; }));
+
+    // Antennas: all three below 30 MHz, in the bytes the guide gives.
+    CHECK(waitFor([&] { return rig.state().ant == 0 && rig.state().ipPlus == 0; }));
+    rig.setAntenna(1);
+    CHECK(rig.state().ant == 1);
+    CHECK(waitFor([&] { return sim.antenna() == 1; }));
+    CHECK(sim.received(0x12).back() == civ::Bytes{0x01});
+    rig.setAntenna(2);
+    CHECK(waitFor([&] { return sim.antenna() == 2; }));
+    rig.setAntenna(3);                         // no such port
+    sleepMs(100);
+    CHECK(sim.antenna() == 2);
+
+    // Only ANT1 at and above 30 MHz, and nothing else is sent: the radio would refuse it.
+    rig.setFreq(29999990);
+    CHECK(waitFor([&] { return sim.hz() == 29999990; }));
+    sleepMs(500);
+    CHECK(rig.state().ant == 2);
+    rig.setFreq(30000000);
+    CHECK(waitFor([&] { return sim.hz() == 30000000; }));
+    sleepMs(500);
+    size_t writes = 0;
+    for (const civ::Bytes& d : sim.received(0x12)) writes += !d.empty();
+    rig.setAntenna(1);
+    sleepMs(100);
+    size_t after = 0;
+    for (const civ::Bytes& d : sim.received(0x12)) after += !d.empty();
+    CHECK(after == writes);
+    CHECK(waitFor([&] { return rig.state().ant == 0; }));
+
+    // The attenuator's three steps go as BCD: the code is the dB.
+    for (int db : {10, 20, 30}) {
+      rig.setAttDb(db);
+      CHECK(rig.state().attDb == db && rig.state().att == 1);
+      CHECK(waitFor([&] { return sim.att() == civ::bcdBE(db, 1)[0]; }));
+    }
+    rig.setAttDb(0);
+    CHECK(waitFor([&] { return sim.att() == 0; }));
+    sleepMs(500);
+    CHECK(rig.state().attDb == 0 && rig.state().att == 0);
+
+    rig.setIpPlus(true);
+    CHECK(waitFor([&] { return sim.ipPlus(); }));
+    CHECK(sim.received(0x1A).back() == civ::Bytes({0x07, 0x01}));
+
+    // WFM and the digital modes have no filter byte, S-AM does, and none of them touch data mode.
+    rig.setFreq(100000000);
+    rig.setMode(civ::WFM, true, 2);
+    CHECK(waitFor([&] { return sim.mode() == civ::WFM; }));
+    CHECK(sim.received(0x06).back() == civ::Bytes{civ::WFM});
+    rig.setMode(civ::S_AM, false, 2);
+    CHECK(waitFor([&] { return sim.mode() == civ::S_AM && sim.filter() == 2; }));
+    CHECK(sim.received(0x06).back() == civ::Bytes({civ::S_AM, 0x02}));
+    rig.setMode(civ::P25, false, 1);
+    CHECK(waitFor([&] { return sim.mode() == civ::P25; }));
+    CHECK(sim.received(0x06).back() == civ::Bytes{civ::P25});
+    CHECK(civ::widthCodeMax(civ::S_AM) == 49 && civ::widthCodeMax(civ::WFM) == -1 && civ::widthCodeMax(civ::P25) == -1);
+    CHECK(civ::widthHz(civ::S_AM, 49) == 10000 && civ::widthHz(civ::WFM, 0) == 200000);
+    // A preset for a mode it hasn't got: the plainest thing that hears it.
+    rig.setMode(civ::DD, false, 1);
+    CHECK(waitFor([&] { return sim.mode() == civ::FM; }));
+
+    // Nothing that transmits or needs a second VFO goes out, armed or not.
+    rig.armTx(true);
+    CHECK(!rig.state().txArmed);
+    CHECK(!rig.ptt(true) && !rig.tuneAtu() && !rig.sendCw("CQ") && !rig.playVoice(1) && !rig.playVoice(0));
+    rig.stopCw();
+    rig.setSplit(true);
+    rig.setOtherFreq(14000000);
+    rig.setOtherMode(civ::USB, false, 1);
+    rig.vfoEqual();
+    rig.vfoSwap();
+    rig.setRit(100);
+    rig.setRitOn(true);
+    rig.setXitOn(true);
+    rig.setLevel(civ::L_POWER, 10);
+    rig.setSwitch(civ::S_VOX, 1);
+    sleepMs(800);
+    CHECK(!sim.tx() && rig.state().hz == 100000000);
+    CHECK(sim.received(0x1C).empty() && sim.received(0x17).empty() && sim.received(0x28).empty());
+    CHECK(sim.received(0x0F).empty() && sim.received(0x21).empty() && sim.received(0x25).empty() && sim.received(0x26).empty() && sim.received(0x07).empty());
+    for (const civ::Bytes& d : sim.received(0x14)) CHECK(d.empty() || d[0] != civ::levelSub(civ::L_POWER));
+    for (const civ::Bytes& d : sim.received(0x1A)) CHECK(d.empty() || d[0] != 0x06);
+    // And polling asked it nothing it hasn't got, going by its guide.
+    CHECK(sim.refusals() == 0);
+    CHECK(waitFor([&] { return rig.state().meter[civ::M_S] >= 0 && rig.state().squelchOpen == 1 && rig.state().overflow == 0; }));
+
+    // The scope, up to its widest, and at the top of its range.
+    rig.setFreq(3000000000LL);
+    CHECK(waitFor([&] { return sim.hz() == 3000000000LL; }));
+    rig.setFreq(5000000);
+    rig.setFreq(10000);
+    CHECK(waitFor([&] { return sim.hz() == 10000; }));
+    rig.setFreq(5);                            // below it: the edge, as everywhere else
+    CHECK(rig.state().hz == 10000);
+    rig.setFreq(100000000);
+    rig.setScopeSpan(5000000);
+    rig.setScope(true);
+    ScopeLine line;
+    CHECK(waitFor([&] { return rig.popScope(line) && line.hiHz - line.loHz == 5000000; }));
+    CHECK(line.levels.size() == civ::kScopePoints);
+    rig.setScope(false);
+  }
+  {  // A transceiver is asked exactly what it always was.
+    SimRig sim;
+    Rig rig;
+    startOn(sim, rig, civ::kIc7300);
+    CHECK(up(rig));
+    sleepMs(1800);
+    CHECK(sim.received(0x12).empty());
+    bool asked = false;
+    for (const civ::Bytes& d : sim.received(0x1A)) asked = asked || (!d.empty() && d[0] == 0x07);
+    CHECK(!asked);
+    rig.setAntenna(0);
+    rig.setAntenna(1);
+    rig.setIpPlus(true);
+    sleepMs(100);
+    CHECK(sim.received(0x12).empty());
+    // And it keeps to its own modes, whatever a memory wants.
+    rig.setMode(civ::WFM, false, 1);
+    CHECK(waitFor([&] { return sim.mode() == civ::FM; }));
+    rig.setMode(civ::S_AM, false, 1);
+    CHECK(waitFor([&] { return sim.mode() == civ::AM; }));
+  }
+}
+
+// What a receiver has that a transceiver doesn't: all of its coverage on some band, in every plan, and a long
+// list of stations. Each file's checks are that it's internally sound, not that its facts are right.
+static void testReceiverData() {
+  const civ::Radio& r = civ::kRadioR8600;
+  CHECK(civ::radioForId(0x96) == &r);
+  CHECK(!r.hasTransmit && !r.hasOtherVfo && !r.hasDataMode && !r.hasRit && r.antennas == 3);
+  CHECK(r.canTune(10000) && r.canTune(3000000000LL) && !r.canTune(9999) && !r.canTune(3000000001LL));
+  CHECK(tuning::parseFreq("100", 100000000, r) == 100000000);
+  CHECK(tuning::parseFreq("198k", 100000000, r) == 198000);
+  CHECK(tuning::parseFreq("121.5", 100000000, r) == 121500000);
+  CHECK(tuning::parseFreq("145500", 100000000, r) == 145500000);
+  CHECK(tuning::parseFreq("3000", 100000000, r) == 3000000000LL);
+  CHECK(tuning::parseFreq("3001", 100000000, r) == 3001000);  // past the top in MHz, so it's kHz
+  CHECK(tuning::parseFreq("3001m", 100000000, r) == -1);
+  CHECK(tuning::rfFromAudio(100000000, civ::WFM, 1000, 600) == -1);
+  CHECK(tuning::rfFromAudio(9000000, civ::S_AM, 1000, 600) == -1);
+  CHECK(tuning::rfFromAudio(450000000, civ::P25, 1000, 600) == -1);
+  CHECK(std::string(civ::modeName(civ::WFM)) == "WFM" && std::string(civ::modeName(civ::NXDN_N)) == "NXDN-N");
+  CHECK(civ::modeOn(civ::kRadio9700, civ::DD) == civ::DD && civ::modeOn(civ::kRadio9700, civ::DV) == civ::DV);
+  CHECK(civ::modeOn(r, civ::DV) == civ::DV && civ::modeOn(r, civ::DD) == civ::FM && civ::modeOn(r, civ::P25) == civ::P25);
+
+  bands::Library lib = bands::builtinPlans();
+  for (const bands::Plan& plan : lib.plans) {
+    // No hole anywhere from 10 kHz to 3 GHz, bar a gap inside an amateur band's own blocks.
+    long long at = 10000;
+    for (const bands::Band& b : plan.bands) {
+      if (b.lo > at) printf("  %s: nothing from %lld to %lld\n", plan.id.c_str(), at, b.lo);
+      CHECK(b.lo <= at);
+      at = std::max(at, b.hi);
+    }
+    CHECK(at == 3000000000LL);
+    int groups = 0;
+    for (const bands::Band& b : plan.bands) {
+      if (b.group.empty()) continue;
+      groups++;
+      CHECK(!b.title().empty() && b.title() == b.name && b.unit.empty());
+      CHECK(r.canTune(b.homeHz));
+      CHECK(b.segmentAt(b.homeHz) != nullptr);
+      CHECK(!civ::isDigitalVoice(b.homeMode) || b.homeMode == civ::P25);
+    }
+    CHECK(groups > 100);
+    // A transceiver sees none of them, and in the same order as before.
+    bands::Plan t = plan.forRadio(false);
+    for (const bands::Band& b : t.bands) CHECK(b.group.empty());
+    CHECK(t.bands.size() + (size_t)groups == plan.bands.size());
+    // The everyday things are where you'd expect.
+    int air = plan.bandOf(121500000), fm = plan.bandOf(90000000), marine = plan.bandOf(156800000);
+    CHECK(air >= 0 && plan.bands[(size_t)air].group == "Aviation" && plan.bands[(size_t)air].homeMode == civ::AM);
+    CHECK(fm >= 0 && plan.bands[(size_t)fm].homeMode == civ::WFM);
+    CHECK(marine >= 0 && plan.bands[(size_t)marine].homeMode == civ::FM);
+    CHECK(plan.segmentAt(14074000) && plan.bands[(size_t)plan.bandOf(14074000)].group.empty());
+  }
+  const bands::Plan* uk = lib.find("uk");
+  const bands::Plan* jp = lib.find("japan");
+  CHECK(uk && jp);
+  if (uk && jp) {
+    CHECK(uk->segmentAt(446100000) && uk->bands[(size_t)uk->bandOf(446100000)].name == "PMR446");
+    CHECK(uk->bandOf(27881250) >= 0 && uk->bands[(size_t)uk->bandOf(27881250)].name == "UK CB 27/81");
+    CHECK(jp->bands[(size_t)jp->bandOf(80000000)].homeMode == civ::WFM);
+  }
+
+  // A plan copied from before there were receiver bands keeps them, without treading on its own.
+  {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path dir = fs::temp_directory_path(ec) / ("ic7300-rx-plans-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    fs::create_directories(dir, ec);
+    std::ofstream(dir / "uk.json", std::ios::binary)
+        << "{\"name\": \"T\", \"bands\": [{\"name\": \"Mine\", \"unit\": \"m\", \"home_khz\": 9500, \"home_mode\": \"AM\", \"segments\": [{\"from\": 9400, \"to\": 9900, \"use\": \"other\", \"label\": \"M\"}]}]}";
+    bands::Library l = bands::loadPlans(dir.string());
+    CHECK(l.errors.empty());
+    const bands::Plan* p = l.find("uk");
+    CHECK(p && p->bandOf(121500000) >= 0 && p->bandOf(145500000) >= 0);
+    CHECK(p && p->bands[(size_t)p->bandOf(9500000)].name == "Mine");
+    if (p)
+      for (size_t i = 1; i < p->bands.size(); i++) CHECK(p->bands[i].lo >= p->bands[i - 1].hi);
+    // But one with a receiver band of its own has decided for itself.
+    std::ofstream(dir / "uk.json", std::ios::binary)
+        << "{\"name\": \"T\", \"bands\": [{\"name\": \"Mine\", \"group\": \"G\", \"home_khz\": 9500, \"home_mode\": \"AM\", \"segments\": [{\"from\": 9400, \"to\": 9900, \"use\": \"broadcast\"}]}]}";
+    l = bands::loadPlans(dir.string());
+    CHECK(l.find("uk")->bandOf(121500000) < 0);
+    CHECK(l.find("uk")->bands[(size_t)l.find("uk")->bandOf(9500000)].title() == "Mine");
+    fs::remove_all(dir, ec);
+  }
+
+  // Stations.
+  bands::Stations all = bands::builtinStations();
+  CHECK(all.errors.empty());
+  const bands::StationFile* f = all.find("receiver");
+  CHECK(f != nullptr);
+  if (!f) return;
+  CHECK(f->receiverOnly && !f->source.empty() && !f->note.empty());
+  CHECK(!all.find("worldwide")->receiverOnly);
+  CHECK(all.forRadio(true).find("receiver") != nullptr && all.forRadio(false).find("receiver") == nullptr);
+  CHECK(f->stations.size() > 800);
+  bool service[bands::S_COUNT] = {};
+  std::map<std::string, std::map<long long, int>> byGroup;
+  for (const bands::Station& s : f->stations) {
+    service[s.service] = true;
+    CHECK(s.preset() && !s.label.empty() && !s.group.empty() && !s.note.empty());
+    CHECK(r.canTune(s.hz) && r.canTune(s.tuneHz()));
+    if (++byGroup[s.group][s.hz] != 1) printf("  %s: %lld twice\n", s.group.c_str(), s.hz);
+    CHECK(byGroup[s.group][s.hz] == 1);
+  }
+  for (int i : {bands::S_AVIATION, bands::S_SPACE, bands::S_LAND, bands::S_NAVAL, bands::S_MILITARY, bands::S_BROADCAST, bands::S_GOVERNMENT}) CHECK(service[i]);
+  auto find = [&](long long hz) -> const bands::Station* {
+    for (const bands::Station& s : f->stations)
+      if (s.hz == hz) return &s;
+    return nullptr;
+  };
+  // The formulas, checked against channels everyone knows.
+  CHECK(find(156800000) && find(156800000)->label == "Ch 16" && find(156800000)->mode == civ::FM);
+  CHECK(find(156525000) && find(156525000)->label == "Ch 70");
+  CHECK(find(161600000) && find(161600000)->label == "Ch 20");   // 157.000 ship, 161.600 coast
+  CHECK(find(161975000) && find(162025000));
+  CHECK(find(121500000) && find(121500000)->mode == civ::AM);
+  CHECK(find(446006250) && find(446006250)->label == "PMR 1" && find(446193750) && find(446193750)->label == "PMR 16");
+  CHECK(find(433075000) && find(433075000)->label == "LPD 1" && find(434775000) && find(434775000)->label == "LPD 69");
+  CHECK(find(27185000) && find(27185000)->label == "CB 19" && find(27405000) && find(27405000)->label == "CB 40");
+  CHECK(find(27601250) && find(27601250)->label == "UK 1" && find(27991250) && find(27991250)->label == "UK 40");
+  CHECK(find(462562500) && find(462562500)->label == "FRS 1" && find(462725000) && find(462725000)->label == "FRS 22");
+  CHECK(find(476425000) && find(476425000)->label == "UHF 1" && find(477412500) && find(477412500)->label == "UHF 80");
+  CHECK(find(4426000) && find(4426000)->label == "Ch 424");      // a coastguard's working channels
+  CHECK(find(6501000) && find(6501000)->label == "Ch 601");
+  CHECK(find(8764000) && find(8764000)->label == "Ch 816");
+  CHECK(find(13089000) && find(13089000)->label == "Ch 1205");
+  CHECK(find(17314000) && find(17314000)->label == "Ch 1625");
+  CHECK(find(225648000) && find(225648000)->label == "12B");
+  CHECK(find(474000000) && find(474000000)->label == "E21" && find(690000000) && find(690000000)->label == "E48");
+  CHECK(find(1090000000) && find(1575420000));
+  CHECK(all.rangeAt(100000000) && all.rangeAt(100000000)->mode == civ::WFM);
+  CHECK(all.rangeAt(9500000)->mode == -1);  // a broadcast band going by its service
+  // A receiver's search finds what's on the list, and a transceiver's doesn't.
+  CHECK(!all.search("ADS-B").empty() && all.search("ADS-B")[0].named);
+  CHECK(all.forRadio(false).search("ADS-B").empty());
+  CHECK(all.search("PMR 1 ").size() >= 1);
+  // What goes wrong in a file somebody's edited.
+  {
+    bands::StationFile out;
+    std::string e;
+    CHECK(!bands::parseStations("{\"name\": \"T\", \"ranges\": [{\"from\": 8, \"to\": 9, \"service\": \"land\", \"label\": \"X\", \"mode\": \"SSB\"}]}", "t", out, e));
+    CHECK(e.find("SSB") != std::string::npos);
+  }
 }
 
 // A dial spun as fast as a mouse wheel can go: no backlog, and the last one wins.
@@ -875,17 +1491,100 @@ static void testPortBusyMessage() {
   CHECK(!t->isOpen());
 }
 
+static void testClockSync() {
+  using namespace clocksync;
+  const uint64_t tag = 0x1122334455667788ULL;
+  uint8_t req[kPacketSize];
+  makeRequest(req, tag);
+  CHECK(req[0] == 0x23);
+  CHECK(req[40] == 0x11 && req[47] == 0x88);
+
+  // NTP's seconds count from 1900, and wrap in 2036.
+  CHECK(ntpToUnix(2208988800ULL << 32) == 0);
+  CHECK(ntpToUnix((3991680000ULL << 32) | 0x80000000ULL) == 1782691200.5);
+  CHECK(ntpToUnix(1000ULL << 32) == 4294967296.0 + 1000 - 2208988800.0);
+
+  const double base = 1782691200;
+  auto reply = [&](double t2, double t3, uint64_t echo, std::vector<uint8_t>& p) {
+    p.assign(kPacketSize, 0);
+    p[0] = 0x24, p[1] = 2;
+    auto put = [&](int at, uint64_t v) {
+      for (int i = 0; i < 8; i++) p[(size_t)at + i] = (uint8_t)(v >> (56 - 8 * i));
+    };
+    auto toNtp = [](double secs) {
+      double ntp = secs + 2208988800.0;
+      uint64_t sec = (uint64_t)ntp;
+      return (sec << 32) | (uint64_t)((ntp - (double)sec) * 4294967296.0);
+    };
+    put(24, echo), put(32, toNtp(t2)), put(40, toNtp(t3));
+  };
+  auto near = [](double a, double b) { return fabs(a - b) < 1e-5; };
+
+  // Out at +0, the server's clock 1.5 s ahead, 20 ms each way, 10 ms in the server.
+  std::vector<uint8_t> p;
+  reply(base + 1.52, base + 1.53, tag, p);
+  Sample s;
+  CHECK(readReply(p.data(), p.size(), tag, base, base + 0.05, s));
+  CHECK(near(s.offset, 1.5));
+  CHECK(near(s.delay, 0.04));
+
+  // And the other way: this computer ahead.
+  reply(base - 0.48, base - 0.47, tag, p);
+  CHECK(readReply(p.data(), p.size(), tag, base, base + 0.05, s));
+  CHECK(near(s.offset, -0.5));
+
+  // What must not be believed, as it would go on to set the clock.
+  reply(base + 1, base + 1, tag + 1, p);
+  CHECK(!readReply(p.data(), p.size(), tag, base, base + 0.05, s));  // answers some other question
+  reply(base + 1, base + 1, tag, p);
+  CHECK(!readReply(p.data(), kPacketSize - 1, tag, base, base + 0.05, s));  // cut short
+  p[0] = 0x23;
+  CHECK(!readReply(p.data(), p.size(), tag, base, base + 0.05, s));  // not from a server
+  p[0] = 0xE4;
+  CHECK(!readReply(p.data(), p.size(), tag, base, base + 0.05, s));  // its own clock isn't set
+  p[0] = 0x24, p[1] = 0;
+  CHECK(!readReply(p.data(), p.size(), tag, base, base + 0.05, s));  // telling us to go away
+  p[1] = 16;
+  CHECK(!readReply(p.data(), p.size(), tag, base, base + 0.05, s));  // not synchronised
+  reply(base + 1, base + 2, tag, p);
+  CHECK(!readReply(p.data(), p.size(), tag, base, base + 0.05, s));  // spent longer there than the trip took
+  reply(base + 1, base + 1, tag, p);
+  std::fill(p.begin() + 40, p.begin() + 48, (uint8_t)0);
+  CHECK(!readReply(p.data(), p.size(), tag, base, base + 0.05, s));  // no time in it
+
+  auto sample = [](double offset, double delay) {
+    Sample x;
+    x.offset = offset, x.delay = delay;
+    return x;
+  };
+  Sample best;
+  CHECK(!choose({}, best));
+  CHECK(choose({sample(1.0, 0.09)}, best) && best.offset == 1.0);
+  CHECK(choose({sample(1.0, 0.09), sample(1.1, 0.02)}, best) && best.offset == 1.1);  // the quicker trip wins
+  CHECK(!choose({sample(1.0, 0.02), sample(2.0, 0.02)}, best));
+
+  CHECK(judge(0) == V_CLOSE_ENOUGH);
+  CHECK(judge(-kCloseEnough) == V_CLOSE_ENOUGH);
+  CHECK(judge(0.5) == V_STEP);
+  CHECK(judge(-0.5) == V_STEP);
+  CHECK(judge(kMostToStep) == V_STEP);
+  CHECK(judge(kMostToStep + 1) == V_TOO_FAR);
+  CHECK(judge(-kMostToStep - 1) == V_TOO_FAR);
+  CHECK(describe(0.3124) == "0.312 s slow");
+  CHECK(describe(-1.5) == "1.500 s fast");
+}
+
 int main() {
   struct {
     const char* name;
     void (*fn)();
   } tests[] = {
-      {"CI-V bytes", testBytes}, {"frame reader", testReader}, {"frequency entry", testTuning}, {"band plans", testBandPlans}, {"stations", testStations}, {"tuning dial", testDial}, {"FFT", testDsp},
-      {"log and CSV", testStore}, {"rig basics", testRigBasics}, {"dial spin", testCoalesce},
+      {"CI-V bytes", testBytes}, {"frame reader", testReader}, {"frequency entry", testTuning}, {"band plans", testBandPlans}, {"stations", testStations}, {"a receiver's bands and stations", testReceiverData}, {"tuning dial", testDial}, {"FFT", testDsp}, {"needle meter", testNeedle},
+      {"log and CSV", testStore}, {"rig basics", testRigBasics}, {"which radio", testDetection}, {"dial spin", testCoalesce},
       {"stale readings", testStaleReadings}, {"echo back", testEcho}, {"refused commands", testRefused},
       {"scope", testScope}, {"TX guards", testTxGuards}, {"TX watchdog", testWatchdog}, {"un-key retry", testUnkeyRetry},
       {"un-key across an outage", testUnkeyAcrossOutage}, {"un-key at shutdown", testShutdownUnkeys},
-      {"link loss", testLinkLoss}, {"port errors", testPortBusyMessage},
+      {"link loss", testLinkLoss}, {"port errors", testPortBusyMessage}, {"setting the clock", testClockSync},
   };
   for (auto& t : tests) {
     int before = failures;

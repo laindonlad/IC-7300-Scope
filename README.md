@@ -1,8 +1,8 @@
-# IC-7300 Console
+# IC-7300 / IC9700 / IC-R8600 Receiver Console
 
-A desktop front end for the Icom IC-7300. Plug the radio into your PC with one USB cable and you get:
+A desktop front end for the Icom IC-7300 and IC-9700 transceivers and the IC-R8600 receiver. Plug the radio into your PC with one USB cable and the program works out which it is. You get:
 
-- **Full CAT control**: frequency, mode, filters, levels, noise controls, RIT/XIT, split, meters and the tuner
+- **Full CAT control**: frequency, mode, filters, levels, noise controls, RIT/XIT, split, meters and the tuner (on the radios that have them), and the IC-R8600's antennas, WFM and digital modes
 - **An audio waterfall**, from the radio's built-in USB sound card
 - **A band waterfall**, from the radio's own wideband scope
 - **Station tools**: memories, a log with ADIF export, a CW keyer with macros, voice memories and WAV recording
@@ -10,8 +10,19 @@ A desktop front end for the Icom IC-7300. Plug the radio into your PC with one U
 
 It's written in C++17 with Dear ImGui, GLFW and miniaudio. It builds to a single executable with nothing to install.
 
+## Supported radios
+
+| Radio | Type | Coverage | Default CI-V address | Run on a real radio? |
+|---|---|---|---|---|
+| Icom IC-7300 | HF/6 m/4 m transceiver | 30 kHz to 74.8 MHz | 94h | Yes |
+| Icom IC-9700 | VHF/UHF/23 cm transceiver | 144-148, 430-450 and 1240-1300 MHz, on the US model | A2h | **No**, simulated radio only |
+| Icom IC-R8600 | Wideband receiver | 10 kHz to 3 GHz | 96h | **No**, simulated radio only |
+
+The IC-7300 MK2 hasn't been tested. See [What changes on an IC-9700](#what-changes-on-an-ic-9700), [What changes on an IC-R8600](#what-changes-on-an-ic-r8600) and [Tested on](#tested-on).
+
 ## Contents
 
+- [Supported radios](#supported-radios)
 - [Download](#download)
 - [Tested on](#tested-on)
 - [Building](#building)
@@ -119,6 +130,8 @@ Other setups:
 - **Linux**: the binaries in `bin/linux-x64` were built on Ubuntu 22.04 with GCC 11. They pass the core tests and the GUI self-test in a container, on a virtual X11 display with software OpenGL and the simulated radio. **They have never been run on a real desktop, on Wayland, or with a real radio or sound card.**
 - **macOS**: **not tested.** The binaries come from an automated build, and nobody has tried them on a real Mac desktop or with a real radio.
 - **IC-7300 MK2**: not tested.
+- **IC-9700**: **never run on a real radio.** Its support is written from Icom's CI-V Reference Guide and Hamlib, and tested against the simulated radio only. See [What's still unproven on an IC-9700](#whats-still-unproven-on-an-ic-9700).
+- **IC-R8600**: **never run on a real radio.** Its support is written from Icom's CI-V Reference Guide and Hamlib, and tested against the simulated radio only. See [What's still unproven on an IC-R8600](#whats-still-unproven-on-an-ic-r8600).
 
 ## Building
 
@@ -187,7 +200,7 @@ The programs in `bin` are copied in by hand, so they only change when someone re
 
 ## Setting up the radio
 
-Connect the radio's USB port to the PC. It appears as two devices: a serial port (a Silicon Labs CP210x bridge) and a sound card (**USB Audio CODEC**). If no COM port appears, install the CP210x driver from Silicon Labs or Icom's USB driver.
+Connect the radio's USB port to the PC. It appears as a serial port (a Silicon Labs CP210x bridge) and a sound card (**USB Audio CODEC**). If no COM port appears, install the CP210x driver from Silicon Labs or Icom's USB driver. An IC-9700's bridge is expected to show two COM ports: CI-V is on the one called **Enhanced**, which the program prefers. If it picks the wrong one, choose it in **Rig > Settings**.
 
 Then, on the radio, go to **MENU > SET > Connectors > CI-V**:
 
@@ -195,7 +208,7 @@ Then, on the radio, go to **MENU > SET > Connectors > CI-V**:
 |---|---|---|
 | CI-V USB Port | Unlink from [REMOTE] | The scope stream needs this |
 | CI-V USB Baud Rate | 115200 | The scope stream needs this too |
-| CI-V Address | 94h | The radio's default, and what the app expects |
+| CI-V Address | Leave it at the default: 94h on an IC-7300, A2h on an IC-9700, 96h on an IC-R8600 | How the app recognises the radio |
 | CI-V USB Echo Back | OFF | ON also works |
 
 And under **Connectors**:
@@ -209,12 +222,53 @@ The app can't change these for you, by design. Menu writes use addresses that di
 
 Only one program can own a COM port, so close any other CAT software first. The sound card can be shared. To run this app alongside something that needs the COM port, such as WSJT-X, use `--no-rig` for the audio waterfall alone.
 
+### Which radio it is
+
+The program asks with CI-V's "read the transceiver ID" (`19 00`): first at the address in **Rig > Settings**, then at 94h, A2h, 96h and the broadcast address. Nothing else is sent until a radio has answered. It asks again whenever the link has been lost, so you can swap radios on the same cable. Changing radio turns ARM TX off.
+
+If you've changed the radio's CI-V address, put the new one in Settings. **Radio** in Settings can also say outright which it is, if detection gets it wrong. A radio that isn't one of these three is only spoken to if you've entered its address, and is then treated as an IC-7300, as it always was.
+
+### What changes on an IC-9700
+
+| | IC-7300 | IC-9700 |
+|---|---|---|
+| **Bands** | 30 kHz to 74.8 MHz | 144-148, 430-450 and 1240-1300 MHz, on the US model. Models sold elsewhere have less, and refuse the rest |
+| **Full power** | 100 W | 100 W on 2 m, 75 W on 70 cm, 10 W on 23 cm. The power slider and Po meter follow the band |
+| **Tuner, XIT** | Yes | The radio has neither, so the buttons aren't shown |
+| **Attenuator** | 20 dB | 10 dB |
+| **Preamp** | Off, P1, P2 | Off, On, External, Both |
+| **Modes** | | DV as well, and DD on 23 cm |
+| **A/B** | Swaps the VFOs with the radio's command | Writes each VFO with the other's settings, as the radio's command would exchange its MAIN and SUB bands instead |
+| **Typing a number** | `145` is 145 kHz | `145` is 145 MHz. `145500` is kHz |
+
+The program works the **main band only**. It selects it on connecting, and its scope follows that band. It has no controls for the sub band, dualwatch or satellite mode, and the radio refuses the other-VFO commands in satellite mode. Stations and memories that aren't on the connected radio's bands can't be tuned: the program says so rather than jumping somewhere else.
+
+### What changes on an IC-R8600
+
+It's a receiver with one VFO, so everything to do with transmitting or a second VFO is gone: ARM TX, PTT, TUNE, split, A/B, A=B, RIT, data mode, the CW / Voice tab and the transmit meters. The program never sends those commands to it, and it can't be armed.
+
+| | What you get |
+|---|---|
+| **Coverage** | 10 kHz to 3 GHz. A US model has the cellular bands blocked, and refuses them |
+| **Antennas** | ANT1, ANT2 and ANT3 where a transceiver has its transmit buttons. ANT1 is Type-N, for the whole range. ANT2 (SO-239) and ANT3 (RCA, 500 ohms) only work below 30 MHz, so above that they're greyed out |
+| **Modes** | WFM has its own button. S-AM and its lower and upper sideband forms are on one menu, and DV, P25, dPMR, NXDN and DCR on another. RTTY is what the radio calls FSK |
+| **Bands** | A menu by what they're for, as there are about 140 of them. Page Up and Page Down still go through them in order |
+| **Attenuator** | Off, 10, 20 or 30 dB |
+| **Preamp** | Off or on, with IP+ as a switch of its own |
+| **Meters** | The S meter, whether the squelch is open, and whether the receiver is overloaded |
+| **Scope** | Spans up to +/-2.5 MHz |
+| **Typing a number** | As on an IC-9700: `100` is 100 MHz and `145500` is kHz. Long wave needs a `k`, as in `198k` |
+
+On the rear USB port, the scope needs CI-V USB Port set to Unlink from [REMOTE], as well as the baud rate at 115200. The front USB port only needs the baud rate.
+
 ## Running it
 
 | Option | What it does |
 |---|---|
 | *(none)* | Finds the radio and connects |
 | `--demo` | Uses a simulated radio and test audio. Touches no hardware, and keeps its own settings, memories and log |
+| `--demo-radio 9700` | The same, simulating an IC-9700 |
+| `--demo-radio 8600` | The same, simulating an IC-R8600 |
 | `--port COM11` | Uses this serial port instead of the saved or detected one |
 | `--no-rig` | Audio waterfall only: leaves the serial port alone |
 | `--size 1600x900` | Sets the window size |
@@ -222,6 +276,7 @@ Only one program can own a COM port, so close any other CAT software first. The 
 | `--settings` | Opens with the Settings dialog showing |
 | `--tune HZ` | Tunes to this frequency soon after starting |
 | `--find TEXT` | Opens Find a station with this search |
+| `--sync-clock` | Sets the computer's clock from internet time and exits, with no window ([details](#setting-the-clock)). Needs administrator rights or root |
 | `--selftest out.txt` | Runs the scripted GUI test ([details](#testing)). Use it with `--demo` |
 | `--screenshot out.bmp` | Saves a screenshot and exits |
 | `--frames N` | Which frame `--screenshot` captures |
@@ -234,12 +289,22 @@ Port, baud rate, CI-V address, sound devices, your callsign and the PTT time lim
 
 | Area | What's there |
 |---|---|
-| **Top** | Frequency and mode of both VFOs; S, SWR, ALC and Vd meters; ARM TX, PTT, TUNE, ATU, SPLIT, A/B, A=B |
+| **Top** | Frequency and mode of both VFOs; S, SWR, ALC and Vd meters (click them to swap the bars for a backlit needle meter, and click again to go back); ARM TX, PTT, TUNE, ATU, SPLIT, A/B, A=B |
 | **Below that** | Band, mode, data mode, filter and tuning step |
 | **Left** | Receive, filter and noise controls, including AF, RF gain, preamp, attenuator, AGC, Twin PBT, NB, NR and notch |
 | **Centre** | The band scope and the audio waterfall. Drag the bar between them to resize. Either can be hidden from **View** |
 | **Right** | Tabs for Keypad (with the tuning dial), Memories, Log and CW / Voice |
-| **Bottom** | Connection status and UTC. The dot is green when connected, amber when the port is open but the radio isn't answering, and red when the port can't be opened |
+| **Bottom** | Connection status, UTC and the **Sync** button for [setting the clock](#setting-the-clock). The dot is green when connected, amber when the port is open but the radio isn't answering, and red when the port can't be opened |
+
+### Setting the clock
+
+FT8, FT4 and similar modes only decode if the computer's clock is within about a second of everyone else's. **Sync**, next to the time at the bottom of the window, sets it from internet time and says in the status bar how far out it was.
+
+- The program asks NTP servers (`pool.ntp.org`, `time.cloudflare.com`, then `time.google.com`) itself, over UDP port 123, and only when you press the button. It uses the first two that answer.
+- It leaves the clock alone if it's within 0.02 s, if it's more than an hour out (check your date and time settings instead), or if the servers disagree by more than half a second.
+- **Windows asks for permission each time**, as setting the clock needs administrator rights. To stop it asking, give your account the right: in `secpol.msc`, under Local Policies > User Rights Assignment, add yourself to **Change the system time**, then sign out and back in. Windows Home doesn't have `secpol.msc`.
+- On Linux and macOS, it tells you how far out the clock is, and setting it needs `sudo ic7300console --sync-clock`.
+- In `--demo`, it only reports how far out the clock is.
 
 ### The tuning dial
 
@@ -265,6 +330,7 @@ Just start typing, anywhere. Enter goes there and Esc cancels. You can also use 
 | `198k`, `14.074m` | Says so outright |
 | `14.074.123` | As the radio displays it |
 | `+5`, `-1.5` | kHz up or down from the dial |
+| `145.5`, `1296`, `145500` | On an IC-9700 or IC-R8600: MHz, MHz and kHz |
 
 ### Keys
 
@@ -314,28 +380,62 @@ The scope shows you where you are on the band, using the plan for your country. 
 
 Countries without their own plan can use their IARU region's.
 
+Every plan also has 2 m, 70 cm and 23 cm, and the band buttons show only what the connected radio has. These come from:
+
+| Plan | Source for 2 m, 70 cm and 23 cm |
+|---|---|
+| Australia | WIA Band Plan, Revision 2026-1, February 2026 |
+| Canada | RAC plans: 2 m approved October 2020, 70 cm September 1995, 23 cm October 1997 |
+| IARU Region 1 | VHF Handbook v10.03, February 2026 |
+| IARU Region 2 | IARU Region 2 Band Plan, September 2020 |
+| IARU Region 3 | R3-004 Rev. 2, November 2024 |
+| Japan | JARL Amateur Band Plan, July 2025 |
+| New Zealand | NZART Band Plans, 2026 |
+| United Kingdom | RSGB Band Plan 2026 |
+| United States | ARRL band plan page, undated, with limits from FCC Part 97 |
+
+FT8 and similar presets that a plan doesn't list come from WSJT-X's default frequencies, and the ISS downlink from its operators, and their notes say so. Some 70 cm and 23 cm plans leave out FT8 where the segment doesn't list data. In the US and Region 2, 420-430 MHz is on the plan but below what the radio tunes.
+
 Each plan is a JSON file you can edit, in the `bandplans` folder inside [your data folder](#your-data). **Open plans folder** in Settings takes you there and `README.txt` explains the format. After editing, press **Reload**. To add a country, copy a file to a new name and change its `name`. If a file has a mistake, Settings names the file and the line, and the built-in plan is used until it's fixed. **Reset this plan** puts the built-in copy back and keeps yours as `<name>.json.bak`.
 
-A plan leaves out any band its country doesn't have, so that band gets no button. The 4 m button only works on radios that have that band. Others refuse the command and the status bar says so.
+A plan leaves out any band its country doesn't have, so that band gets no button. The 4 m button only works on radios that have that band. Others refuse the command and the status bar says so. A copy of a plan with no band above 100 MHz, such as one from an earlier version of this program, keeps the built-in 2 m, 70 cm and 23 cm, so upgrading doesn't leave an IC-9700 without bands.
+
+Every plan also covers the rest of an IC-R8600's range, from 10 kHz to 3 GHz: broadcasting, aviation, maritime, land mobile, satellites and mobile phones, fitted round that plan's amateur bands. These bands have a `group` in the file, which is the heading they go under on the receiver's Bands menu, and only a receiver is offered them. They're broad, summarised from the ITU table of allocations and general knowledge of each region, and not checked against each country's own table, so treat them as a guide to what's where. A plan with no groups, such as a copy from an earlier version of this program, keeps the built-in ones, except any that would overlap a band of its own. On a receiver, nothing is shaded as out of band, since that's about where you may transmit.
 
 ### Stations
 
-As well as the amateur bands, the scope flags what else is on the air, and this list stays the same whichever band plan you choose. It's for **listening only**. Some countries, including the UK, make it an offence to listen to messages not meant for you or to pass them on, so check what applies where you are.
+As well as the amateur bands, the scope flags what else is on the air, and this list stays the same whichever band plan you choose. Few other services work inside the IC-9700's bands, so its flags are mostly satellites and beacons, and a satellite is only there during a pass. It's for **listening only**. Some countries, including the UK, make it an offence to listen to messages not meant for you or to pass them on, so check what applies where you are.
 
 | Service | What's listed |
 |---|---|
-| Commercial | HFDL aircraft data, airline long-distance voice, Kyodo press fax |
+| Commercial | HFDL aircraft data, airline long-distance voice, Kyodo press fax, and the licence-free PMR446 and LPD433 bands |
 | Government | Time signals, VOLMET, North Atlantic air traffic control |
 | Naval and maritime | NAVTEX, WEFAX, GMDSS distress channels, coast guard and marine weather, French Navy STANAG 4285 |
 | Military | US HFGCS voice and ALE, RAF Volmet, Trenton, Russian stations such as The Buzzer |
-| Broadcast | Long wave stations, and the medium wave and shortwave bands |
+| Broadcast | About 1,800 shortwave and medium wave broadcasters from 66 countries with their schedules, such as the Voice of America, BBC World Service and China Radio International, plus the long wave stations, US clear channel AM stations, and the medium wave and shortwave bands |
+| Amateur satellites and beacons | The ISS, FM and linear satellites with their beacons, and a few long-running 2 m, 70 cm and 23 cm beacons |
+
+With an IC-R8600 connected there's a second list, `stations/receiver.json`, of about 930 more:
+
+| Service | What's listed |
+|---|---|
+| Aviation | HF air routes by region, common VHF and UHF voice, ACARS, VDL Mode 2, ADS-B and radar |
+| Naval and maritime | Marine VHF channels, AIS, and the HF marine voice channels |
+| Military | VLF and LF naval stations |
+| Government | NOAA Weather Radio and the US interoperability channels |
+| Satellites and navigation | GPS and the other navigation systems, weather satellites, Inmarsat, distress beacons, the hydrogen line |
+| Land mobile and licence-free | CB, PMR446, LPD433, FRS and GMRS, MURS, Australian UHF CB, and short-range sensors and LoRa |
+| Broadcast | DAB channels, UHF TV channels, and the FM bands |
+
+Local things such as your own airport's frequencies aren't listed. Many of these are digital or encrypted, so a flag says what's there, not that you can hear it. The file names its sources, and says which entries come from general knowledge rather than a source checked when it was written.
 
 - **Flags**: station flags are solid, in a colour for their service, and the plan's are outlined. Hold the mouse over one for what it is. Clicking tunes there and sets the mode. A data signal's flag sits on the signal itself and the click tunes USB below it, ready for a decoder.
-- **Broadcast bands**: a bar along the bottom of the spectrum. Shortwave stations change frequency with the seasons, so these are bands rather than individual stations.
-- **Find a station**: **Stations > Find a station** or Ctrl+F searches names, types, places and frequencies in kHz, such as `northwood` or `wefax japan`. Click a result, or press Enter for the first.
+- **Broadcast bands**: a bar along the bottom of the spectrum.
+- **Broadcasters**: `stations/broadcast.json`, by home country. A broadcaster has a flag only during its scheduled hours, so the scope shows what should be on now. **Stations > Only what's scheduled now** turns that off. Hold the mouse over one for its times in UTC, languages, target area and transmitter. Scheduled doesn't mean you'll hear it: that depends on the hour, the season and where the signal is aimed. Schedules change at the end of March and October, when the list needs regenerating with `tools/make_broadcast_stations.py`. It covers stations that broadcast internationally or reach far, not every local medium wave station: outside the US clear channels, most domestic AM stations aren't in it.
+- **Find a station**: **Stations > Find a station** or Ctrl+F searches names, types, places and frequencies in kHz, such as `northwood`, `wefax japan` or `voice of america`. Click a result, or press Enter for the first.
 - **Stations menu**: every station by service and group. It also turns each service's flags on and off.
 
-The list is `stations/worldwide.json` in [your data folder](#your-data), and you can edit it or add your own files beside it. `README.txt` there explains the format. **Open stations folder**, **Reload** and **Reset station list** are in Settings. Its sources are named in the file. They are public and hobby lists of varying age, so a flag doesn't promise a signal.
+The list is `stations/worldwide.json` in [your data folder](#your-data), and you can edit it or add your own files beside it. `README.txt` there explains the format. **Open stations folder**, **Reload** and **Reset station list** are in Settings. Its sources are named in the file. They are public and hobby lists of varying age, so a flag doesn't promise a signal. A copy with nothing above 100 MHz, such as one from an earlier version of this program, keeps the built-in VHF and UHF stations.
 
 ## Transmit safety
 
@@ -377,7 +477,7 @@ ADIF has no single mode for USB-D and similar, as they could be any digital mode
 ## How it works
 
 ```
-                 ┌──────────────── IC-7300 ────────────────┐
+                 ┌───── IC-7300, IC-9700 or IC-R8600 ──────┐
                  │  CP210x serial port    USB Audio CODEC  │
                  └───────┬───────────────────────┬─────────┘
                     CI-V │ 115200 baud           │ 48 kHz audio
@@ -398,7 +498,7 @@ The window never talks to the radio directly. One thread owns the serial port an
 
 ### CI-V, the radio's protocol
 
-`src/civ.h` builds and parses CI-V frames: `FE FE <to> <from> <cmd> [data] FD`. The radio is at address `94h` and the PC at `E0h`. Frequencies are little-endian BCD and levels are big-endian BCD. It also holds the meter calibration tables, which turn raw readings into S units, watts, SWR, volts and amps. It's plain C++ with no OS or threading code, so the tests can check it byte by byte.
+`src/civ.h` builds and parses CI-V frames: `FE FE <to> <from> <cmd> [data] FD`. An IC-7300 is at address `94h`, an IC-9700 at `A2h`, an IC-R8600 at `96h`, and the PC at `E0h`. What differs between them is in one `civ::Radio` description of each. Frequencies are little-endian BCD and levels are big-endian BCD. It also holds the meter calibration tables, which turn raw readings into S units, watts, SWR, volts and amps. It's plain C++ with no OS or threading code, so the tests can check it byte by byte.
 
 ### The rig thread
 
@@ -463,7 +563,7 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 | `src/transport.h` | The byte-pipe interface shared by the serial port and the simulator |
 | `src/rig.h`, `src/rig.cpp` | The rig thread: command queue, polling, state, transmit safety |
 | `src/serial.cpp` | Serial ports for Win32 and POSIX, and finding the radio's port |
-| `src/sim_rig.h`, `src/sim_rig.cpp` | The simulated IC-7300 |
+| `src/sim_rig.h`, `src/sim_rig.cpp` | The simulated IC-7300, IC-9700 and IC-R8600 |
 | `src/audio.h`, `src/audio.cpp` | Sound in and out, through miniaudio |
 | `src/demo_audio.h` | The demo's generated audio |
 | `src/dsp.h` | The FFT and dB scaling |
@@ -473,6 +573,7 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 | `bandplans/*.json` | The built-in band plans, compiled into the program |
 | `stations/*.json` | The built-in station lists, compiled into the program |
 | `src/store.h`, `src/store.cpp` | Settings, memories, log, ADIF, WAV |
+| `src/clock_sync.h`, `src/clock_sync.cpp` | Asking NTP servers the time and setting the computer's clock |
 | `src/app.h`, `src/app.cpp` | The window and the self-test script |
 | `src/main.cpp` | Command-line options |
 | `tests/test_core.cpp` | The core test suite |
@@ -488,8 +589,8 @@ The commands below use the `build` folder. If you downloaded the programs, use y
 
 | Test | Needs | What it covers |
 |---|---|---|
-| `test_core` | Nothing | 3104 checks: CI-V bytes, frequency entry, the tuning dial, band plans, stations and their search, FFT and log files, plus the rig thread against the simulated radio, including refused commands, echo, stale readings, lost links and every transmit guard |
-| `ic7300console --demo --selftest out.txt` | A display | 67 checks: real clicks and keystrokes through the window, against the simulated radio |
+| `test_core` | Nothing | About 30,000 checks: CI-V bytes, frequency entry, the tuning dial, band plans, stations and their search, FFT and log files, plus the rig thread against the simulated radios, including finding which radio it is, refused commands, echo, stale readings, lost links and every transmit guard |
+| `ic7300console --demo --selftest out.txt` | A display | 120 checks: real clicks and keystrokes through the window, against the simulated IC-7300, then IC-9700, then IC-R8600 |
 | `ic7300probe` | A real radio | Reads everything from the radio and listens to the scope |
 
 ### Core tests
@@ -498,7 +599,7 @@ The commands below use the `build` folder. If you downloaded the programs, use y
 .\build\test_core            # or: ctest --test-dir build
 ```
 
-This takes about 25 seconds and ends with `1729 checks, 0 failed`.
+This takes about 30 seconds and ends with `0 failed`. The number of checks varies slightly from run to run, as some loop over what the simulated radio received.
 
 ### GUI self-test
 
@@ -528,13 +629,34 @@ It prints `ok` or `FAIL` for each reading and ends with `ALL CHECKS PASSED` or `
 
 The simulated radio shares this code's reading of the protocol, so passing against it shows the app is self-consistent and handles faults. **Only `ic7300probe` shows the protocol is right, and since it never keys, it doesn't exercise transmit on a real radio.** The transmit guards are tested against the simulator.
 
+### What's still unproven on an IC-9700
+
+`ic7300probe` hasn't been run on one yet, and it would settle most of these. Until it has, treat the IC-9700 as untested:
+
+- **What `19 00` reports if the CI-V address has been changed.** Handled either way, but if it reports the new address the radio can't be told from any other, and **Radio** in Settings has to say.
+- **Whether a broadcast `19 00` is answered.** Radios at their default addresses don't need it.
+- **Changing band with `05` when the SUB band is already on that band.** The status bar asks about this if the radio refuses. The program doesn't exchange the bands for you.
+- **Which COM port carries CI-V**, and its name in Windows, which comes from general knowledge of Icom's dual bridge rather than the guide.
+- **Whether the A/B workaround and `26 01` are accepted** exactly as the guide describes.
+
+### What's still unproven on an IC-R8600
+
+`ic7300probe` hasn't been run on one yet either. Until it has, treat the IC-R8600 as untested:
+
+- **What `12` does at and above 30 MHz.** The guide says antenna selection is only for 10 kHz to 29.999999 MHz, but not what a read returns up there. The program shows ANT1 and sends nothing else.
+- **Which modes take a filter.** WFM and the digital modes are sent with no filter byte, which the guide allows. The filter buttons are greyed out for them on the assumption that they have no choice of filter.
+- **S-AM's filter widths.** The guide only gives AM's, and S-AM is assumed to be the same.
+- **The width shown for WFM and the digital modes** is the width of the channel, for shading the scope, and not read from the radio.
+
 ## Troubleshooting
 
 | What you see | What to do |
 |---|---|
 | `COMx is in use by another program` | Close the other CAT program. A port can only have one owner |
 | `COMx isn't there (radio off or unplugged?)` | Turn the radio on and check the cable. If the COM number has changed, choose the new one in **Rig > Settings** |
-| `COMx open, but no answer` | Check that the radio is on, with CI-V USB Baud Rate at 115200 and CI-V Address at 94h |
+| `COMx open, but no answer` | Check that the radio is on, with CI-V USB Baud Rate at 115200. On an IC-9700, make sure it's the Enhanced COM port |
+| `A radio answered at ...` | It isn't an IC-7300, IC-9700 or IC-R8600, or its CI-V address has been changed. Put that address in **Rig > Settings**, and choose **Radio** if it's one of those |
+| `The rig wouldn't set that frequency. Is the SUB band on that band?` | On an IC-9700, main and sub can't share a band. Move the sub band on the radio, then try again |
 | No COM port at all | Install the CP210x driver (see [Setting up the radio](#setting-up-the-radio)) |
 | It connects to the wrong device | It picks the first port that looks like a CP210x. Choose the right one in **Rig > Settings** or use `--port` |
 | Band waterfall is empty, the rest works | Set CI-V USB Port to Unlink from [REMOTE] and the baud rate to 115200. `ic7300probe` checks this too |
@@ -547,7 +669,7 @@ The simulated radio shares this code's reading of the protocol, so passing again
 
 ## Third-party code
 
-The command bytes were checked against [Hamlib](https://hamlib.github.io/)'s IC-7300 backend.
+The command bytes were checked against [Hamlib](https://hamlib.github.io/)'s IC-7300, IC-9700 and IC-R8600 backends, and the IC-9700's and IC-R8600's against Icom's CI-V Reference Guides.
 
 These are bundled in `third_party/`, each under its own licence:
 
