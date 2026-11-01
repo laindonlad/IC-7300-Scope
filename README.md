@@ -88,9 +88,6 @@ The `xattr` command reports an error for a file that isn't marked as downloaded,
 
 **There's nothing to install.** The band plans and the station list are built into `ic7300console`, so you only need that one program. You don't need the `bandplans` and `stations` folders from the download, and you don't need to copy them anywhere.
 
-> [!NOTE]
-> The program in `bin/windows-x64` hasn't been rebuilt since these features were added, so it doesn't have them yet. If yours has no **Stations** menu, [build it from source](#building). The Linux and macOS programs are up to date.
-
 The first time it runs, the program writes editable copies into two folders inside [your data folder](#your-data), creating them if they aren't there:
 
 | System | Band plans | Station lists |
