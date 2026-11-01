@@ -43,6 +43,8 @@ class AudioEngine {
 
   // New samples for the waterfall, since the last read. Only one caller.
   size_t read(float* out, size_t max);
+  // The same samples again for the decoder, which reads them on a thread of its own. Only one caller.
+  size_t readForDecoder(float* out, size_t max);
   // The loudest sample since the last call, 0-1.
   float takePeak();
 

@@ -16,10 +16,13 @@
 #include <shellapi.h>
 #else
 #include <sys/stat.h>
+#include <unistd.h>
+#endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
 #endif
 
 namespace store {
-namespace {
 void makeDirs(const std::string& path) {
   std::string cur;
   for (size_t i = 0; i < path.size(); i++) {
@@ -33,7 +36,6 @@ void makeDirs(const std::string& path) {
     }
   }
 }
-}  // namespace
 
 bool saveText(const std::string& path, const std::string& text) {
   std::string tmp = path + ".tmp";
@@ -69,6 +71,55 @@ std::string dataDir() {
 #else
   return d + "/";
 #endif
+}
+
+std::string exeDir() {
+  char b[4096] = "";
+#ifdef _WIN32
+  DWORD n = GetModuleFileNameA(nullptr, b, sizeof b);
+  std::string s(b, n < sizeof b ? n : 0);
+#elif defined(__APPLE__)
+  uint32_t n = sizeof b;
+  std::string s(_NSGetExecutablePath(b, &n) == 0 ? b : "");
+#else
+  ssize_t n = readlink("/proc/self/exe", b, sizeof b - 1);
+  std::string s(b, n > 0 ? (size_t)n : 0);
+#endif
+  size_t cut = s.find_last_of("\\/");
+  if (cut == std::string::npos) return std::string(".") + (s.find('\\') != std::string::npos ? "\\" : "/");
+  return s.substr(0, cut + 1);
+}
+
+// A folder under the program's, or under the data folder if the program's can't be written to.
+static std::string writableFolder(const std::string& name) {
+  std::string d = exeDir() + name;
+  makeDirs(d);
+  std::string probe = d + ".write-test";
+  FILE* f = fopen(probe.c_str(), "wb");
+  if (!f) return dataDir() + name;
+  fclose(f);
+  remove(probe.c_str());
+  return d;
+}
+
+std::string receivedDir() {
+#ifdef _WIN32
+  static const std::string chosen = writableFolder("received\\");
+#else
+  static const std::string chosen = writableFolder("received/");
+#endif
+  makeDirs(chosen);
+  return chosen;
+}
+
+std::string overlaysDir() {
+#ifdef _WIN32
+  static const std::string chosen = writableFolder("overlays\\");
+#else
+  static const std::string chosen = writableFolder("overlays/");
+#endif
+  makeDirs(chosen);
+  return chosen;
 }
 
 void openFolder(const std::string& path) {

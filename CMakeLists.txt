@@ -10,12 +10,13 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # ---- everything below the window: no GUI, no audio, so the tests and the probe can use it ----
-add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp)
+add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp src/decoder.cpp src/chart_overlay.cpp)
 target_include_directories(rigcore PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(rigcore SYSTEM PRIVATE third_party/morse third_party/stb)
 
-# The band plans go inside the executable too, and are written out for editing the first time it runs.
-function(embed_json_folder folder table output)
-  file(GLOB files CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${folder}/*.json)
+# The band plans and overlays go inside the executable too, and are written out the first time it runs.
+function(embed_folder folder extension table output)
+  file(GLOB files CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${folder}/*.${extension})
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${files})
   set(inc "")
   set(rows "")
@@ -31,8 +32,9 @@ function(embed_json_folder folder table output)
   file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${output}
     "${inc}static const struct { const char* id; const unsigned char* data; size_t size; } ${table}[] = {\n${rows}};\n")
 endfunction()
-embed_json_folder(bandplans kBuiltinPlans builtin_bandplans.inc)
-embed_json_folder(stations kBuiltinStations builtin_stations.inc)
+embed_folder(bandplans json kBuiltinPlans builtin_bandplans.inc)
+embed_folder(stations json kBuiltinStations builtin_stations.inc)
+embed_folder(overlays png kBuiltinOverlays builtin_overlays.inc)
 
 find_package(Threads REQUIRED)
 target_link_libraries(rigcore PUBLIC Threads::Threads)

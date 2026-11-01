@@ -144,6 +144,7 @@ You need CMake 3.16 or newer and a C++17 compiler. All the libraries are already
 | Dear ImGui | 1.91.9b |
 | GLFW | 3.4 |
 | miniaudio | 0.11.22 |
+| stb_image, stb_image_write | 2.30, 1.16 |
 
 ### Windows with MinGW-w64
 
@@ -292,9 +293,28 @@ Port, baud rate, CI-V address, sound devices, your callsign and the PTT time lim
 | **Top** | Frequency and mode of both VFOs; S, SWR, ALC and Vd meters (click them to swap the bars for a backlit needle meter, and click again to go back); ARM TX, PTT, TUNE, ATU, SPLIT, A/B, A=B |
 | **Below that** | Band, mode, data mode, filter and tuning step |
 | **Left** | Receive, filter and noise controls, including AF, RF gain, preamp, attenuator, AGC, Twin PBT, NB, NR and notch |
-| **Centre** | The band scope and the audio waterfall. Drag the bar between them to resize. Either can be hidden from **View** |
+| **Centre** | The band scope and the audio waterfall, which can share its space with a [decoder](#decoding). Drag the bar between them to resize. Either can be hidden from **View** |
 | **Right** | Tabs for Keypad (with the tuning dial), Memories, Log and CW / Voice |
 | **Bottom** | Connection status, UTC and the **Sync** button for [setting the clock](#setting-the-clock). The dot is green when connected, amber when the port is open but the radio isn't answering, and red when the port can't be opened |
+
+### Decoding
+
+Choose **CW**, **RTTY**, **NAVTEX** or **WEFAX** under **Decode** in the audio toolbar. The audio panel divides in two, with the waterfall on the left and the mode on the right, and you can drag the bar between them. **Off** gives the waterfall its whole panel back. The decoders are the ones from the Morse project, and they look across the whole of the audio, so you don't need to tune precisely.
+
+The panel also opens by itself. Putting the rig in CW, CW-R, RTTY or RTTY-R, from here or from its front panel, opens that decoder, and so does choosing a NAVTEX, WEFAX, press fax or RTTY station, from a flag, the **Stations** menu or **Find a station**. Going to another mode leaves the decoder as it is, so turn it off with **Off**.
+
+| Mode | What you see | Where it's saved |
+|---|---|---|
+| CW, RTTY, NAVTEX | Decoded text, tagged by signal when there are several. Signals found are marked on the audio spectrum | `received/YYYY-MM-DD-cw.txt`, `-rtty.txt` or `-navtex.txt`, one file a day, added to |
+| WEFAX | The chart as it comes in. It starts by itself on a start tone or phasing, or press **Start now** for one already under way | `received/YYYY-MM-DD-HHMMSS.bmp`, one picture a chart |
+
+The `received` folder is beside the program, or in [your data folder](#your-data) if the program's folder can't be written to. **Rig > Open received folder** takes you there. Dates and times are UTC, like the rest of the program. Each text file notes the dial frequency and mode above what was heard there.
+
+Decoding carries on while you transmit, but it hears silence, so your own signal isn't logged as received. Demo mode decodes without saving anything.
+
+For WEFAX, use USB with the dial 1.9 kHz below the station's listed frequency. Each chart measures its own slant from its phasing, and the last measurement is kept for the next. **Centre** and **Slant** are there for a signal that's off tune or a chart that leans.
+
+**Overlay**, above the chart on the right, lays a map over it, including one still coming in. Overlays are transparent PNGs in the `overlays` folder beside the program, and the Northwood one is there as an example, with a `README.txt` on making your own. Each is made for one station's charts and is scaled to the chart's width. **X** and **Y** move it if a chart doesn't line up, such as one tuned in late. **Save a copy** writes the chart with its overlay to the `received` folder as `CHART-OVERLAY.png`, numbered if that name is taken, so neither the chart nor an earlier copy is overwritten. It's available once the chart has finished, and only for the chart received in this session.
 
 ### Setting the clock
 
@@ -565,6 +585,10 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 | `src/serial.cpp` | Serial ports for Win32 and POSIX, and finding the radio's port |
 | `src/sim_rig.h`, `src/sim_rig.cpp` | The simulated IC-7300, IC-9700 and IC-R8600 |
 | `src/audio.h`, `src/audio.cpp` | Sound in and out, through miniaudio |
+| `src/decoder.h`, `src/decoder.cpp` | The decoding thread: runs the decoders and writes the `received` folder |
+| `src/chart_overlay.h`, `src/chart_overlay.cpp` | Map overlays for charts: finding and reading them, and saving a chart with one |
+| `overlays/` | The overlays built into the program, written to its `overlays` folder if missing |
+| `third_party/morse/` | The CW, RTTY, NAVTEX and WEFAX decoders, copied from the Morse project's `src/digi` |
 | `src/demo_audio.h` | The demo's generated audio |
 | `src/dsp.h` | The FFT and dB scaling |
 | `src/waterfall.h`, `src/waterfall.cpp` | The waterfall texture and palettes |
@@ -678,6 +702,7 @@ These are bundled in `third_party/`, each under its own licence:
 | [Dear ImGui](https://github.com/ocornut/imgui) | [MIT](third_party/imgui/LICENSE.txt) |
 | [GLFW](https://www.glfw.org/) | [zlib/libpng](third_party/glfw/LICENSE.md) |
 | [miniaudio](https://miniaud.io/) | [Public domain or MIT-0](third_party/miniaudio/LICENSE) |
+| [stb_image and stb_image_write](https://github.com/nothings/stb) | Public domain or MIT, at the end of each header in `third_party/stb` |
 | Roboto font, by Christian Robertson | [Apache 2.0](third_party/imgui/fonts/LICENSE-Roboto.txt) |
 | Cousine font, by Steve Matteson | [SIL Open Font License 1.1](third_party/imgui/fonts/LICENSE-Cousine.txt) |
 

@@ -65,6 +65,7 @@ struct AudioEngine::Impl {
   ma_device cap{}, play{};
   bool capOpen = false, playOpen = false;
   Ring forDsp{1u << 18};  // 5 seconds
+  Ring forDecoder{1u << 18};
   Ring forMonitor{1u << 15};
   std::atomic<float> peak{0.f};
 };
@@ -80,6 +81,7 @@ struct AudioCallbacks {
     float cur = e->impl_->peak.load(std::memory_order_relaxed);
     if (pk > cur) e->impl_->peak.store(pk, std::memory_order_relaxed);
     e->impl_->forDsp.push(s, frames);
+    e->impl_->forDecoder.push(s, frames);
     if (e->impl_->playOpen) e->impl_->forMonitor.push(s, frames);
   }
   static void output(ma_device* d, void* out, const void*, ma_uint32 frames) {
@@ -272,5 +274,7 @@ void AudioEngine::stopMonitor() {
 bool AudioEngine::monitoring() const { return impl_->playOpen; }
 
 size_t AudioEngine::read(float* out, size_t max) { return impl_->forDsp.pop(out, max); }
+
+size_t AudioEngine::readForDecoder(float* out, size_t max) { return impl_->forDecoder.pop(out, max); }
 
 float AudioEngine::takePeak() { return impl_->peak.exchange(0.f); }

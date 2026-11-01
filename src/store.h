@@ -13,6 +13,14 @@ namespace store {
 // Per-user folder: %APPDATA%\IC7300Console, ~/Library/Application Support/IC7300Console, or
 // ~/.config/ic7300console. Created if needed.
 std::string dataDir();
+// The folder the program itself is in, ending in a separator.
+std::string exeDir();
+// Where decoded text and charts go: "received" under the program's folder, or under the data folder if the
+// program's folder can't be written to (Program Files, say). Created if needed.
+std::string receivedDir();
+// Where the map overlays for charts are, chosen the same way, as "overlays".
+std::string overlaysDir();
+void makeDirs(const std::string& path);
 void openFolder(const std::string& path);
 // Written beside the target and moved over it, so a crash mid-save can't lose what was there.
 bool saveText(const std::string& path, const std::string& text);

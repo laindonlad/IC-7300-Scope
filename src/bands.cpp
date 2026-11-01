@@ -363,10 +363,21 @@ bool parseAirTime(const std::string& text, Station::AirTime& out) {
   return true;
 }
 
+// A data signal is tuned in USB, so only the group's name says which decoder it's for. Going by the name means
+// the station files people already have, and any they've written, work as they are.
+std::string decoderForGroup(std::string name) {
+  for (char& c : name) c = (char)tolower((unsigned char)c);
+  if (name.find("navtex") != std::string::npos) return "NAVTEX";
+  if (name.find("fax") != std::string::npos) return "WEFAX";
+  if (name.find("rtty") != std::string::npos) return "RTTY";
+  return "";
+}
+
 bool parseStationGroup(const Json& j, StationFile& f, std::string& error) {
   Station base;
   base.group = strField(j, "name");
   if (base.group.empty()) return error = "a group has no \"name\"", false;
+  base.decoder = decoderForGroup(base.group);
   std::string where = "group " + base.group + ": ";
   std::string service = strField(j, "service");
   if (!parseService(service, base.service)) return error = where + "unknown \"service\" \"" + service + "\" (" + kServiceNames + ")", false;
@@ -420,7 +431,8 @@ const char kStationNotes[] =
     "In a group:\n"
     "  service           commercial, government, naval, military, broadcast, amateur, aviation, space or land.\n"
     "                    Sets the colour and the menu.\n"
-    "  name, note        The note is shown under the mouse for every station in the group.\n"
+    "  name, note        The note is shown under the mouse for every station in the group. A name with NAVTEX,\n"
+    "                    fax or RTTY in it opens that decoder when one of its stations is chosen.\n"
     "  mode              LSB USB AM FM CW CW-R RTTY RTTY-R, LSB-D USB-D AM-D FM-D, DV or DD, or on a receiver\n"
     "                    WFM S-AM S-AM(L) S-AM(U) P25 dPMR NXDN-VN NXDN-N DCR.\n"
     "  dial_offset_khz   Optional, and usually negative: where to tune, relative to the frequency given.\n"

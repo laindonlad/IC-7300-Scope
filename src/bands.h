@@ -21,6 +21,7 @@ struct Marker {
   int mode = -1;
   bool data = false;
   long long dialHz = 0;  // where clicking tunes, if that isn't hz: see Station
+  std::string decoder;   // the decoder its signal needs when the mode doesn't say: NAVTEX, WEFAX or RTTY
   bool preset() const { return mode >= 0; }
   long long tuneHz() const { return dialHz > 0 ? dialHz : hz; }
 };

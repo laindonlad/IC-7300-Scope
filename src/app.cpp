@@ -24,6 +24,8 @@
 #include "bands.h"
 #include "civ.h"
 #include "clock_sync.h"
+#include "chart_overlay.h"
+#include "decoder.h"
 #include "demo_audio.h"
 #include "dsp.h"
 #include "imgui.h"
@@ -62,6 +64,12 @@ const float kAudioRanges[] = {3000, 4000, 6000, 12000, 24000};
 const char* const kAudioRangeNames[] = {"0-3 kHz", "0-4 kHz", "0-6 kHz", "0-12 kHz", "0-24 kHz"};
 const char* const kSpanNames[] = {"+/-2.5k", "+/-5k", "+/-10k", "+/-25k", "+/-50k", "+/-100k", "+/-250k", "+/-500k", "+/-1M", "+/-2.5M"};
 const int kWaterfallRows = 1024;
+// A chart on screen: 1809 pixels and up to 3000 lines at the usual IOC 576 are halved each way, as the panel
+// is narrower than that and GL's sampling would drop thin lines. IOC 288 charts are 905 wide, and stay as they are.
+const int kFaxTexW = 905, kFaxTexH = 3000;
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
 
 std::string utcNow(const char* fmt) {
   time_t t = time(nullptr);
@@ -173,6 +181,10 @@ class App {
   void connect();
   void frame();
   void pumpAudio();
+  void pumpDecoder();
+  void openDecoder(int mode);
+  void followRigMode();
+  void addFaxLine(const Decoder::FaxLine& l);
   void pumpScope();
   void keepAudioOpen();
   void rememberBand();
@@ -204,6 +216,11 @@ class App {
   void drawBandMap(double viewLo, double viewHi);
   void drawScopePane();
   void drawAudioPane();
+  void drawDecodePane();
+  void drawDecodeText();
+  void drawDecodeFax();
+  void drawFaxOverlayControls(bool receiving);
+  void chooseFaxOverlay(const std::string& file);
   void drawRightTabs();
   void drawDial();
   void drawKeypad();
@@ -361,6 +378,29 @@ class App {
   float peakDb_ = -100, peakHold_ = 0;
   store::WavWriter rec_;
 
+  // decoding. After audio_, so its thread stops before what it reads from goes.
+  std::unique_ptr<Decoder> decoder_;
+  int decodeMode_ = Decoder::OFF;
+  int rigModeSeen_ = -1;  // what followRigMode last saw. -1 until it has seen the rig's mode since connecting
+  float decodeSplit_ = 0.5f;  // the audio waterfall's share of the width
+  Decoder::Status decodeStatus_;
+  int decodeShown_ = Decoder::OFF;
+  std::string decodeText_, dialSent_;
+  std::vector<Decoder::FaxLine> faxTaken_;
+  float faxCentre_ = 1900, faxPpm_ = 0;
+  int faxWasState_ = Decoder::FAX_IDLE;
+  unsigned int faxTex_ = 0;
+  std::string faxOverlayFile_;     // empty for none
+  std::string faxOverlayPending_;  // the one from last time: there's no window to give its texture to until later
+  std::vector<std::string> faxOverlayFiles_;
+  chart_overlay::Image faxOverlay_;  // at full size, for saving
+  unsigned int faxOverlayTex_ = 0;
+  int faxOverlayX_ = 0, faxOverlayY_ = 0;  // in the chart's own pixels
+  uint32_t faxChart_ = 0;
+  int faxRows_ = 0, faxCols_ = 0, faxShrink_ = 1;
+  std::vector<uint8_t> faxHeld_;  // the first of two lines being halved into one
+  std::vector<uint32_t> faxRow_;
+
   // scope view
   Waterfall wfScope_;
   std::vector<float> scopeLine_;
@@ -489,6 +529,11 @@ void App::loadSettings() {
   audioLinesPerSec_ = std::max(5, std::min(60, cfg_.getInt("audio_lines", 25)));
   audioFloorDb_ = (float)cfg_.getDouble("audio_floor", -110);
   audioRangeDb_ = (float)cfg_.getDouble("audio_span", 60);
+  // The self-test finds its controls by where they are, so it always has the undivided layout.
+  decodeMode_ = opt_.selfTest.empty() ? std::max(0, std::min(Decoder::MODE_COUNT - 1, cfg_.getInt("decode_mode", Decoder::OFF))) : Decoder::OFF;
+  decodeSplit_ = std::max(0.2f, std::min(0.8f, (float)cfg_.getDouble("decode_split", 0.5)));
+  faxCentre_ = std::max(1500.f, std::min(2300.f, (float)cfg_.getDouble("fax_centre", 1900)));
+  faxPpm_ = std::max(-500.f, std::min(500.f, (float)cfg_.getDouble("fax_ppm", 0)));
   audioAutoLeft_ = cfg_.get("audio_floor").empty() ? 50 : 0;
   scopeAutoLeft_ = cfg_.get("scope_floor").empty() ? 12 : 0;
   scopeFloor_ = (float)cfg_.getDouble("scope_floor", 12);
@@ -515,6 +560,8 @@ void App::loadSettings() {
     plans_ = bands::loadPlans(plansDir_);
     bands::installStations(stationsDir_);
     useStations(bands::loadStations(stationsDir_));
+    chart_overlay::install(store::overlaysDir());
+    faxOverlayPending_ = cfg_.get("fax_overlay");
     showStations_ = cfg_.getInt("show_stations", 1) != 0;
     onAirOnly_ = cfg_.getInt("stations_on_air_only", 1) != 0;
     for (int i = 0; i < bands::S_COUNT; i++) showService_[i] = cfg_.getInt("show_service" + std::to_string(i), 1) != 0;
@@ -586,6 +633,11 @@ void App::saveSettings() {
   cfg_.setInt("audio_lines", audioLinesPerSec_);
   cfg_.setDouble("audio_floor", audioFloorDb_);
   cfg_.setDouble("audio_span", audioRangeDb_);
+  cfg_.setInt("decode_mode", decodeMode_);
+  cfg_.setDouble("decode_split", decodeSplit_);
+  cfg_.setDouble("fax_centre", faxCentre_);
+  cfg_.setDouble("fax_ppm", faxPpm_);
+  cfg_.set("fax_overlay", faxOverlayPending_.empty() ? faxOverlayFile_ : faxOverlayPending_);
   cfg_.setDouble("scope_floor", scopeFloor_);
   cfg_.setDouble("scope_span", scopeRange_);
   cfg_.setInt("palette", palette_);
@@ -708,6 +760,102 @@ void App::pumpAudio() {
   }
 }
 
+static int decoderForMode(int mode) {
+  if (mode == civ::CW || mode == civ::CW_R) return Decoder::CW;
+  if (mode == civ::RTTY || mode == civ::RTTY_R) return Decoder::RTTY;
+  return Decoder::OFF;
+}
+
+// The panel is part of the audio pane, so that has to be showing too.
+void App::openDecoder(int mode) {
+  showAudio_ = true;
+  if (mode == decodeMode_) return;
+  decodeMode_ = mode;
+  if (decoder_) decoder_->setMode(mode);
+}
+
+// Watching the rig rather than the buttons also catches the F keys, band buttons, memories and the rig's own
+// front panel. Whatever mode it's in on connecting isn't a choice, so that leaves the saved decoder alone.
+// Leaving CW or RTTY leaves the decoder open, as a station's USB might be what it's listening to.
+// The self-test finds its controls by where they are, so it keeps the undivided layout.
+void App::followRigMode() {
+  int mode = st_.connected ? st_.mode : -1;
+  if (opt_.selfTest.empty() && mode != rigModeSeen_ && rigModeSeen_ >= 0 && decoderForMode(mode) != Decoder::OFF) openDecoder(decoderForMode(mode));
+  rigModeSeen_ = mode;
+}
+
+void App::pumpDecoder() {
+  if (!decoder_) return;
+  decoder_->setMuted(st_.tx);
+  std::string dial = st_.hz > 0 ? tuning::formatHz(st_.hz) + " " + modeLabel(st_.mode, st_.data) : "";
+  if (dial != dialSent_) decoder_->setDial(dialSent_ = dial);
+
+  std::string fresh;
+  decoder_->take(fresh, faxTaken_, decodeStatus_);
+  if (decodeStatus_.mode != decodeShown_) {
+    decodeShown_ = decodeStatus_.mode;
+    decodeText_.clear();
+    faxRows_ = 0;
+    faxChart_ = 0;
+    faxWasState_ = Decoder::FAX_IDLE;
+  }
+  decodeText_ += fresh;
+  if (decodeText_.size() > 32768) {  // the whole of it is in the file
+    size_t cut = decodeText_.find('\n', decodeText_.size() - 24576);
+    decodeText_.erase(0, cut == std::string::npos ? decodeText_.size() - 24576 : cut + 1);
+  }
+  for (const Decoder::FaxLine& l : faxTaken_) addFaxLine(l);
+  faxTaken_.clear();
+
+  if (decodeStatus_.mode == Decoder::WEFAX) {
+    bool wasImage = faxWasState_ == Decoder::FAX_IMAGE, isImage = decodeStatus_.faxState == Decoder::FAX_IMAGE;
+    if (wasImage && !isImage) {
+      if (!decodeStatus_.file.empty()) say("Saved " + decodeStatus_.file);
+      // The slant it measured is this sound card's clock, so it's where the next chart should start from.
+      if (decodeStatus_.faxMeasured) {
+        faxPpm_ = std::max(-500.f, std::min(500.f, decodeStatus_.faxPpm));
+        decoder_->faxSlant(faxPpm_);
+      }
+    }
+    faxWasState_ = decodeStatus_.faxState;
+  }
+}
+
+void App::addFaxLine(const Decoder::FaxLine& l) {
+  if (!faxTex_) {
+    glGenTextures(1, &faxTex_);
+    glBindTexture(GL_TEXTURE_2D, faxTex_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kFaxTexW, kFaxTexH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  }
+  int width = (int)l.px.size();
+  if (l.chart != faxChart_) {
+    faxChart_ = l.chart;
+    faxRows_ = 0;
+    faxShrink_ = width > kFaxTexW ? 2 : 1;
+    faxCols_ = width / faxShrink_;
+    faxHeld_.clear();
+  }
+  if (faxRows_ >= kFaxTexH || faxCols_ > kFaxTexW || width / faxShrink_ != faxCols_) return;
+  if (faxShrink_ == 2 && faxHeld_.empty()) {
+    faxHeld_ = l.px;
+    return;
+  }
+  faxRow_.resize((size_t)faxCols_);
+  for (int x = 0; x < faxCols_; x++) {
+    uint32_t v = l.px[(size_t)x * faxShrink_];
+    if (faxShrink_ == 2) v = (v + l.px[(size_t)x * 2 + 1] + faxHeld_[(size_t)x * 2] + faxHeld_[(size_t)x * 2 + 1]) / 4;
+    faxRow_[(size_t)x] = v | v << 8 | v << 16 | 0xFF000000u;
+  }
+  faxHeld_.clear();
+  glBindTexture(GL_TEXTURE_2D, faxTex_);
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, faxRows_, faxCols_, 1, GL_RGBA, GL_UNSIGNED_BYTE, faxRow_.data());
+  faxRows_++;
+}
+
 void App::pumpScope() {
   ScopeLine l;
   std::vector<uint8_t> row;
@@ -777,7 +925,13 @@ void App::goBand(int i) {
 }
 
 void App::goMarker(const bands::Marker& m) {
-  if (tuneTo(m.tuneHz()) && m.preset()) rig_.setMode(m.mode, m.data, 1);
+  if (!tuneTo(m.tuneHz()) || !m.preset()) return;
+  rig_.setMode(m.mode, m.data, 1);
+  // Here as well as in followRigMode: it sees no change if the rig's already in CW, or for a station in USB.
+  int decode = decoderForMode(m.mode);
+  for (int i = Decoder::CW; i < Decoder::MODE_COUNT; i++)
+    if (m.decoder == Decoder::modeName(i)) decode = i;
+  if (decode != Decoder::OFF && opt_.selfTest.empty()) openDecoder(decode);
 }
 
 // The middle of a broadcast band is as good a place as any to start listening.
@@ -2393,8 +2547,186 @@ void App::autoAudioLevels() {
   audioRangeDb_ = 55.f;
 }
 
+void App::drawDecodeText() {
+  const Decoder::Status& d = decodeStatus_;
+  ImGui::SameLine();
+  ImGui::TextDisabled("%s", d.heading.c_str());
+  float clearW = ImGui::CalcTextSize("Clear").x + ImGui::GetStyle().FramePadding.x * 2;
+  ImGui::SameLine();
+  ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - clearW));
+  if (panelButton("Clear##decode")) decodeText_.clear();
+  ImGui::SetItemTooltip("Clear this panel. What's in the file stays there.");
+  if (decodeMode_ == Decoder::CW) {
+    ImGui::TextDisabled("Hearing:");
+    ImGui::SameLine();
+    ImGui::TextUnformatted(d.live.c_str());
+    ImGui::SetItemTooltip("CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing");
+  }
+  bool showFile = !d.error.empty() || !d.file.empty();
+  float footer = showFile ? ImGui::GetTextLineHeightWithSpacing() : 0;
+  ImGui::BeginChild("decodetext", ImVec2(0, -footer), ImGuiChildFlags_None);
+  bool atEnd = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - S(4);
+  if (decodeText_.empty()) {
+    ImGui::TextDisabled("Nothing decoded yet");
+  } else {
+    ImGui::PushTextWrapPos(0);
+    ImGui::TextUnformatted(decodeText_.data(), decodeText_.data() + decodeText_.size());
+    ImGui::PopTextWrapPos();
+    if (atEnd) ImGui::SetScrollHereY(1.f);
+  }
+  ImGui::EndChild();
+  if (!d.error.empty()) {
+    ImGui::TextColored(ImColor(C_RED), "%s", d.error.c_str());
+  } else if (!d.file.empty()) {
+    ImGui::TextDisabled("Saving to %s", d.file.substr(d.file.find_last_of("\\/") + 1).c_str());
+    ImGui::SetItemTooltip("%s", d.file.c_str());
+  }
+}
+
+// Empty for none. The texture only needs to be as sharp as the chart it's drawn over.
+void App::chooseFaxOverlay(const std::string& file) {
+  faxOverlayFile_.clear();
+  if (file.empty()) return;
+  if (!chart_overlay::load(store::overlaysDir() + file, faxOverlay_)) {
+    say("Can't read the overlay " + file);
+    return;
+  }
+  chart_overlay::Image shown = faxOverlay_;
+  if (shown.w > kFaxTexW) shown = chart_overlay::resized(faxOverlay_, kFaxTexW, std::max(1, (int)((long long)faxOverlay_.h * kFaxTexW / faxOverlay_.w)));
+  if (!faxOverlayTex_) {
+    glGenTextures(1, &faxOverlayTex_);
+    glBindTexture(GL_TEXTURE_2D, faxOverlayTex_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  }
+  glBindTexture(GL_TEXTURE_2D, faxOverlayTex_);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, shown.w, shown.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, shown.rgba.data());
+  faxOverlayFile_ = file;
+}
+
+// At the right of the toolbar, above the chart.
+void App::drawFaxOverlayControls(bool receiving) {
+  const float gap = ImGui::GetStyle().ItemSpacing.x, comboW = S(170);
+  float width = ImGui::CalcTextSize("Overlay").x + gap + comboW;
+  flow(width);
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.f, ImGui::GetContentRegionAvail().x - width));
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted("Overlay");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(comboW);
+  if (ImGui::BeginCombo("##faxoverlay", faxOverlayFile_.empty() ? "None" : chart_overlay::title(faxOverlayFile_).c_str())) {
+    if (ImGui::IsWindowAppearing()) faxOverlayFiles_ = chart_overlay::list(store::overlaysDir());  // so a new file shows without a restart
+    if (ImGui::Selectable("None", faxOverlayFile_.empty())) chooseFaxOverlay("");
+    for (const std::string& f : faxOverlayFiles_)
+      if (ImGui::Selectable(chart_overlay::title(f).c_str(), f == faxOverlayFile_)) chooseFaxOverlay(f);
+    ImGui::Separator();
+    if (ImGui::Selectable("Open the overlays folder")) store::openFolder(store::overlaysDir());
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts");
+  if (faxOverlayFile_.empty()) return;
+
+  const char* saveLabel = "Save a copy";
+  const float dragW = S(62);
+  width = dragW * 2 + gap * 2 + ImGui::CalcTextSize(saveLabel).x + ImGui::GetStyle().FramePadding.x * 2;
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.f, ImGui::GetContentRegionAvail().x - width));
+  ImGui::SetNextItemWidth(dragW);
+  ImGui::DragInt("##faxoverlayx", &faxOverlayX_, 1.f, -3000, 3000, "X %+d");
+  ImGui::SetItemTooltip("Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(dragW);
+  ImGui::DragInt("##faxoverlayy", &faxOverlayY_, 1.f, -3000, 3000, "Y %+d");
+  ImGui::SetItemTooltip("Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type");
+  ImGui::SameLine();
+  ImGui::BeginDisabled(receiving || decodeStatus_.file.empty());
+  if (panelButton(saveLabel)) {
+    std::string saved, error;
+    if (chart_overlay::save(decodeStatus_.file, faxOverlay_, faxOverlayFile_, faxOverlayX_, faxOverlayY_, saved, error)) say("Saved " + saved);
+    else say(error);
+  }
+  ImGui::EndDisabled();
+  ImGui::SetItemTooltip(receiving ? "Once the chart has finished" : "Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was.");
+}
+
+void App::drawDecodeFax() {
+  const Decoder::Status& d = decodeStatus_;
+  bool image = d.faxState == Decoder::FAX_IMAGE;
+  if (!faxOverlayPending_.empty()) {
+    chooseFaxOverlay(faxOverlayPending_);
+    faxOverlayPending_.clear();
+  }
+  ImGui::SameLine();
+  if (image) ImGui::TextDisabled("Receiving: %u lines, IOC %d, %+.0f ppm%s", d.faxLines, d.faxIoc, d.faxPpm, d.faxMeasured ? " (measured)" : "");
+  else if (d.faxState == Decoder::FAX_PHASING) ImGui::TextDisabled("Phasing: %d lines", d.faxPhasing);
+  else if (d.faxState == Decoder::FAX_STARTING) ImGui::TextDisabled("Start tone heard");
+  else ImGui::TextDisabled("Waiting for a chart to start");
+
+  if (image) {
+    if (panelButton("Stop and save")) decoder_->faxStop();
+  } else {
+    if (panelButton("Start now")) decoder_->faxStart();
+    ImGui::SetItemTooltip("Start a chart from here, for one that's already under way. Set the slant by hand if it leans.");
+  }
+  flow(S(130));
+  ImGui::SetNextItemWidth(S(130));
+  if (ImGui::SliderFloat("##faxcentre", &faxCentre_, 1500.f, 2300.f, "Centre %.0f Hz")) decoder_->faxCentre(faxCentre_);
+  ImGui::SetItemTooltip("Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz");
+  flow(S(130));
+  ImGui::SetNextItemWidth(S(130));
+  if (ImGui::SliderFloat("##faxslant", &faxPpm_, -500.f, 500.f, "Slant %+.0f ppm")) decoder_->faxSlant(faxPpm_);
+  ImGui::SetItemTooltip("Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself.");
+  drawFaxOverlayControls(image);
+
+  bool showFile = !d.error.empty() || !d.file.empty();
+  float footer = showFile ? ImGui::GetTextLineHeightWithSpacing() : 0;
+  ImGui::BeginChild("faxview", ImVec2(0, -footer), ImGuiChildFlags_None);
+  if (faxRows_ > 0 && faxCols_ > 0) {
+    bool atEnd = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - S(4);
+    float w = ImGui::GetContentRegionAvail().x;
+    float h = w * (float)faxRows_ / (float)faxCols_;
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImGui::Dummy(ImVec2(w, h));
+    ImGui::GetWindowDrawList()->AddImage((ImTextureID)(intptr_t)faxTex_, p, ImVec2(p.x + w, p.y + h), ImVec2(0, 0),
+                                         ImVec2((float)faxCols_ / kFaxTexW, (float)faxRows_ / kFaxTexH));
+    if (!faxOverlayFile_.empty()) {  // to the chart's width, and only as far down as the chart has got
+      ImDrawList* dl = ImGui::GetWindowDrawList();
+      float scale = w / (float)(faxCols_ * faxShrink_);
+      ImVec2 o(p.x + (float)faxOverlayX_ * scale, p.y + (float)faxOverlayY_ * scale);
+      dl->PushClipRect(p, ImVec2(p.x + w, p.y + h), true);
+      dl->AddImage((ImTextureID)(intptr_t)faxOverlayTex_, o, ImVec2(o.x + w, o.y + w * (float)faxOverlay_.h / (float)faxOverlay_.w));
+      dl->PopClipRect();
+    }
+    if (atEnd) ImGui::SetScrollHereY(1.f);
+  } else {
+    ImGui::PushTextWrapPos(0);
+    ImGui::TextDisabled("No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard.");
+    ImGui::PopTextWrapPos();
+  }
+  ImGui::EndChild();
+  if (!d.error.empty()) {
+    ImGui::TextColored(ImColor(C_RED), "%s", d.error.c_str());
+  } else if (!d.file.empty()) {
+    ImGui::TextDisabled("%s %s", image ? "Saving to" : "Saved", d.file.substr(d.file.find_last_of("\\/") + 1).c_str());
+    ImGui::SetItemTooltip("%s", d.file.c_str());
+  }
+}
+
+void App::drawDecodePane() {
+  ImGui::BeginChild("decodepane", ImVec2(0, 0), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", Decoder::modeName(decodeMode_));
+  if (decodeMode_ == Decoder::WEFAX) drawDecodeFax();
+  else drawDecodeText();
+  ImGui::EndChild();
+}
+
 void App::drawAudioPane() {
-  ImGui::BeginChild("audiopane", ImVec2(0, 0), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  bool split = decodeMode_ != Decoder::OFF;
+  float avail = ImGui::GetContentRegionAvail().x, grab = S(5);
+  float least = std::min(S(220), (avail - grab) / 2);
+  float paneW = split ? std::max(least, std::min(avail - grab - least, avail * decodeSplit_)) : 0;  // 0 is all of it
+  ImGui::BeginChild("audiopane", ImVec2(paneW, 0), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
   ImGui::TextColored(ImColor(C_ACCENT), "AUDIO");
   ImGui::SameLine();
   ImGui::SetNextItemWidth(S(76));
@@ -2470,6 +2802,17 @@ void App::drawAudioPane() {
     float f = std::max(0.f, std::min(1.f, (peakDb_ + 60.f) / 60.f));
     dl->AddRectFilled(ImVec2(p.x, y0), ImVec2(p.x + w * f, y1), peakHold_ > 0 ? C_RED : C_GREEN, 2);
   }
+  flow(S(138));
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted("Decode");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(S(86));
+  if (ImGui::BeginCombo("##decode", Decoder::modeName(decodeMode_))) {
+    for (int i = 0; i < Decoder::MODE_COUNT; i++)
+      if (ImGui::Selectable(Decoder::modeName(i), i == decodeMode_)) openDecoder(i);
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder");
 
   wfAudio_.setDisplay((audioFloorDb_ + 140.f) * (255.f / 140.f), (audioFloorDb_ + audioRangeDb_ + 140.f) * (255.f / 140.f), palette_);
   double top = kAudioRanges[audioRangeIdx_];
@@ -2496,6 +2839,16 @@ void App::drawAudioPane() {
   if (st_.mode == civ::CW || st_.mode == civ::CW_R) {
     float x = toX(pitch);
     dl->AddLine(ImVec2(x, a.p0.y), ImVec2(x, a.p1.y), C_AMBER, 1.f);
+  }
+  // What the decoder has found, or where it expects a chart's black and white.
+  if (decodeStatus_.mode == Decoder::WEFAX) {
+    for (float hz : {decodeStatus_.faxCentre - 400.f, decodeStatus_.faxCentre + 400.f}) dl->AddLine(ImVec2(toX(hz), a.p0.y), ImVec2(toX(hz), a.p1.y), C_GREEN, 1.f);
+  } else {
+    for (const Decoder::Signal& s : decodeStatus_.signals) {
+      float x = toX(s.hz);
+      dl->AddLine(ImVec2(x, a.p0.y), ImVec2(x, a.w0.y), C_GREEN, 1.f);
+      dl->AddText(ImVec2(x + S(3), a.w0.y - ImGui::GetTextLineHeight()), C_GREEN, s.label.c_str());
+    }
   }
   bool haveAudio = audio_.capturing() && !audio_.lost();
   if (!haveAudio && !audioError_.empty()) {
@@ -2528,6 +2881,18 @@ void App::drawAudioPane() {
     if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1, radio()));
   }
   ImGui::EndChild();
+  if (split) {
+    // The grab bar between the waterfall and the decoder.
+    ImGui::SameLine(0, 0);
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    float h = ImGui::GetContentRegionAvail().y;
+    ImGui::InvisibleButton("##decodesplit", ImVec2(grab, std::max(1.f, h)));
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+    if (ImGui::IsItemActive()) decodeSplit_ = std::max(0.2f, std::min(0.8f, decodeSplit_ + ImGui::GetIO().MouseDelta.x / avail));
+    ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x + S(1.5f), p.y + h / 2 - S(20)), ImVec2(p.x + S(3.5f), p.y + h / 2 + S(20)), C_DIM, 1);
+    ImGui::SameLine(0, 0);
+    drawDecodePane();
+  }
 }
 
 void App::drawCentre() {
@@ -3028,6 +3393,7 @@ void App::drawMenu() {
     if (ImGui::MenuItem("Power off...", nullptr, false, st_.connected)) openPowerOff_ = true;
     ImGui::Separator();
     if (ImGui::MenuItem("Open data folder")) store::openFolder(store::dataDir());
+    if (ImGui::MenuItem("Open received folder")) store::openFolder(store::receivedDir());
     if (ImGui::MenuItem("Quit")) glfwSetWindowShouldClose(win_, 1);
     ImGui::EndMenu();
   }
@@ -3297,6 +3663,8 @@ void App::frame() {
   keepAudioOpen();
   audio_.setMonitorMuted(st_.tx);
   pumpAudio();
+  followRigMode();
+  pumpDecoder();
   pumpScope();
   rememberBand();
 
@@ -3932,6 +4300,12 @@ int App::run() {
   wfScope_.init(civ::kScopePoints, kWaterfallRows);
   applyFft();
   audio_.setMonitorGain(monitorGain_);
+  // What a simulated radio "receives" isn't kept: nothing is written unless it's a real run.
+  decoder_.reset(new Decoder(automated || opt_.demo ? std::string() : store::receivedDir(),
+                             [this](float* out, size_t n) { return audio_.readForDecoder(out, n); }));
+  decoder_->faxCentre(faxCentre_);
+  decoder_->faxSlant(faxPpm_);
+  decoder_->setMode(decodeMode_);
   connect();
   keepAudioOpen();
   if (!plans_.errors.empty()) say("A band plan has a problem: " + plans_.errors[0]);
@@ -3989,6 +4363,8 @@ int App::run() {
 
   if (!automated) saveSettings();
   rec_.close();
+  decoder_.reset();  // finishes the logs and any chart under way
+  if (faxTex_) glDeleteTextures(1, &faxTex_);
   rig_.stop();
   audio_.stopMonitor();
   audio_.stopCapture();
