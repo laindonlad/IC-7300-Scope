@@ -82,6 +82,30 @@ xattr -d com.apple.quarantine ic7300console ic7300probe test_core   # stops Gate
 
 The `xattr` command reports an error for a file that isn't marked as downloaded, which is harmless.
 
+### Band plans and station lists
+
+**There's nothing to install.** The band plans and the station list are built into `ic7300console`, so you only need that one program. You don't need the `bandplans` and `stations` folders from the download, and you don't need to copy them anywhere.
+
+> [!NOTE]
+> The programs in `bin/windows-x64` and `bin/macos` haven't been rebuilt since these features were added, so they don't have them yet. If yours has no **Stations** menu, [build it from source](#building). The Linux program is up to date.
+
+The first time it runs, the program writes editable copies into two folders inside [your data folder](#your-data), creating them if they aren't there:
+
+| System | Band plans | Station lists |
+|---|---|---|
+| Windows | `%APPDATA%\IC7300Console\bandplans` | `%APPDATA%\IC7300Console\stations` |
+| Linux | `~/.config/ic7300console/bandplans` | `~/.config/ic7300console/stations` |
+| macOS | `~/Library/Application Support/IC7300Console/bandplans` | `~/Library/Application Support/IC7300Console/stations` |
+
+You only need these folders to change a list or add your own. The buttons in **Rig > Settings** open them:
+
+- **Files beside the program are ignored.** A `.json` file only counts if it's directly in one of the folders above, not beside `ic7300console` or in a subfolder.
+- **To add one**: put a `.json` file in the right folder under a new name and press **Reload** in Settings, or restart. A band plan then appears under **Country or region**, and a station list is added to the ones already showing. Each folder's `README.txt` explains the format.
+- **To change one**: edit the copy in the folder and press **Reload**. A copy with the same name as a built-in file is used instead of it. If it has a mistake, Settings names the file and the line, and the built-in version is used until it's fixed.
+- **To undo your changes**: use **Reset this plan** or **Reset station list** in Settings, which keeps your file as `<name>.json.bak`. You can also delete the file, and the program writes a fresh copy the next time it starts.
+
+**After installing a new version**, the program doesn't overwrite the copies in these folders, so you keep your edits but also keep the old data. To get the new data, use the reset buttons, or delete the files before starting it. Settings tells you when a newer copy of the chosen band plan is available, but it doesn't do this for the station list.
+
 ## Tested on
 
 | | |
