@@ -35,6 +35,8 @@ You don't need to compile anything. Ready-to-run programs are in the [`bin`](bin
 | Linux, x64 | [`bin/linux-x64`](bin/linux-x64) | glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35 or later) and a graphics driver with OpenGL |
 | macOS 11 or newer, Apple Silicon or Intel | [`bin/macos`](bin/macos) | Nothing else. If this folder isn't there, the macOS build hasn't been published yet, so [build it from source](#linux-and-macos) |
 
+Don't forget to install the bandplan for your country/region and the stations list. See below for how to do this.
+
 To get them, [download the project as a ZIP](https://github.com/laindonlad/IC-7300-Scope/archive/refs/heads/main.zip) and unzip it, or clone it with Git. Each folder holds the same three programs, and only `ic7300console` is needed to use the radio:
 
 | File | What it is |
