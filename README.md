@@ -35,6 +35,8 @@ You don't need to compile anything. Ready-to-run programs are in the [`bin`](bin
 | Linux, x64 | [`bin/linux-x64`](bin/linux-x64) | glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 35 or later) and a graphics driver with OpenGL |
 | macOS 11 or newer, Apple Silicon or Intel | [`bin/macos`](bin/macos) | Nothing else. If this folder isn't there, the macOS build hasn't been published yet, so [build it from source](#linux-and-macos) |
 
+**Reminder for band plans and station lists:** the standard ones are built in, so you don't need to copy anything to use them. To add or replace one, copy its `.json` file into the `bandplans` or `stations` folder inside your data folder, then press **Reload** in **Rig > Settings**. The data folder is `%APPDATA%\IC7300Console` on Windows, `~/.config/ic7300console` on Linux and `~/Library/Application Support/IC7300Console` on macOS. [More about these files](#band-plans-and-station-lists).
+
 To get them, [download the project as a ZIP](https://github.com/laindonlad/IC-7300-Scope/archive/refs/heads/main.zip) and unzip it, or clone it with Git. Each folder holds the same three programs, and only `ic7300console` is needed to use the radio:
 
 | File | What it is |
@@ -87,7 +89,7 @@ The `xattr` command reports an error for a file that isn't marked as downloaded,
 **There's nothing to install.** The band plans and the station list are built into `ic7300console`, so you only need that one program. You don't need the `bandplans` and `stations` folders from the download, and you don't need to copy them anywhere.
 
 > [!NOTE]
-> The programs in `bin/windows-x64` and `bin/macos` haven't been rebuilt since these features were added, so they don't have them yet. If yours has no **Stations** menu, [build it from source](#building). The Linux program is up to date.
+> The program in `bin/windows-x64` hasn't been rebuilt since these features were added, so it doesn't have them yet. If yours has no **Stations** menu, [build it from source](#building). The Linux and macOS programs are up to date.
 
 The first time it runs, the program writes editable copies into two folders inside [your data folder](#your-data), creating them if they aren't there:
 
