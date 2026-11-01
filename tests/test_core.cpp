@@ -16,8 +16,10 @@
 #include "civ.h"
 #include "clock_sync.h"
 #include "dsp.h"
+#include "dxcluster.h"
 #include "needle.h"
 #include "rig.h"
+#include "scan.h"
 #include "sim_rig.h"
 #include "store.h"
 #include "tuning.h"
@@ -402,7 +404,7 @@ static void testStations() {
   if (!w) return;
   CHECK(!w->source.empty() && !w->revision.empty() && !w->note.empty());
   CHECK(w->stations.size() > 300);
-  bool service[bands::S_AVIATION] = {};  // the services before those only a receiver's list uses
+  bool service[bands::S_COUNT] = {};
   std::map<long long, const bands::Station*> at;
   for (const bands::Station& s : w->stations) {
     service[s.service] = true;
@@ -416,12 +418,17 @@ static void testStations() {
     if (same != 1) printf("  %s: %lld appears %d times\n", s.group.c_str(), s.hz, same);
     CHECK(same == 1);
   }
-  for (bool any : service) CHECK(any);
+  // Aviation and space are the services only a receiver's list uses.
+  for (int i = 0; i < bands::S_COUNT; i++) CHECK(service[i] == (i != bands::S_AVIATION && i != bands::S_SPACE));
   // A fax flag sits on the signal, and tunes USB below it.
   CHECK(at.count(8040000) && at[8040000]->tuneHz() == 8038100 && at[8040000]->mode == civ::USB);
   CHECK(at.count(518000) && at[518000]->tuneHz() == 516300);
   CHECK(at.count(2182000) && at[2182000]->tuneHz() == 2182000);
-  CHECK(at.count(4625000) && at[4625000]->service == bands::S_MILITARY);
+  CHECK(at.count(4625000) && at[4625000]->service == bands::S_MYSTERY);
+  // The channels a transceiver can hear are on its list, under their numbers.
+  CHECK(at.count(27185000) && at[27185000]->label == "CB 19");
+  CHECK(at.count(446006250) && at[446006250]->label == "PMR 1");
+  CHECK(at.count(4426000) && at[4426000]->label == "Ch 424");
   CHECK(at.count(11175000));
   // Stations that have closed down.
   CHECK(!at.count(3330000) && !at.count(7850000) && !at.count(14670000));  // CHU, June 2026
@@ -1206,7 +1213,7 @@ static void testReceiverData() {
   CHECK(f->receiverOnly && !f->source.empty() && !f->note.empty());
   CHECK(!all.find("worldwide")->receiverOnly);
   CHECK(all.forRadio(true).find("receiver") != nullptr && all.forRadio(false).find("receiver") == nullptr);
-  CHECK(f->stations.size() > 800);
+  CHECK(f->stations.size() > 500);
   bool service[bands::S_COUNT] = {};
   std::map<std::string, std::map<long long, int>> byGroup;
   for (const bands::Station& s : f->stations) {
@@ -1218,8 +1225,9 @@ static void testReceiverData() {
   }
   for (int i : {bands::S_AVIATION, bands::S_SPACE, bands::S_LAND, bands::S_NAVAL, bands::S_MILITARY, bands::S_BROADCAST, bands::S_GOVERNMENT}) CHECK(service[i]);
   auto find = [&](long long hz) -> const bands::Station* {
-    for (const bands::Station& s : f->stations)
-      if (s.hz == hz) return &s;
+    for (const bands::StationFile& file : all.files)
+      for (const bands::Station& s : file.stations)
+        if (s.hz == hz) return &s;
     return nullptr;
   };
   // The formulas, checked against channels everyone knows.
@@ -1234,11 +1242,18 @@ static void testReceiverData() {
   CHECK(find(27601250) && find(27601250)->label == "UK 1" && find(27991250) && find(27991250)->label == "UK 40");
   CHECK(find(462562500) && find(462562500)->label == "FRS 1" && find(462725000) && find(462725000)->label == "FRS 22");
   CHECK(find(476425000) && find(476425000)->label == "UHF 1" && find(477412500) && find(477412500)->label == "UHF 80");
-  CHECK(find(4426000) && find(4426000)->label == "Ch 424");      // a coastguard's working channels
-  CHECK(find(6501000) && find(6501000)->label == "Ch 601");
-  CHECK(find(8764000) && find(8764000)->label == "Ch 816");
-  CHECK(find(13089000) && find(13089000)->label == "Ch 1205");
-  CHECK(find(17314000) && find(17314000)->label == "Ch 1625");
+  // A coastguard's working channels, which the marine weather groups list under other names too.
+  auto channel = [&](long long hz, const char* label) {
+    for (const bands::StationFile& file : all.files)
+      for (const bands::Station& s : file.stations)
+        if (s.hz == hz && s.label == label) return true;
+    return false;
+  };
+  CHECK(channel(4426000, "Ch 424"));
+  CHECK(channel(6501000, "Ch 601"));
+  CHECK(channel(8764000, "Ch 816"));
+  CHECK(channel(13089000, "Ch 1205"));
+  CHECK(channel(17314000, "Ch 1625"));
   CHECK(find(225648000) && find(225648000)->label == "12B");
   CHECK(find(474000000) && find(474000000)->label == "E21" && find(690000000) && find(690000000)->label == "E48");
   CHECK(find(1090000000) && find(1575420000));
@@ -1574,13 +1589,276 @@ static void testClockSync() {
   CHECK(describe(-1.5) == "1.500 s fast");
 }
 
+static void testScan() {
+  std::vector<scan::Channel> ch(3);
+  ch[0].hz = 14000000, ch[1].hz = 14005000, ch[2].hz = 14010000;
+  scan::Config c;
+  c.dwell = 0.5, c.settle = 0.25, c.recover = 1.0, c.moved = 0.6, c.dropFor = 2, c.thresholdDb = -24, c.resume = scan::ON_DROP;
+  scan::Scanner s;
+  const double quiet = -40, loud = -6;
+
+  // Up through the channels and round again, on nothing but quiet.
+  s.start(ch, c);
+  CHECK(s.running());
+  CHECK(s.update(0.0, 7000000, quiet) == scan::TUNE && s.current().hz == 14000000);
+  CHECK(s.update(0.1, 14000000, quiet) == scan::NONE);
+  CHECK(s.update(0.5, 14000000, quiet) == scan::TUNE && s.current().hz == 14005000);
+  CHECK(s.update(1.0, 14005000, quiet) == scan::TUNE && s.current().hz == 14010000);
+  CHECK(s.update(1.5, 14010000, quiet) == scan::TUNE && s.current().hz == 14000000 && s.passes() == 1);
+
+  // A loud reading while the rig is still settling doesn't count, as it's the last channel's.
+  s.start(ch, c);
+  s.update(0.0, 0, quiet);
+  CHECK(s.update(0.1, 14000000, loud) == scan::NONE);
+  // After settling it does, and it stays until the signal has gone for long enough.
+  CHECK(s.update(0.3, 14000000, loud) == scan::HIT && s.state() == scan::STOPPED);
+  CHECK(s.update(2.0, 14000000, loud) == scan::NONE);
+  CHECK(s.update(3.0, 14000000, quiet) == scan::NONE);
+  CHECK(s.update(4.1, 14000000, quiet) == scan::TUNE && s.current().hz == 14005000);
+  // The AGC gets longer to let go after a signal.
+  CHECK(s.update(4.5, 14005000, loud) == scan::NONE);
+  CHECK(s.update(5.2, 14005000, loud) == scan::HIT);
+
+  // Staying put means staying put.
+  c.resume = scan::HOLD;
+  s.start(ch, c);
+  s.update(0.0, 0, quiet);
+  CHECK(s.update(0.3, 14000000, loud) == scan::HIT);
+  CHECK(s.update(100.0, 14000000, quiet) == scan::NONE && s.state() == scan::STOPPED);
+  s.next();
+  CHECK(s.current().hz == 14005000 && s.state() == scan::LISTENING);
+
+  c.resume = scan::AFTER_5S;
+  s.start(ch, c);
+  s.update(0.0, 0, quiet);
+  s.update(0.3, 14000000, loud);
+  CHECK(s.update(4.0, 14000000, loud) == scan::NONE);
+  CHECK(s.update(5.4, 14000000, loud) == scan::TUNE);
+
+  // Somebody tuning ends it, and until that's certain the scan doesn't tune over them.
+  c.resume = scan::ON_DROP;
+  s.start(ch, c);
+  s.update(0.0, 0, quiet);
+  CHECK(s.update(0.1, 14000000, quiet) == scan::NONE);
+  CHECK(s.update(0.45, 14001000, quiet) == scan::NONE);
+  CHECK(s.update(0.9, 14001000, quiet) == scan::NONE);
+  CHECK(s.update(1.1, 14001000, quiet) == scan::DIAL_MOVED && !s.running());
+  // A stale reading that comes right doesn't.
+  s.start(ch, c);
+  s.update(0.0, 0, quiet);
+  CHECK(s.update(0.2, 13999000, quiet) == scan::NONE);
+  CHECK(s.update(0.3, 14000000, quiet) == scan::NONE && s.running());
+
+  // Locking out skips a channel, and locking them all out ends it.
+  s.start(ch, c);
+  s.update(0.0, 0, quiet);
+  s.lockOut();
+  CHECK(s.current().hz == 14005000 && s.lockedCount() == 1);
+  s.lockOut();
+  s.lockOut();
+  CHECK(!s.running());
+  CHECK(s.update(1.0, 0, quiet) == scan::NOTHING_LEFT);
+  CHECK(s.update(1.1, 0, quiet) == scan::NONE);
+
+  // It can start partway through.
+  s.start(ch, c, 2);
+  CHECK(s.update(0.0, 0, quiet) == scan::TUNE && s.current().hz == 14010000);
+  std::vector<scan::Channel> none;
+  s.start(none, c);
+  CHECK(!s.running());
+}
+
+static void testDxSpots() {
+  dx::Spot s;
+  CHECK(dx::parseSpot("DX de W3LPL:     14025.0  JA1XYZ       CW 12 dB 25 WPM CQ     1205Z", s));
+  CHECK(s.spotter == "W3LPL" && s.hz == 14025000 && s.call == "JA1XYZ" && s.utc == "1205" && s.comment == "CW 12 dB 25 WPM CQ" && !s.skimmer);
+  CHECK(dx::parseSpot("DX de K1TTT-#:   7012.3  dl1abc       CW 3 dB 18 WPM CQ 2359Z FN32", s));
+  CHECK(s.skimmer && s.call == "DL1ABC" && s.hz == 7012300 && s.utc == "2359" && s.comment == "CW 3 dB 18 WPM CQ");
+  CHECK(dx::parseSpot("DX de G4ABC:    144300.0  OZ1ABC", s));
+  CHECK(s.hz == 144300000 && s.comment.empty() && s.utc.empty());
+  CHECK(dx::parseSpot("  dx de G4ABC:  3780.0  GM3ABC  worked at 1200z today 0912Z", s));
+  CHECK(s.utc == "0912" && s.comment == "worked at 1200z today");
+  CHECK(!dx::parseSpot("VE7CC-1 de G4ABC 1205Z >", s));
+  CHECK(!dx::parseSpot("DX de G4ABC: not a frequency", s));
+  CHECK(!dx::parseSpot("DX de G4ABC:  14025.0", s));
+  CHECK(!dx::parseSpot("", s));
+
+  CHECK(dx::modeHint("FT8 -12 dB") == dx::HINT_FT8);
+  CHECK(dx::modeHint("cq ft4") == dx::HINT_FT4);
+  CHECK(dx::modeHint("CW up 2") == dx::HINT_CW);
+  CHECK(dx::modeHint("loud on usb") == dx::HINT_SSB);
+  CHECK(dx::modeHint("psk31 cq") == dx::HINT_DATA);
+  CHECK(dx::modeHint("I am here, swamp") == dx::NO_HINT);
+  CHECK(dx::modeHint("big signal") == dx::NO_HINT);
+
+  dx::SpotList l;
+  dx::Spot a;
+  a.call = "G4ABC", a.hz = 14200000, a.gotAt = 100, a.comment = "first";
+  l.add(a);
+  dx::Spot b = a;
+  b.call = "G4DEF", b.gotAt = 110;
+  l.add(b);
+  CHECK(l.spots().size() == 2 && l.spots()[0].call == "G4DEF");
+  dx::Spot again = a;
+  again.hz = 14200500, again.gotAt = 120, again.comment = "";
+  l.add(again);
+  CHECK(l.spots().size() == 2 && l.spots()[0].call == "G4ABC" && l.spots()[0].count == 2 && l.spots()[0].comment == "first");
+  dx::Spot elsewhere = a;
+  elsewhere.hz = 7100000;
+  l.add(elsewhere);
+  CHECK(l.spots().size() == 3);
+  CHECK(l.prune(165, 60) && l.spots().size() == 2);  // the one from 100 is too old, and those from 110 and 120 aren't
+  CHECK(!l.prune(166, 60));
+  for (int i = 0; i < 1100; i++) {
+    dx::Spot m = a;
+    m.call = "M" + std::to_string(i);
+    l.add(m);
+  }
+  CHECK(l.spots().size() == 1000);
+
+  CHECK(dx::countryOf("G4ABC") == "England");
+  CHECK(dx::countryOf("GM3ABC") == "Scotland");
+  CHECK(dx::countryOf("W1AW") == "United States");
+  CHECK(dx::countryOf("KH6ABC") == "Hawaii");
+  CHECK(dx::countryOf("JA1XYZ") == "Japan");
+  CHECK(dx::countryOf("BV2A") == "Taiwan");
+  CHECK(dx::countryOf("BY1AB") == "China");
+  CHECK(dx::countryOf("DL1ABC") == "Germany");
+  CHECK(dx::countryOf("EA8ABC") == "Canary Islands");
+  CHECK(dx::countryOf("VP2MAB") == "Montserrat");
+  CHECK(dx::countryOf("3DA0AB") == "Eswatini");
+  CHECK(dx::countryOf("3D2AB") == "Fiji");
+  CHECK(dx::countryOf("HB9/G3ABC") == "Switzerland");
+  CHECK(dx::countryOf("G3ABC/HB9") == "Switzerland");
+  CHECK(dx::countryOf("G3ABC/P") == "England");
+  CHECK(dx::countryOf("w1aw/m") == "United States");
+  CHECK(dx::countryOf("") == "");
+  CHECK(dx::countryOf("Q1ABC") == "");
+
+  double km = 0, deg = 0;
+  CHECK(dx::pathBetween("IO91", "IO91", km, deg) && km < 1);
+  CHECK(dx::pathBetween("IO91WM", "FN31pr", km, deg) && fabs(km - 5500) < 150 && deg > 270 && deg < 300);  // London to Connecticut
+  CHECK(!dx::pathBetween("IO91", "ZZ99", km, deg));
+  CHECK(!dx::pathBetween("IO9", "IO91", km, deg));
+  CHECK(!dx::pathBetween("", "IO91", km, deg));
+  double km6 = 0;
+  CHECK(dx::pathBetween("IO91", "FN31pr", km6, deg) && dx::pathBetween("IO91", "FN31pr45", km, deg) && km == km6);  // longer locators read as 6
+  double lat = 0, lon = 0;
+  CHECK(dx::gridToLatLon("io91wm", lat, lon) && fabs(lat - 51.52) < 0.05 && fabs(lon + 0.12) < 0.1);  // London
+  CHECK(!dx::gridToLatLon("", lat, lon));
+}
+
+static void testLogFields() {
+  auto path = std::filesystem::temp_directory_path() / "ic7300_test_log.csv";
+  std::string file = path.string();
+  std::filesystem::remove(path);
+  // A line from before the new fields, then a new one.
+  {
+    std::ofstream f(file, std::ios::binary);
+    f << "2026-01-02 03:04,G4OLD,14205000,USB,59,57,Ann,hello\n";
+  }
+  store::LogEntry e;
+  e.utc = "2026-10-31 19:05", e.utcOff = "2026-10-31 19:09", e.call = "G4ABC", e.hz = 14205000, e.mode = "USB";
+  e.rstSent = "59", e.rstRcvd = "57", e.name = "Bob", e.notes = "with, comma", e.power = "100", e.qth = "Leeds", e.locator = "IO93", e.country = "England";
+  e.contest = "CQ-WW-SSB", e.exchSent = "007", e.exchRcvd = "14";
+  e.distKm = "290", e.distMiles = "180";
+  CHECK(store::appendLog(file, e));
+  auto log = store::loadLog(file);
+  CHECK(log.size() == 2);
+  if (log.size() == 2) {
+    CHECK(log[0].call == "G4OLD" && log[0].notes == "hello" && log[0].utcOff.empty() && log[0].country.empty() && log[0].distKm.empty());
+    CHECK(log[1].distKm == "290" && log[1].distMiles == "180");
+    CHECK(log[1].utcOff == e.utcOff && log[1].notes == e.notes && log[1].power == "100" && log[1].qth == "Leeds" && log[1].locator == "IO93");
+    CHECK(log[1].country == "England" && log[1].contest == "CQ-WW-SSB" && log[1].exchSent == "007" && log[1].exchRcvd == "14");
+  }
+
+  std::string a = store::adifRecord(e, "M0XYZ", "IO91WM");
+  CHECK(a.find("<TIME_OFF:4>1909") != std::string::npos && a.find("<QSO_DATE_OFF:8>20261031") != std::string::npos);
+  CHECK(a.find("<TX_PWR:3>100") != std::string::npos && a.find("<QTH:5>Leeds") != std::string::npos && a.find("<GRIDSQUARE:4>IO93") != std::string::npos);
+  CHECK(a.find("<COUNTRY:7>England") != std::string::npos && a.find("<CONTEST_ID:9>CQ-WW-SSB") != std::string::npos);
+  CHECK(a.find("<STX_STRING:3>007") != std::string::npos && a.find("<SRX_STRING:2>14") != std::string::npos && a.find("<MY_GRIDSQUARE:6>IO91WM") != std::string::npos);
+  store::LogEntry ft4 = e;
+  ft4.mode = "FT4";
+  CHECK(store::adifRecord(ft4, "").find("<MODE:4>MFSK") != std::string::npos && store::adifRecord(ft4, "").find("<SUBMODE:3>FT4") != std::string::npos);
+
+  // What it writes, it reads back.
+  auto back = store::parseAdif("header text\n<ADIF_VER:5>3.1.4 <EOH>\n" + a);
+  CHECK(back.size() == 1);
+  if (back.size() == 1) {
+    const store::LogEntry& r = back[0];
+    CHECK(r.call == "G4ABC" && r.utc == e.utc && r.utcOff == e.utcOff && r.hz == e.hz && r.mode == "USB" && r.rstRcvd == "57");
+    CHECK(r.notes == e.notes && r.power == "100" && r.qth == "Leeds" && r.locator == "IO93" && r.country == "England" && r.contest == "CQ-WW-SSB" && r.exchSent == "007");
+  }
+  // Other programs' files: lower-case names, types in the tag, no header, a band and no frequency, seconds on the time.
+  auto other = store::parseAdif(
+      "<call:5>w1abc <qso_date:8:D>20250102 <time_on:6>123456 <band:3>40m <mode:3>SSB <eor>\n"
+      "<CALL:5>K1ABC<QSO_DATE:8>20250103<TIME_ON:4>0102<FREQ:6>14.074<MODE:4>MFSK<SUBMODE:3>FT4<EOR>\n"
+      "<QSO_DATE:8>20250104<TIME_ON:4>0102<EOR>\n");
+  CHECK(other.size() == 2);
+  if (other.size() == 2) {
+    CHECK(other[0].call == "W1ABC" && other[0].utc == "2025-01-02 12:34" && other[0].mode == "LSB" && std::string(bands::adifBand(other[0].hz)) == "40M");
+    CHECK(other[1].mode == "FT4" && other[1].hz == 14074000);
+  }
+
+  // Importing adds what's new, doesn't repeat what's already there, and puts the log in order.
+  auto adi = std::filesystem::temp_directory_path() / "ic7300_test_import.adi";
+  auto writeAdi = [&](const std::string& text) {
+    std::ofstream f(adi.string(), std::ios::binary);
+    f << text;
+  };
+  writeAdi(a + "<CALL:5>W1ABC<QSO_DATE:8>20250102<TIME_ON:4>1234<BAND:3>40M<MODE:2>CW<EOR>\n");
+  int added = 0, updated = 0, skipped = 0;
+  std::string error;
+  CHECK(store::importAdif(adi.string(), log, "M0XYZ", added, updated, skipped, error));
+  CHECK(added == 1 && updated == 1 && skipped == 0 && log.size() == 3 && log[0].call == "W1ABC");  // the one there gains its station
+  CHECK(log[0].station == "M0XYZ" && log[2].station == "M0XYZ");
+  CHECK(store::importAdif(adi.string(), log, "M0XYZ", added, updated, skipped, error) && added == 0 && updated == 0 && skipped == 2);
+  CHECK(!store::importAdif(file + ".nothing", log, "", added, updated, skipped, error) && !error.empty());
+
+  // A paper confirmation on an old record: updates the contact, and doesn't overwrite what's there.
+  writeAdi("<CALL:5>w1abc<QSO_DATE:8>20250102<TIME_ON:6>123559<BAND:3>40M<MODE:3>SSB<NAME:3>Sam<COMMENT:2>hi<QSL_RCVD:1>Y<QSLRDATE:8>20250301<EOR>\n");
+  CHECK(store::importAdif(adi.string(), log, "M0XYZ", added, updated, skipped, error) && added == 0 && updated == 1 && log.size() == 3);
+  CHECK(log[0].qslRcvd == "Y" && log[0].qslRcvdDate == "20250301" && log[0].mode == "CW");
+  CHECK(log[0].name == "Sam" && log[0].notes == "hi" && store::confirmedBy(log[0]) == "QSL");
+  // An old file saying it isn't confirmed doesn't take that back.
+  writeAdi("<CALL:5>W1ABC<QSO_DATE:8>20250102<TIME_ON:4>1234<BAND:3>40M<QSL_RCVD:1>N<EOR>\n");
+  CHECK(store::importAdif(adi.string(), log, "M0XYZ", added, updated, skipped, error) && added == 0 && updated == 0 && skipped == 1 && log[0].qslRcvd == "Y");
+  // Two minutes on is another contact, and the same moment under another of their callsigns is too.
+  writeAdi("<CALL:5>W1ABC<QSO_DATE:8>20250102<TIME_ON:4>1236<BAND:3>40M<EOR>\n<CALL:5>W1ABC<QSO_DATE:8>20250102<TIME_ON:4>1234<BAND:3>40M<STATION_CALLSIGN:6>GB1XYZ<EOR>\n");
+  CHECK(store::importAdif(adi.string(), log, "M0XYZ", added, updated, skipped, error) && added == 2 && log.size() == 5);
+  // A LoTW report's QSL_RCVD is LoTW's, however the file says it.
+  writeAdi("ARRL Logbook of the World Status Report\n<PROGRAMID:4>LoTW\n<eoh>\n<CALL:5>G4ABC<BAND:3>20M<QSO_DATE:8>20261031<TIME_ON:4>1905<STATION_CALLSIGN:5>M0XYZ<QSL_RCVD:1>Y<QSLRDATE:8>20261101<EOR>\n");
+  CHECK(store::importAdif(adi.string(), log, "M0XYZ", added, updated, skipped, error) && added == 0 && updated == 1);
+  {
+    const store::LogEntry& g = log.back();
+    CHECK(g.call == "G4ABC" && g.lotwRcvd == "Y" && g.lotwRcvdDate == "20261101" && g.qslRcvd.empty() && store::confirmedBy(g) == "LoTW");
+    // And it all goes round the file and through an export.
+    std::string out = store::adifRecord(g, "OTHER");
+    CHECK(out.find("<LOTW_QSL_RCVD:1>Y") != std::string::npos && out.find("<STATION_CALLSIGN:5>M0XYZ") != std::string::npos);
+    CHECK(store::saveLog(file, log));
+    auto reread = store::loadLog(file);
+    CHECK(reread.size() == log.size() && reread.back().lotwRcvd == "Y" && reread.back().station == "M0XYZ");
+  }
+  // An eQSL inbox has the other station's clock, and files their sending under this log's receiving.
+  writeAdi("Received eQSLs for M0XYZ\n<PROGRAMID:21>eQSL.cc DownloadInBox\n<EOH>\n<CALL:5>G4ABC<BAND:3>20M<QSO_DATE:8>20261031<TIME_ON:4>1925<QSL_SENT:1>Y<QSL_SENT_VIA:1>E<EOR>\n");
+  CHECK(store::importAdif(adi.string(), log, "M0XYZ", added, updated, skipped, error) && added == 0 && updated == 1);
+  CHECK(log.back().eqslRcvd == "Y" && log.back().qslSent.empty() && store::confirmedBy(log.back()) == "LoTW, eQSL");
+
+  CHECK(store::backupFile(file));
+  CHECK(std::filesystem::exists(file + ".bak"));
+  CHECK(store::backupFile(file + ".nothing"));
+  std::filesystem::remove(path);
+  std::filesystem::remove(file + ".bak");
+  std::filesystem::remove(adi);
+}
+
 int main() {
   struct {
     const char* name;
     void (*fn)();
   } tests[] = {
       {"CI-V bytes", testBytes}, {"frame reader", testReader}, {"frequency entry", testTuning}, {"band plans", testBandPlans}, {"stations", testStations}, {"a receiver's bands and stations", testReceiverData}, {"tuning dial", testDial}, {"FFT", testDsp}, {"needle meter", testNeedle},
-      {"log and CSV", testStore}, {"rig basics", testRigBasics}, {"which radio", testDetection}, {"dial spin", testCoalesce},
+      {"log and CSV", testStore}, {"log fields and ADIF import", testLogFields}, {"scanning", testScan}, {"DX spots", testDxSpots}, {"rig basics", testRigBasics}, {"which radio", testDetection}, {"dial spin", testCoalesce},
       {"stale readings", testStaleReadings}, {"echo back", testEcho}, {"refused commands", testRefused},
       {"scope", testScope}, {"TX guards", testTxGuards}, {"TX watchdog", testWatchdog}, {"un-key retry", testUnkeyRetry},
       {"un-key across an outage", testUnkeyAcrossOutage}, {"un-key at shutdown", testShutdownUnkeys},

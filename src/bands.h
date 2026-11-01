@@ -74,7 +74,7 @@ bool resetPlan(const std::string& dir, const std::string& id);
 
 // ---- stations: what else is on the air, shown whichever band plan is chosen. For listening, not transmitting.
 // New ones go last: settings keep each service's on or off by its number.
-enum Service { S_COMMERCIAL, S_GOVERNMENT, S_NAVAL, S_MILITARY, S_BROADCAST, S_AMATEUR, S_AVIATION, S_SPACE, S_LAND, S_COUNT };
+enum Service { S_COMMERCIAL, S_GOVERNMENT, S_NAVAL, S_MILITARY, S_BROADCAST, S_AMATEUR, S_AVIATION, S_SPACE, S_LAND, S_MYSTERY, S_COUNT };
 const char* serviceName(Service s);
 
 // The flag sits at hz, where the signal is. For a data signal that's above where USB has to be tuned to

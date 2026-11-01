@@ -15,6 +15,7 @@
 #include <array>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -28,16 +29,19 @@
 #include "decoder.h"
 #include "demo_audio.h"
 #include "dsp.h"
+#include "dxcluster.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_internal.h"  // ImRect, for the self-test's map of controls
 #include "rig.h"
+#include "scan.h"
 #include "sim_rig.h"
 #include "store.h"
 #include "transport.h"
 #include "tuning.h"
 #include "waterfall.h"
+#include "worldmap.h"
 
 #include "font_cousine.inc"
 #include "font_roboto.inc"
@@ -168,6 +172,32 @@ ImU32 segmentColour(bands::Use use, int alpha) {
 // What a portion of a band is for, in plain words. "Other" has no plain word, so it uses its own label.
 std::string portionName(const bands::Segment& s) { return s.use == bands::U_OTHER ? s.label : bands::useName(s.use); }
 
+constexpr double kMilesPerKm = 0.621371;
+
+struct LogPin {
+  float x = 0, y = 0;         // in the map's units
+  std::vector<int> contacts;  // positions in the log, newest first
+};
+
+template <size_t N>
+void setBuf(char (&b)[N], const std::string& s) {
+  snprintf(b, N, "%s", s.c_str());
+}
+
+// What scanning offers. The level is S1 to S9 and then 10 dB steps over S9.
+const long long kScanSteps[] = {1000, 2500, 5000, 9000, 10000, 12500, 25000, 100000, 1000000};
+const char* const kScanStepNames[] = {"1 kHz", "2.5 kHz", "5 kHz", "9 kHz", "10 kHz", "12.5 kHz", "25 kHz", "100 kHz", "1 MHz"};
+const int kScanStepCount = 9;
+const size_t kMaxScanChannels = 100000;
+double scanLevelDb(int level) { return level <= 9 ? (level - 9) * 6.0 : (level - 9) * 10.0; }
+std::string scanLevelName(int level) { return level <= 9 ? "S" + std::to_string(level) : "S9+" + std::to_string((level - 9) * 10); }
+std::string sUnitsName(double db) {
+  char b[16];
+  if (db > 0.5) snprintf(b, sizeof b, "S9+%d", (int)lround(db));
+  else snprintf(b, sizeof b, "S%d", std::max(0, (int)lround(9 + db / 6)));
+  return b;
+}
+
 class App {
  public:
   explicit App(const AppOptions& o) : opt_(o) {}
@@ -229,6 +259,24 @@ class App {
   void drawKeypad();
   void drawMemories();
   void drawLog();
+  void drawLogBook();
+  void setLogBookFull(bool full);
+  void buildLogPins();
+  void drawLogMap();
+  void drawPinBubble(const LogPin& pin);
+  void editLogEntry(int i);
+  void endLogEdit();
+  void indexLog();
+  bool fillDistance(store::LogEntry& e) const;
+  void importLog(const std::string& path);
+  void pickLogToImport();
+  void sortLogFile();
+  void pumpLogPick();
+  bool onActiveStation(const store::LogEntry& e) const;
+  void useStation(const std::string& call);
+  void drawStationPicker();
+  void drawScan();
+  void drawSpotsPanel();
   void drawCwVoice();
   void drawStatus();
   void drawSettings();
@@ -266,6 +314,17 @@ class App {
   void setStep(int i) { stepIdx_ = std::max(0, std::min(kStepCount - 1, i)); }
   void startRecording();
   void startClockSync();
+  void pumpScan();
+  scan::Config scanConfig() const;
+  bool buildScanChannels(std::vector<scan::Channel>& out, size_t& first, std::string& why) const;
+  void startScan();
+  void startSpots();
+  void stopSpots();
+  void pumpSpots();
+  void rebuildSpotRows();
+  bands::Marker markerForSpot(const dx::Spot& s, dx::ModeHint hint) const;
+  bool spotShown(size_t i, bool useBandFilter) const;
+  void fillLogCall(const std::string& call);
   void applyFft();
   void autoAudioLevels();
   void autoScopeLevels();
@@ -291,6 +350,7 @@ class App {
   void drawFlag(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l, const bands::Marker& m, ImU32 col, bool filled, const std::string& rectName);
   void drawPlanOverlay(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l);
   void drawStationOverlay(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l);
+  void drawSpotOverlay(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l);
 
   // ---- self-test ----
   struct Step {
@@ -315,6 +375,7 @@ class App {
   ImFont* fMid_ = nullptr;
   ImFont* fFreq_ = nullptr;
   ImFont* fFreqSmall_ = nullptr;
+  ImFont* fLogBig_ = nullptr;
   uint64_t frameCount_ = 0;
 
   Rig rig_;
@@ -357,7 +418,7 @@ class App {
   std::string stationsDir_;
   bool showStations_ = true;
   bool onAirOnly_ = true;  // a broadcaster gets a flag only while it's scheduled
-  bool showService_[bands::S_COUNT] = {true, true, true, true, true, true, true, true, true};
+  bool showService_[bands::S_COUNT] = {true, true, true, true, true, true, true, true, true, true};
   bool stationSearchOpen_ = false, stationSearchFocus_ = false;
   char stationQuery_[64] = "";
   // Kept from frame to frame: there are thousands of stations to look through. They point into stations_.
@@ -424,9 +485,80 @@ class App {
   std::vector<store::Memory> memories_;
   char memName_[64] = "", memFilter_[64] = "";
   std::vector<store::LogEntry> log_;
-  char logCall_[24] = "", logSent_[8] = "59", logRcvd_[8] = "59", logName_[32] = "", logNotes_[128] = "";
+  // The form on the Log tab, which is also where a logged contact comes back to be changed.
+  struct LogForm {
+    char call[24] = "", sent[8] = "59", rcvd[8] = "59", name[32] = "", qth[48] = "", locator[12] = "", power[8] = "", notes[128] = "";
+    char contest[32] = "", exchSent[24] = "", exchRcvd[24] = "";
+    char on[20] = "", off[20] = "", khz[16] = "", mode[12] = "", station[24] = "";  // only while changing a logged contact
+  };
+  LogForm logForm_, logDraft_;  // the draft is whatever was being typed when a logged contact was brought back
+  int logEditing_ = -1;         // which contact the form holds, or -1 for a new one
+  bool logDeleting_ = false;    // Delete has been pressed once
+  bool logShowTab_ = false;     // bring the Log tab forward
+  std::string logStarted_;      // when the callsign went in, which is when the contact began
   bool logFocusCall_ = false;
+  bool openLogBook_ = false;
+  char logBookQuery_[64] = "";
+  // The file dialog runs on a thread of its own so the radio's display keeps going behind it. Left to die with
+  // the program if it's still open at exit, which is why this is shared with that thread.
+  struct LogPick {
+    std::atomic<bool> done{false};
+    bool available = true;
+    std::string path;
+  };
+  std::shared_ptr<LogPick> logPick_;
+  // One log holds every callsign the operator uses. callsign_ is the one on the air: new contacts go under it,
+  // and the Log tab and worked-before marks show only its contacts.
+  std::set<std::string> stationCalls_;  // those in the log, and those added by hand
+  std::string logIndexedFor_;           // the callsign indexLog last ran for
+  std::vector<int> logActive_;          // positions in the log of the active callsign's contacts, newest first
+  bool logBookAll_ = false;             // the log book is showing every callsign, not just the active one
+  bool logBookViewAll_ = false;
+  char newStation_[24] = "";
+  int logBookContacts_ = 0, logBookCalls_ = 0, logBookCountries_ = 0, logBookConfirmed_ = 0;
+  std::vector<int> logBookView_;
+  std::string logBookViewFor_;
+  bool logBookViewSorted_ = false;
+  // Filling the whole window, and where the log book goes back to afterwards.
+  bool logBookFull_ = false, logBookPutBack_ = false, logBookWindowWasMaximised_ = false;
+  ImVec2 logBookPos_, logBookSize_;
+  // The world map shows what the log book is showing: one pin to a place, however many contacts were made there.
+  std::vector<LogPin> logPins_;  // north first, so that nearer the bottom of the screen is on top
+  int logPinned_ = 0, logUnpinned_ = 0;
+  worldmap::View logMapView_;
+  uint64_t logRevision_ = 1, logBookViewRevision_ = 0;
+  std::set<std::string> workedCalls_, workedOnBand_, workedCountries_;  // "CALL|20M" for the band
+  std::vector<std::string> droppedFiles_;
   char callsign_[24] = "";
+  char locator_[8] = "";
+
+  // scanning
+  scan::Scanner scan_;
+  int scanSource_ = 0;  // this band, a range, memories, stations
+  int scanStepIdx_ = 2, scanLevel_ = 5, scanDwellMs_ = 500, scanResume_ = scan::ON_DROP, scanService_ = bands::S_COUNT;
+  char scanFrom_[16] = "", scanTo_[16] = "", scanFilter_[64] = "";
+  uint64_t scanErrorSeq_ = 0;
+  struct ScanHit {
+    std::string utc;
+    scan::Channel channel;
+    double db = 0;
+  };
+  std::vector<ScanHit> scanHits_;  // newest first
+
+  // DX spots
+  dx::Client dx_;
+  dx::SpotList spots_;
+  struct SpotRow {
+    bands::Marker marker;
+    int kind = 0;  // 0 not known, 1 CW, 2 voice, 3 data
+    std::string country;
+  };
+  std::vector<SpotRow> spotRows_;  // one for each of spots_, in the same order
+  bool spotsDirty_ = false, dxOn_ = false, showSpots_ = true, showSpotFlags_ = true, showSkimmers_ = false;
+  float spotsFrac_ = 0.32f;
+  int spotBandFilter_ = 0, spotModeFilter_ = 0, dxAgeMinutes_ = 30, dxPort_ = 23;
+  char dxHost_[64] = "dxc.ve7cc.net", dxCommands_[96] = "";
+  double nextSpotPrune_ = 0;
   char macros_[5][96] = {"CQ CQ CQ DE {CALL} {CALL} K", "{CALL}", "TNX FB QSO 73 DE {CALL} SK", "UR 599 599 BK", "QRZ? DE {CALL} K"};
   char cwLine_[128] = "";
 
@@ -511,6 +643,7 @@ void App::setupStyle(float scale) {
   fMid_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 19.f * scale, &cfg);
   fFreq_ = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 56.f * scale, &cfg);
   fFreqSmall_ = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 21.f * scale, &cfg);
+  fLogBig_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 30.f * scale, &cfg);  // twice fText_
 }
 
 // The layout is designed in logical pixels and is comfortable at 1560x960 of them. Window sizes are real
@@ -629,6 +762,31 @@ void App::loadSettings() {
   splitFrac_ = (float)cfg_.getDouble("split", 0.5);
   txLimit_ = std::max(5, cfg_.getInt("tx_limit", 180));
   snprintf(callsign_, sizeof callsign_, "%s", cfg_.get("callsign").c_str());
+  setBuf(locator_, cfg_.get("locator"));
+  setBuf(logForm_.contest, cfg_.get("log_contest"));
+  setBuf(logForm_.exchSent, cfg_.get("log_exch_sent"));
+  for (const std::string& call : store::splitCsv(cfg_.get("station_calls")))
+    if (!call.empty()) stationCalls_.insert(call);
+  scanSource_ = std::max(0, std::min(3, cfg_.getInt("scan_source", 0)));
+  scanStepIdx_ = std::max(0, std::min(kScanStepCount - 1, cfg_.getInt("scan_step", 2)));
+  scanLevel_ = std::max(1, std::min(13, cfg_.getInt("scan_level", 5)));
+  scanDwellMs_ = std::max(300, std::min(3000, cfg_.getInt("scan_dwell", 500)));
+  scanResume_ = std::max(0, std::min(scan::RESUME_COUNT - 1, cfg_.getInt("scan_resume", scan::ON_DROP)));
+  scanService_ = std::max(0, std::min((int)bands::S_COUNT, cfg_.getInt("scan_service", bands::S_COUNT)));
+  setBuf(scanFrom_, cfg_.get("scan_from"));
+  setBuf(scanTo_, cfg_.get("scan_to"));
+  setBuf(scanFilter_, cfg_.get("scan_filter"));
+  setBuf(dxHost_, cfg_.get("dx_host", "dxc.ve7cc.net"));
+  dxPort_ = std::max(1, std::min(65535, cfg_.getInt("dx_port", 23)));
+  setBuf(dxCommands_, cfg_.get("dx_commands"));
+  dxAgeMinutes_ = std::max(5, std::min(240, cfg_.getInt("dx_age", 30)));
+  showSkimmers_ = cfg_.getInt("dx_skimmers", 0) != 0;
+  spotBandFilter_ = std::max(0, std::min(1, cfg_.getInt("dx_band_filter", 0)));
+  spotModeFilter_ = std::max(0, std::min(3, cfg_.getInt("dx_mode_filter", 0)));
+  spotsFrac_ = std::max(0.15f, std::min(0.7f, (float)cfg_.getDouble("dx_split", 0.32)));
+  showSpotFlags_ = cfg_.getInt("dx_flags", 1) != 0;
+  // The self-test finds its controls by where they are, so it keeps the column to itself.
+  showSpots_ = opt_.selfTest.empty() && cfg_.getInt("show_spots", 1) != 0;
   for (int i = 0; i < 5; i++) {
     std::string m = cfg_.get("macro" + std::to_string(i));
     if (!m.empty()) snprintf(macros_[i], sizeof macros_[i], "%s", m.c_str());
@@ -655,6 +813,18 @@ void App::loadSettings() {
   choosePlan(opt_.selfTest.empty() ? cfg_.get("band_plan", "uk") : "uk");
   memories_ = store::loadMemories(memPath_);
   log_ = store::loadLog(logPath_);
+  // A log from before contacts recorded their station callsign is the callsign set then. Written straight away,
+  // or flipping to another callsign later would carry these contacts over with it.
+  bool logChanged = false;
+  if (callsign_[0])
+    for (store::LogEntry& e : log_)
+      if (e.station.empty()) e.station = callsign_, logChanged = true;
+  // Likewise a contact with a locator and no distance: one from before distances were kept, or from before the
+  // operator's own locator was set.
+  for (store::LogEntry& e : log_)
+    if (fillDistance(e)) logChanged = true;
+  if (logChanged && store::backupFile(logPath_)) store::saveLog(logPath_, log_);
+  indexLog();
 }
 
 // Saved by band name. Earlier versions saved by position in a fixed list of twelve, which these read.
@@ -681,6 +851,7 @@ void App::choosePlan(const std::string& id) {
   if (!p) p = plans_.find("uk");
   if (!p && !plans_.plans.empty()) p = &plans_.plans[0];
   if (p) plan_ = p->forRadio(!radio().hasTransmit);
+  spotsDirty_ = true;  // a spot with no mode of its own takes one from the plan
   loadBandMem();
 }
 
@@ -732,6 +903,36 @@ void App::saveSettings() {
   cfg_.setDouble("split", splitFrac_);
   cfg_.setInt("tx_limit", txLimit_);
   cfg_.set("callsign", callsign_);
+  {
+    std::set<std::string> calls = stationCalls_;
+    if (callsign_[0]) calls.insert(callsign_);
+    cfg_.set("station_calls", store::joinCsv(std::vector<std::string>(calls.begin(), calls.end())));
+  }
+  cfg_.set("locator", locator_);
+  // A contact being changed isn't what the next new one should start from.
+  const LogForm& newForm = logEditing_ >= 0 ? logDraft_ : logForm_;
+  cfg_.set("log_contest", newForm.contest);
+  cfg_.set("log_exch_sent", newForm.exchSent);
+  cfg_.setInt("scan_source", scanSource_);
+  cfg_.setInt("scan_step", scanStepIdx_);
+  cfg_.setInt("scan_level", scanLevel_);
+  cfg_.setInt("scan_dwell", scanDwellMs_);
+  cfg_.setInt("scan_resume", scanResume_);
+  cfg_.setInt("scan_service", scanService_);
+  cfg_.set("scan_from", scanFrom_);
+  cfg_.set("scan_to", scanTo_);
+  cfg_.set("scan_filter", scanFilter_);
+  cfg_.set("dx_host", dxHost_);
+  cfg_.setInt("dx_port", dxPort_);
+  cfg_.set("dx_commands", dxCommands_);
+  cfg_.setInt("dx_on", dxOn_);
+  cfg_.setInt("dx_age", dxAgeMinutes_);
+  cfg_.setInt("dx_skimmers", showSkimmers_);
+  cfg_.setInt("dx_band_filter", spotBandFilter_);
+  cfg_.setInt("dx_mode_filter", spotModeFilter_);
+  cfg_.setDouble("dx_split", spotsFrac_);
+  cfg_.setInt("dx_flags", showSpotFlags_);
+  cfg_.setInt("show_spots", showSpots_);
   for (int i = 0; i < 5; i++) cfg_.set("macro" + std::to_string(i), macros_[i]);
   cfg_.set("band_plan", plan_.id);
   cfg_.setInt("show_bandplan", showBandPlan_);
@@ -865,7 +1066,8 @@ void App::openDecoder(int mode) {
 // The self-test finds its controls by where they are, so it keeps the undivided layout.
 void App::followRigMode() {
   int mode = st_.connected ? st_.mode : -1;
-  if (opt_.selfTest.empty() && mode != rigModeSeen_ && rigModeSeen_ >= 0 && decoderForMode(mode) != Decoder::OFF) openDecoder(decoderForMode(mode));
+  // A scan through mixed memories or stations changes mode as it goes, which isn't anybody choosing a decoder.
+  if (!scan_.running() && opt_.selfTest.empty() && mode != rigModeSeen_ && rigModeSeen_ >= 0 && decoderForMode(mode) != Decoder::OFF) openDecoder(decoderForMode(mode));
   rigModeSeen_ = mode;
 }
 
@@ -963,7 +1165,7 @@ void App::pumpScope() {
 }
 
 void App::rememberBand() {
-  if (!st_.connected || st_.tx || st_.hz <= 0 || st_.mode < 0) return;
+  if (!st_.connected || st_.tx || st_.hz <= 0 || st_.mode < 0 || scan_.running()) return;  // a scan isn't where you were
   int b = plan_.bandOf(st_.hz);
   if (b < 0 || !plan_.segmentAt(st_.hz)) return;
   BandMem& m = bandMem_[plan_.bands[(size_t)b].name];
@@ -2229,6 +2431,7 @@ ImU32 serviceColour(bands::Service s) {
     case bands::S_AVIATION: return IM_COL32(50, 90, 190, 255);
     case bands::S_SPACE: return IM_COL32(105, 75, 170, 255);
     case bands::S_LAND: return IM_COL32(125, 105, 60, 255);
+    case bands::S_MYSTERY: return IM_COL32(20, 135, 140, 255);
     default: return IM_COL32(170, 85, 40, 255);
   }
 }
@@ -2260,6 +2463,16 @@ void App::drawStationOverlay(const PlotArea& a, double lo, double hi, float stri
       dl->AddRectFilled(ImVec2(lx0, ly), ImVec2(lx1, ly + S(15)), (col & 0x00FFFFFF) | IM_COL32(0, 0, 0, 130), 3);
       dl->AddText(fSmall_, S(12.5f), ImVec2(cx - tw / 2, ly + S(1)), IM_COL32(255, 255, 255, 230), r.label.c_str());
     }
+}
+
+// Live spots, newest first so they get the room. Red is one you haven't worked on this band, and grey is one you have.
+void App::drawSpotOverlay(const PlotArea& a, double lo, double hi, float stripH, FlagLayer& l) {
+  for (size_t i = 0; i < spotRows_.size(); i++) {
+    const bands::Marker& m = spotRows_[i].marker;
+    if ((double)m.hz < lo || (double)m.hz > hi || !spotShown(i, false)) continue;
+    bool worked = workedOnBand_.count(m.label + "|" + bands::adifBand(m.hz)) != 0;
+    drawFlag(a, lo, hi, stripH, l, m, worked ? IM_COL32(95, 100, 110, 255) : IM_COL32(205, 60, 45, 255), true, "spot:" + m.label);
+  }
 }
 
 // On the scope: the plan's strip with each portion named, the band's edges with everything outside them
@@ -2489,6 +2702,21 @@ void App::drawScopePane() {
     ImGui::Combo("Colours", &palette_, kPaletteNames, PAL_COUNT);
     ImGui::EndPopup();
   }
+  // Against the right-hand edge. A page is the width on show, so one page ends where the next begins. Only
+  // Centre moves with the dial: in Fixed the rig's edges stay put and this would just tune off the scope.
+  long long page = scopeHi_ > scopeLo_ ? scopeHi_ - scopeLo_ : (long long)st_.scopeSpan;
+  float pageW = S(24) * 2 + ImGui::GetStyle().ItemSpacing.x;
+  flow(pageW);
+  ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - pageW);
+  ImGui::BeginDisabled(!st_.connected || st_.scopeMode != civ::SCOPE_CENTER || st_.tx || st_.hz <= 0 || page <= 0);
+  if (panelButton("<##page", ImVec2(S(24), 0))) tuneBy(-page);
+  note("scopepageprev");
+  ImGui::SetItemTooltip("Back one page of the scope. Centre mode only.");
+  ImGui::SameLine();
+  if (panelButton(">##page", ImVec2(S(24), 0))) tuneBy(page);
+  note("scopepagenext");
+  ImGui::SetItemTooltip("On one page of the scope. Centre mode only.");
+  ImGui::EndDisabled();
 
   float k = 255.f / civ::kScopeLevelMax;
   wfScope_.setDisplay(scopeFloor_ * k, (scopeFloor_ + scopeRange_) * k, palette_);
@@ -2521,6 +2749,7 @@ void App::drawScopePane() {
   flags.rows = std::max(1, std::min(3, (int)((a.w0.y - stripH - S(17) - a.p0.y) / S(16))));
   flags.bestDist = S(4);
   if (showBandPlan_) drawPlanOverlay(a, lo, hi, stripH, flags);
+  if (dxOn_ && showSpotFlags_) drawSpotOverlay(a, lo, hi, stripH, flags);
   if (showStations_) drawStationOverlay(a, lo, hi, stripH, flags);
   const bands::Marker* marker = flags.hit;
   if (marker) {
@@ -2578,8 +2807,14 @@ void App::drawScopePane() {
     long long snap = span <= 10000 ? 10 : 100;
     long long hz = llround(a.x / (double)snap) * snap;
     if (a.clicked) {
-      if (marker) goMarker(*marker);
-      else tuneTo(hz);
+      if (marker) {
+        // A spot's flag also puts its call in the log.
+        for (const SpotRow& r : spotRows_)
+          if (&r.marker == marker) fillLogCall(r.marker.label);
+        goMarker(*marker);
+      } else {
+        tuneTo(hz);
+      }
     }
     if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1, radio()));
     if (a.rclicked) {
@@ -2982,7 +3217,7 @@ void App::drawAudioPane() {
 }
 
 void App::drawCentre() {
-  ImGui::BeginChild("centre", ImVec2(-S(297), 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  ImGui::BeginChild("centre", ImVec2(-S(330), 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
   float total = ImGui::GetContentRegionAvail().y;
   if (showScope_) {
     drawScopePane();
@@ -3250,69 +3485,1232 @@ void App::drawMemories() {
   }
 }
 
+// What the worked-before marks and the log book's totals look through, so they needn't go through the log every frame.
+void App::indexLog() {
+  workedCalls_.clear(), workedOnBand_.clear(), workedCountries_.clear(), logActive_.clear();
+  logIndexedFor_ = callsign_;
+  for (int i = (int)log_.size() - 1; i >= 0; i--) {
+    const store::LogEntry& e = log_[(size_t)i];
+    if (!e.station.empty()) stationCalls_.insert(e.station);
+    if (!onActiveStation(e)) continue;
+    logActive_.push_back(i);
+    workedCalls_.insert(e.call);
+    workedOnBand_.insert(e.call + "|" + bands::adifBand(e.hz));
+    std::string where = e.country.empty() ? dx::countryOf(e.call) : e.country;
+    if (!where.empty()) workedCountries_.insert(where);
+  }
+  logRevision_++;
+}
+
+// A contact with no station callsign shows under any, as nothing says whose it is.
+bool App::onActiveStation(const store::LogEntry& e) const {
+  return !callsign_[0] || e.station.empty() || e.station == callsign_;
+}
+
+// Going on the air as another callsign, which is also the log book showing that callsign's contacts.
+void App::useStation(const std::string& call) {
+  setBuf(callsign_, call);
+  logBookAll_ = false;
+  indexLog();
+}
+
+// Which of the operator's callsigns is in use, and adding another: a special event station, say.
+void App::drawStationPicker() {
+  ImGui::SetNextItemWidth(S(150));
+  if (ImGui::BeginCombo("##station", logBookAll_ ? "All callsigns" : callsign_[0] ? callsign_ : "No callsign set")) {
+    if (ImGui::Selectable("All callsigns", logBookAll_)) logBookAll_ = true;
+    std::set<std::string> calls = stationCalls_;
+    if (callsign_[0]) calls.insert(callsign_);
+    for (const std::string& call : calls)
+      if (ImGui::Selectable(call.c_str(), !logBookAll_ && call == callsign_)) useStation(call);
+    ImGui::Separator();
+    ImGui::SetNextItemWidth(S(110));
+    bool add = ImGui::InputTextWithHint("##newstation", "New callsign", newStation_, sizeof newStation_, ImGuiInputTextFlags_CharsUppercase | ImGuiInputTextFlags_EnterReturnsTrue);
+    ImGui::SameLine();
+    add |= panelButton("Add");
+    if (add && newStation_[0]) {
+      stationCalls_.insert(newStation_);
+      useStation(newStation_);
+      newStation_[0] = 0;
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it.");
+}
+
+// Brings a logged contact back to the form, to be changed and logged again. Whatever was being typed is put by
+// until that's finished with.
+void App::editLogEntry(int i) {
+  if (i < 0 || i >= (int)log_.size()) return;
+  if (logEditing_ < 0) logDraft_ = logForm_;
+  const store::LogEntry& e = log_[(size_t)i];
+  LogForm f;
+  setBuf(f.call, e.call), setBuf(f.sent, e.rstSent), setBuf(f.rcvd, e.rstRcvd), setBuf(f.name, e.name), setBuf(f.qth, e.qth);
+  setBuf(f.locator, e.locator), setBuf(f.power, e.power), setBuf(f.notes, e.notes), setBuf(f.contest, e.contest);
+  setBuf(f.exchSent, e.exchSent), setBuf(f.exchRcvd, e.exchRcvd), setBuf(f.on, e.utc), setBuf(f.off, e.utcOff), setBuf(f.mode, e.mode), setBuf(f.station, e.station);
+  snprintf(f.khz, sizeof f.khz, "%.3f", (double)e.hz / 1000.0);
+  logForm_ = f;
+  logEditing_ = i;
+  logDeleting_ = false;
+  logShowTab_ = true;
+}
+
+void App::endLogEdit() {
+  if (logEditing_ >= 0) logForm_ = logDraft_;
+  logEditing_ = -1;
+  logDeleting_ = false;
+}
+
+void App::fillLogCall(const std::string& call) {
+  // Not over a logged contact being changed: that's somebody else's callsign.
+  if (logEditing_ >= 0) return;
+  setBuf(logForm_.call, call);
+  logForm_.name[0] = logForm_.qth[0] = logForm_.locator[0] = logForm_.notes[0] = logForm_.exchRcvd[0] = 0;
+  logStarted_ = utcNow("%Y-%m-%d %H:%M");
+}
+
+// Works out how far away a contact is from the locator in Settings, if it has no distance yet. A distance already
+// there is left alone, as it was measured from wherever the operator was at the time. True if it filled one in.
+bool App::fillDistance(store::LogEntry& e) const {
+  double km, bearing;
+  if (!e.distKm.empty() || !dx::pathBetween(locator_, e.locator, km, bearing)) return false;
+  char t[16];
+  snprintf(t, sizeof t, "%.0f", km);
+  e.distKm = t;
+  snprintf(t, sizeof t, "%.0f", km * kMilesPerKm);
+  e.distMiles = t;
+  return true;
+}
+
+void App::importLog(const std::string& path) {
+  endLogEdit();  // the import puts the log in time order, so an entry's number can change
+  int added = 0, updated = 0, skipped = 0;
+  std::string error;
+  if (!store::backupFile(logPath_)) {
+    say("Couldn't back up the log first, so nothing was imported");
+    return;
+  }
+  if (!store::importAdif(path, log_, callsign_, added, updated, skipped, error)) {
+    say(error);
+    return;
+  }
+  for (store::LogEntry& e : log_) {
+    if (e.country.empty()) e.country = dx::countryOf(e.call);
+    fillDistance(e);
+  }
+  const size_t shownBefore = logActive_.size();
+  indexLog();
+  std::string msg = "Imported " + std::to_string(added) + " new QSOs, updated " + std::to_string(updated) + ", and " + std::to_string(skipped) + " were already up to date";
+  if (logActive_.size() - shownBefore < (size_t)added) msg += ". Some are under other callsigns: choose them in the log book";
+  if ((added || updated) && !store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
+  else say(msg);
+}
+
+// Puts log.csv itself in date order, oldest first. Contacts in the same minute stay in the order they were in.
+void App::sortLogFile() {
+  const auto earlier = [](const store::LogEntry& a, const store::LogEntry& b) { return a.utc < b.utc; };
+  if (std::is_sorted(log_.begin(), log_.end(), earlier)) {
+    say("The log is already in date order");
+    return;
+  }
+  if (!store::backupFile(logPath_)) {
+    say("Couldn't back up the log first, so it wasn't sorted");
+    return;
+  }
+  std::vector<store::LogEntry> sorted = log_;
+  std::stable_sort(sorted.begin(), sorted.end(), earlier);
+  if (!store::saveLog(logPath_, sorted)) {
+    say("Couldn't save the log to " + logPath_);
+    return;
+  }
+  log_ = std::move(sorted);
+  indexLog();
+  say("Sorted " + std::to_string(log_.size()) + " QSOs into date order. The log as it was is in " + logPath_ + ".bak");
+}
+
+void App::pickLogToImport() {
+  if (logPick_) return;
+  auto pick = std::make_shared<LogPick>();
+  logPick_ = pick;
+  void* owner = store::activeWindow();  // asked here: it's this thread's window
+  std::thread([pick, owner] {
+    pick->available = store::pickAdifFile(owner, pick->path);
+    pick->done = true;
+  }).detach();
+}
+
+void App::pumpLogPick() {
+  if (!logPick_ || !logPick_->done) return;
+  std::shared_ptr<LogPick> pick = logPick_;
+  logPick_.reset();
+  if (!pick->available) say("There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead");
+  else if (!pick->path.empty()) importLog(pick->path);
+}
+
 void App::drawLog() {
-  // Upper-case as you type: callsigns always are.
-  for (char* p = logCall_; *p; p++) *p = (char)toupper((unsigned char)*p);
-  ImGui::SetNextItemWidth(-1);
+  LogForm& f = logForm_;
+  const bool editing = logEditing_ >= 0;
+  // Upper-case as you type: callsigns and locators' first letters always are.
+  for (char* p = f.call; *p; p++) *p = (char)toupper((unsigned char)*p);
+  if (!editing) {
+    if (!f.call[0]) logStarted_.clear();
+    else if (logStarted_.empty()) logStarted_ = utcNow("%Y-%m-%d %H:%M");
+  }
+  if (editing) ImGui::TextColored(ImColor(C_AMBER), "Changing a logged contact");
+  // The fields that matter most during a contact: double height, and capitals whatever is typed.
+  auto bigField = [&](const char* id, const char* hint, char* buf, size_t n, float width, ImGuiInputTextFlags flags) {
+    ImGui::PushFont(fLogBig_);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, ImGui::GetStyle().FramePadding.y * 2));
+    ImGui::SetNextItemWidth(width);
+    bool done = ImGui::InputTextWithHint(id, hint, buf, n, flags | ImGuiInputTextFlags_CharsUppercase);
+    ImGui::PopStyleVar();
+    ImGui::PopFont();
+    return done;
+  };
   if (logFocusCall_) {
     ImGui::SetKeyboardFocusHere();
     logFocusCall_ = false;
   }
-  bool enter = ImGui::InputTextWithHint("##call", "Callsign", logCall_, sizeof logCall_, ImGuiInputTextFlags_EnterReturnsTrue);
-  if (logCall_[0]) {
+  bool enter = bigField("##call", "Callsign", f.call, sizeof f.call, -1, ImGuiInputTextFlags_EnterReturnsTrue);
+  note("logcall");
+  // Which country, and what's been worked before. Leaves out the contact being changed.
+  std::string band = bands::adifBand(editing ? llround(atof(f.khz) * 1000) : st_.hz);
+  std::string modeNow = editing ? f.mode : modeLabel(st_.mode, st_.data);
+  if (f.call[0]) {
+    std::string country = dx::countryOf(f.call);
     int worked = 0;
-    for (const store::LogEntry& e : log_) worked += e.call == logCall_;
-    if (worked) ImGui::TextColored(ImColor(C_AMBER), "Worked %d time%s before", worked, worked == 1 ? "" : "s");
+    bool dupe = false;
+    std::set<std::string> where;
+    for (int i = 0; i < (int)log_.size(); i++) {
+      const store::LogEntry& e = log_[(size_t)i];
+      if (i == logEditing_ || e.call != f.call || !onActiveStation(e)) continue;
+      worked++;
+      std::string b = bands::adifBand(e.hz);
+      where.insert(b + " " + e.mode);
+      dupe = dupe || (b == band && e.mode == modeNow);
+    }
+    if (!country.empty()) ImGui::TextDisabled("%s", country.c_str());
+    if (worked) {
+      std::string list;
+      for (const std::string& w : where) list += (list.empty() ? "" : ", ") + w;
+      ImGui::PushStyleColor(ImGuiCol_Text, dupe ? C_RED : C_AMBER);
+      ImGui::TextWrapped("%s%d time%s: %s", dupe ? "Already logged on this band and mode. " : "Worked ", worked, worked == 1 ? "" : "s", list.c_str());
+      ImGui::PopStyleColor();
+    } else {
+      ImGui::TextColored(ImColor(C_GREEN), "Not worked before");
+    }
   }
   float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) / 2;
-  ImGui::SetNextItemWidth(w);
-  ImGui::InputTextWithHint("##sent", "RST sent", logSent_, sizeof logSent_);
+  auto pair = [&](const char* idA, const char* hintA, char* a, size_t na, const char* idB, const char* hintB, char* b, size_t nb) {
+    ImGui::SetNextItemWidth(w);
+    ImGui::InputTextWithHint(idA, hintA, a, na);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(w);
+    ImGui::InputTextWithHint(idB, hintB, b, nb);
+  };
+  bigField("##sent", "RST sent", f.sent, sizeof f.sent, w, 0);
   ImGui::SameLine();
-  ImGui::SetNextItemWidth(w);
-  ImGui::InputTextWithHint("##rcvd", "RST rcvd", logRcvd_, sizeof logRcvd_);
+  bigField("##rcvd", "RST rcvd", f.rcvd, sizeof f.rcvd, w, 0);
+  pair("##lname", "Name", f.name, sizeof f.name, "##lqth", "QTH", f.qth, sizeof f.qth);
+  pair("##lgrid", "Locator", f.locator, sizeof f.locator, "##lpower", "Power (W)", f.power, sizeof f.power);
+  if (!editing && !f.power[0] && ImGui::IsItemHovered()) ImGui::SetTooltip("Left empty, it's what the rig's power is set to");
+  double km, bearing;
+  if (locator_[0] && f.locator[0] && dx::pathBetween(locator_, f.locator, km, bearing)) ImGui::TextDisabled("%.0f km, %.0f miles, bearing %.0f degrees", km, km * kMilesPerKm, bearing);
   ImGui::SetNextItemWidth(-1);
-  ImGui::InputTextWithHint("##lname", "Name", logName_, sizeof logName_);
-  ImGui::SetNextItemWidth(-1);
-  enter |= ImGui::InputTextWithHint("##lnotes", "Notes", logNotes_, sizeof logNotes_, ImGuiInputTextFlags_EnterReturnsTrue);
-  ImGui::TextDisabled("%s  %s  %s UTC", tuning::formatHz(st_.hz).c_str(), modeLabel(st_.mode, st_.data).c_str(), utcNow("%H:%M").c_str());
-  ImGui::BeginDisabled(!logCall_[0]);
-  bool add = panelButton("Log it", ImVec2(w, 0));
-  ImGui::EndDisabled();
-  if ((add || enter) && logCall_[0]) {
+  enter |= ImGui::InputTextWithHint("##lnotes", "Notes", f.notes, sizeof f.notes, ImGuiInputTextFlags_EnterReturnsTrue);
+  if (f.contest[0] || f.exchSent[0] || f.exchRcvd[0]) ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+  if (ImGui::CollapsingHeader("Contest")) {
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputTextWithHint("##lcontest", "Contest, such as CQ-WW-SSB", f.contest, sizeof f.contest);
+    pair("##lstx", "Exchange sent", f.exchSent, sizeof f.exchSent, "##lsrx", "Exchange rcvd", f.exchRcvd, sizeof f.exchRcvd);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("An exchange sent that's only a number goes up by one with each contact");
+  }
+
+  auto validTime = [](const char* t) { return strlen(t) == 16 && t[4] == '-' && t[7] == '-' && t[10] == ' ' && t[13] == ':'; };
+  bool commit = false;
+  if (editing) {
+    pair("##lon", "Began", f.on, sizeof f.on, "##loff", "Ended", f.off, sizeof f.off);
+    pair("##lkhz", "kHz", f.khz, sizeof f.khz, "##lmode", "Mode", f.mode, sizeof f.mode);
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputTextWithHint("##lstation", "Your callsign for this contact", f.station, sizeof f.station, ImGuiInputTextFlags_CharsUppercase);
+    ImGui::BeginDisabled(!f.call[0]);
+    commit = panelButton("Update", ImVec2(w, 0));
+    ImGui::EndDisabled();
+    note("logupdate");
+    ImGui::SameLine();
+    if (panelButton("Cancel", ImVec2(w, 0))) endLogEdit();
+    note("logcancel");
+    if (logEditing_ >= 0) {
+      if (logDeleting_) {
+        if (actionButton("Really delete it?", ImVec2(w, 0), V_RED, V_RED_HI, "logdelete")) {
+          if (store::backupFile(logPath_)) {
+            log_.erase(log_.begin() + logEditing_);
+            logEditing_ = -1;
+            logForm_ = logDraft_;
+            logDeleting_ = false;
+            if (!store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
+            indexLog();
+          } else {
+            say("Couldn't back up the log first, so nothing was deleted");
+          }
+        }
+        ImGui::SameLine();
+        if (panelButton("Keep it", ImVec2(w, 0))) logDeleting_ = false;
+      } else if (panelButton("Delete", ImVec2(w, 0))) {
+        logDeleting_ = true;
+      }
+    }
+  } else {
+    ImGui::TextDisabled("%s  %s  %s UTC", tuning::formatHz(st_.hz).c_str(), modeLabel(st_.mode, st_.data).c_str(), utcNow("%H:%M").c_str());
+    ImGui::BeginDisabled(!f.call[0]);
+    commit = panelButton("Log it", ImVec2(w, 0));
+    ImGui::EndDisabled();
+  }
+  if ((commit || enter) && logForm_.call[0] && editing == (logEditing_ >= 0)) {  // not if Cancel or Delete has just ended it
     store::LogEntry e;
-    e.utc = utcNow("%Y-%m-%d %H:%M");
-    e.call = logCall_, e.hz = st_.hz > 0 ? st_.hz : 0, e.mode = modeLabel(st_.mode, st_.data);
-    e.rstSent = logSent_, e.rstRcvd = logRcvd_, e.name = logName_, e.notes = logNotes_;
-    log_.push_back(e);
-    if (!store::appendLog(logPath_, e)) say("Couldn't save the log entry to " + logPath_);
-    logCall_[0] = logName_[0] = logNotes_[0] = 0;
-    logFocusCall_ = true;
+    if (editing) e = log_[(size_t)logEditing_];
+    bool ok = true;
+    if (editing) {
+      double khz = atof(f.khz);
+      if (!(khz > 0)) {
+        say("That frequency isn't a number of kHz");
+        ok = false;
+      } else if (!validTime(f.on) || (f.off[0] && !validTime(f.off))) {
+        say("Times need to look like 2026-10-31 19:05");
+        ok = false;
+      } else {
+        if (e.call != f.call) e.country = dx::countryOf(f.call);
+        e.hz = llround(khz * 1000), e.utc = f.on, e.utcOff = f.off, e.mode = f.mode, e.station = f.station;
+      }
+    } else {
+      e.station = callsign_;
+      e.utcOff = utcNow("%Y-%m-%d %H:%M");
+      e.utc = logStarted_.empty() ? e.utcOff : logStarted_;
+      e.hz = st_.hz > 0 ? st_.hz : 0, e.mode = modeLabel(st_.mode, st_.data);
+      e.country = dx::countryOf(f.call);
+    }
+    if (ok) {
+      if (e.locator != f.locator) e.distKm.clear(), e.distMiles.clear();  // a new place to measure to
+      e.call = f.call, e.rstSent = f.sent, e.rstRcvd = f.rcvd, e.name = f.name, e.notes = f.notes, e.qth = f.qth, e.locator = f.locator;
+      e.power = f.power, e.contest = f.contest, e.exchSent = f.exchSent, e.exchRcvd = f.exchRcvd;
+      fillDistance(e);
+      if (editing) {
+        log_[(size_t)logEditing_] = e;
+        if (!store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
+        else say("Updated " + e.call);
+        endLogEdit();
+      } else {
+        if (e.power.empty() && radio().hasTransmit && st_.level[civ::L_POWER] >= 0)
+          e.power = std::to_string((int)lround(st_.level[civ::L_POWER] / 255.0 * radio().maxWattsAt(st_.hz)));
+        log_.push_back(e);
+        if (!store::appendLog(logPath_, e)) say("Couldn't save the log entry to " + logPath_);
+        f.call[0] = f.name[0] = f.qth[0] = f.locator[0] = f.notes[0] = f.exchRcvd[0] = 0;
+        logStarted_.clear();
+        // A serial number goes up by itself, keeping its leading zeros.
+        size_t len = strlen(f.exchSent);
+        if (len && strspn(f.exchSent, "0123456789") == len) {
+          char next[24];
+          snprintf(next, sizeof next, "%0*d", (int)len, atoi(f.exchSent) + 1);
+          setBuf(f.exchSent, next);
+        }
+      }
+      indexLog();
+      logFocusCall_ = true;
+    }
   }
-  ImGui::SameLine();
-  if (panelButton("Export ADIF", ImVec2(w, 0))) {
-    std::string path = store::dataDir() + "log.adi";
-    if (store::exportAdif(path, log_, callsign_)) say("Exported " + std::to_string(log_.size()) + " QSOs to " + path);
-    else say("Couldn't write " + path);
+  if (!editing) {
+    ImGui::SameLine();
+    if (panelButton("Log book...", ImVec2(w, 0))) openLogBook_ = true;
+    note("logbook");
   }
+  // The newest are at the top, and there can be a great many once a log has been imported.
   if (ImGui::BeginTable("log", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
     ImGui::TableSetupColumn("UTC", ImGuiTableColumnFlags_WidthFixed, S(92));
     ImGui::TableSetupColumn("Call", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("kHz", ImGuiTableColumnFlags_WidthFixed, S(58));
+    ImGui::TableSetupColumn("kHz", ImGuiTableColumnFlags_WidthFixed, S(62));
     ImGui::TableSetupScrollFreeze(0, 1);
     ImGui::TableHeadersRow();
+    int bring = -1;
+    ImGuiListClipper clip;
+    clip.Begin((int)logActive_.size());
+    while (clip.Step())
+      for (int row = clip.DisplayStart; row < clip.DisplayEnd; row++) {
+        int i = logActive_[(size_t)row];
+        if (i >= (int)log_.size()) continue;
+        const store::LogEntry& e = log_[(size_t)i];
+        ImGui::PushID(i);
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        if (ImGui::Selectable(e.utc.size() > 5 ? e.utc.c_str() + 5 : e.utc.c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
+        note("logrow:" + std::to_string(i));
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s  %s  %s/%s  %s %s\nDouble-click to change it", e.call.c_str(), e.mode.c_str(), e.rstSent.c_str(), e.rstRcvd.c_str(), e.name.c_str(), e.notes.c_str());
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(e.call.c_str());
+        ImGui::TableNextColumn();
+        ImGui::Text("%.1f", (double)e.hz / 1000.0);
+        ImGui::PopID();
+      }
+    ImGui::EndTable();
+    if (bring >= 0) editLogEntry(bring);
+  }
+}
+
+// The whole log, with room for every field. A window of its own, so the Log tab stays usable beside it.
+// Maximising takes the program's window with it, so the log book really does get the whole screen, and puts both
+// back as they were.
+void App::setLogBookFull(bool full) {
+  if (full == logBookFull_) return;
+  logBookFull_ = full;
+  if (full) {
+    logBookWindowWasMaximised_ = glfwGetWindowAttrib(win_, GLFW_MAXIMIZED) != 0;
+    if (!logBookWindowWasMaximised_) glfwMaximizeWindow(win_);
+  } else {
+    if (!logBookWindowWasMaximised_) glfwRestoreWindow(win_);
+    logBookPutBack_ = true;
+  }
+}
+
+void App::buildLogPins() {
+  logPins_.clear();
+  logPinned_ = logUnpinned_ = 0;
+  std::map<std::string, size_t> places;
+  for (int i : logBookView_) {
+    double lat, lon;
+    if (!dx::gridToLatLon(log_[(size_t)i].locator, lat, lon)) {
+      logUnpinned_++;
+      continue;
+    }
+    logPinned_++;
+    char key[40];
+    snprintf(key, sizeof key, "%.4f,%.4f", lat, lon);
+    auto found = places.find(key);
+    if (found == places.end()) {
+      found = places.emplace(key, logPins_.size()).first;
+      logPins_.emplace_back();
+      worldmap::project(lon, lat, logPins_.back().x, logPins_.back().y);
+    }
+    logPins_[found->second].contacts.push_back(i);
+  }
+  for (LogPin& p : logPins_)
+    std::stable_sort(p.contacts.begin(), p.contacts.end(), [&](int a, int b) { return log_[(size_t)a].utc > log_[(size_t)b].utc; });
+  std::stable_sort(logPins_.begin(), logPins_.end(), [](const LogPin& a, const LogPin& b) { return a.y > b.y; });
+}
+
+// Everything the log holds about the contacts at one place, newest first, for as many as will fit on the screen.
+void App::drawPinBubble(const LogPin& pin) {
+  ImGui::BeginTooltip();
+  ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + S(460));
+  const store::LogEntry& newest = log_[(size_t)pin.contacts[0]];
+  std::string place = newest.locator;
+  for (char& c : place) c = (char)toupper((unsigned char)c);
+  if (!newest.distKm.empty()) place += "   " + newest.distKm + " km, " + newest.distMiles + " miles";
+  if (pin.contacts.size() > 1) place += "   " + std::to_string(pin.contacts.size()) + " contacts";
+  ImGui::TextDisabled("%s", place.c_str());
+
+  const float room = ImGui::GetMainViewport()->Size.y * 0.75f;
+  for (size_t n = 0; n < pin.contacts.size(); n++) {
+    if (ImGui::GetCursorPosY() > room) {
+      ImGui::Separator();
+      ImGui::TextDisabled("and %d earlier. Search the Contacts tab for %s to see them all.", (int)(pin.contacts.size() - n), place.substr(0, place.find(' ')).c_str());
+      break;
+    }
+    const store::LogEntry& e = log_[(size_t)pin.contacts[n]];
+    ImGui::Separator();
+    ImGui::PushFont(fMid_);
+    ImGui::TextUnformatted(e.call.c_str());
+    ImGui::PopFont();
+    std::string when = e.utc;
+    // The end needs no date of its own if it's the same day.
+    if (!e.utcOff.empty() && e.utcOff != e.utc) when += " to " + (e.utcOff.compare(0, 10, e.utc, 0, 10) == 0 && e.utcOff.size() > 11 ? e.utcOff.substr(11) : e.utcOff);
+    ImGui::TextColored(ImColor(C_AMBER), "%s UTC", when.c_str());
+    auto line = [](std::initializer_list<std::string> parts) {
+      std::string out;
+      for (const std::string& p : parts)
+        if (!p.empty()) out += (out.empty() ? "" : "   ") + p;
+      if (!out.empty()) ImGui::TextUnformatted(out.c_str());
+    };
+    auto labelled = [](const char* label, const std::string& v) { return v.empty() ? std::string() : std::string(label) + " " + v; };
+    char khz[32];
+    snprintf(khz, sizeof khz, "%.1f kHz", (double)e.hz / 1000.0);
+    line({e.name, e.qth, e.country.empty() ? dx::countryOf(e.call) : e.country});
+    line({khz, bands::adifBand(e.hz), e.mode, labelled("Power", e.power.empty() ? e.power : e.power + " W")});
+    line({labelled("RST sent", e.rstSent), labelled("RST rcvd", e.rstRcvd), labelled("Confirmed by", store::confirmedBy(e))});
+    line({labelled("Your callsign", e.station), e.locator != newest.locator ? labelled("Locator", e.locator) : std::string()});
+    line({labelled("Contest", e.contest), labelled("Exch sent", e.exchSent), labelled("Exch rcvd", e.exchRcvd)});
+    line({e.notes});
+  }
+  ImGui::PopTextWrapPos();
+  ImGui::EndTooltip();
+}
+
+void App::drawLogMap() {
+  ImGui::AlignTextToFramePadding();
+  ImGui::Text("%d contact%s at %d place%s", logPinned_, logPinned_ == 1 ? "" : "s", (int)logPins_.size(), logPins_.size() == 1 ? "" : "s");
+  if (logUnpinned_) {
+    ImGui::SameLine();
+    ImGui::TextDisabled("(%d with no locator aren't shown)", logUnpinned_);
+  }
+  ImGui::SameLine(0, S(20));
+  if (panelButton("Whole world")) logMapView_ = worldmap::View();
+  ImGui::SameLine();
+  ImGui::TextDisabled("Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts");
+
+  ImVec2 avail = ImGui::GetContentRegionAvail();
+  const ImVec2 size(std::max(1.f, avail.x), std::max(1.f, avail.y));
+  ImGui::InvisibleButton("##logmap", size);
+  note("logmap");
+  const ImVec2 p0 = ImGui::GetItemRectMin(), p1 = ImGui::GetItemRectMax();
+  const ImGuiIO& io = ImGui::GetIO();
+  const bool hovered = ImGui::IsItemHovered();
+  const bool dragging = ImGui::IsItemActive();
+  if (hovered && io.MouseWheel != 0.f) worldmap::zoomAt(logMapView_, p0, size, io.MousePos, pow(1.3, io.MouseWheel));
+  if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) worldmap::zoomAt(logMapView_, p0, size, io.MousePos, 2);
+  if (dragging && (io.MouseDelta.x != 0.f || io.MouseDelta.y != 0.f)) worldmap::pan(logMapView_, size, io.MouseDelta);
+  worldmap::clamp(logMapView_, size);  // the window may have changed size
+
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  dl->PushClipRect(p0, p1, true);
+  worldmap::draw(dl, p0, size, logMapView_, scale_, fText_, fSmall_);
+
+  const ImU32 kEdge = IM_COL32(15, 20, 25, 255);
+  const float tipClear = S(10);  // how far past the edge a pin can still show
+  // Where this station is, if Settings says.
+  double homeLat, homeLon;
+  if (dx::gridToLatLon(locator_, homeLat, homeLon)) {
+    float x, y;
+    worldmap::project(homeLon, homeLat, x, y);
+    ImVec2 c = worldmap::toScreen(logMapView_, p0, size, x, y);
+    const float r = S(7), e = r + S(1.5f);
+    dl->AddQuadFilled(ImVec2(c.x, c.y - e), ImVec2(c.x + e, c.y), ImVec2(c.x, c.y + e), ImVec2(c.x - e, c.y), kEdge);
+    dl->AddQuadFilled(ImVec2(c.x, c.y - r), ImVec2(c.x + r, c.y), ImVec2(c.x, c.y + r), ImVec2(c.x - r, c.y), C_GREEN);
+    if (hovered && !dragging && fabsf(io.MousePos.x - c.x) + fabsf(io.MousePos.y - c.y) <= e) ImGui::SetTooltip("Your station, %s", locator_);
+  }
+
+  auto drawPin = [&](const LogPin& pin, ImVec2 tip, bool hot) {
+    const bool many = pin.contacts.size() > 1;
+    const float r = S(many ? 8.f : 6.f) + (hot ? S(2) : 0);
+    const ImVec2 head(tip.x, tip.y - r * 2.1f);
+    const ImU32 col = hot ? IM_COL32(255, 255, 255, 255) : many ? C_AMBER : C_RED;
+    const float w = r * 0.8f, edge = S(1.5f);
+    dl->AddTriangleFilled(ImVec2(tip.x, tip.y + edge), ImVec2(head.x - w - edge, head.y), ImVec2(head.x + w + edge, head.y), kEdge);
+    dl->AddCircleFilled(head, r + edge, kEdge, 20);
+    dl->AddTriangleFilled(tip, ImVec2(head.x - w, head.y), ImVec2(head.x + w, head.y), col);
+    dl->AddCircleFilled(head, r, col, 20);
+    if (many) {
+      std::string count = pin.contacts.size() > 99 ? "99+" : std::to_string(pin.contacts.size());
+      ImVec2 ts = fSmall_->CalcTextSizeA(fSmall_->FontSize, FLT_MAX, 0, count.c_str());
+      dl->AddText(fSmall_, fSmall_->FontSize, ImVec2(head.x - ts.x / 2, head.y - ts.y / 2), kEdge, count.c_str());
+    } else {
+      dl->AddCircleFilled(head, r * 0.35f, kEdge, 12);
+    }
+  };
+
+  const LogPin* hotPin = nullptr;
+  ImVec2 hotTip;
+  float best = FLT_MAX;
+  for (const LogPin& pin : logPins_) {
+    ImVec2 tip = worldmap::toScreen(logMapView_, p0, size, pin.x, pin.y);
+    if (tip.x < p0.x - tipClear || tip.x > p1.x + tipClear || tip.y < p0.y - tipClear || tip.y > p1.y + S(40)) continue;
+    drawPin(pin, tip, false);
+    if (!hovered || dragging) continue;
+    const float r = S(pin.contacts.size() > 1 ? 8.f : 6.f);
+    const ImVec2 head(tip.x, tip.y - r * 2.1f);
+    float dHead = sqrtf((io.MousePos.x - head.x) * (io.MousePos.x - head.x) + (io.MousePos.y - head.y) * (io.MousePos.y - head.y)) - r;
+    float dTip = sqrtf((io.MousePos.x - tip.x) * (io.MousePos.x - tip.x) + (io.MousePos.y - tip.y) * (io.MousePos.y - tip.y)) - S(3);
+    float d = std::min(dHead, dTip);
+    // <= so that of two pins on top of each other, the one drawn on top wins.
+    if (d <= S(2) && d <= best) best = d, hotPin = &pin, hotTip = tip;
+  }
+  if (hotPin) drawPin(*hotPin, hotTip, true);
+  dl->PopClipRect();
+  if (hotPin) drawPinBubble(*hotPin);
+}
+
+// Ignores case, and takes a run of digits as a number, so 5 W comes before 100 W and exchange 9 before 10.
+static int compareNatural(const std::string& a, const std::string& b) {
+  const auto digit = [](char c) { return c >= '0' && c <= '9'; };
+  size_t i = 0, j = 0;
+  while (i < a.size() && j < b.size()) {
+    if (digit(a[i]) && digit(b[j])) {
+      while (i < a.size() && a[i] == '0') i++;
+      while (j < b.size() && b[j] == '0') j++;
+      const size_t iStart = i, jStart = j;
+      while (i < a.size() && digit(a[i])) i++;
+      while (j < b.size() && digit(b[j])) j++;
+      if (i - iStart != j - jStart) return i - iStart < j - jStart ? -1 : 1;
+      if (int order = a.compare(iStart, i - iStart, b, jStart, j - jStart)) return order;
+      continue;
+    }
+    const int x = tolower((unsigned char)a[i]), y = tolower((unsigned char)b[j]);
+    if (x != y) return x < y ? -1 : 1;
+    i++, j++;
+  }
+  if (i < a.size()) return 1;
+  return j < b.size() ? -1 : 0;
+}
+
+// Sorts on a column of the log book's table. Empty cells stay at the bottom whichever way it's sorted, and
+// contacts that tie are newest first.
+static void sortLogBookView(std::vector<int>& view, const std::vector<store::LogEntry>& log, int column, bool ascending) {
+  const auto text = [column](const store::LogEntry& e) -> std::string {
+    switch (column) {
+      case 0: return e.utc;
+      case 1: return e.utcOff;
+      case 2: return e.call;
+      case 3: return e.station;
+      case 5: return bands::adifBand(e.hz);
+      case 6: return e.mode;
+      case 7: return store::confirmedBy(e);
+      case 8: return e.rstSent;
+      case 9: return e.rstRcvd;
+      case 10: return e.name;
+      case 11: return e.qth;
+      case 12: return e.locator;
+      case 13: return e.power;
+      case 14: return e.country;
+      case 15: return e.contest;
+      case 16: return e.exchSent;
+      case 17: return e.exchRcvd;
+      case 18: return e.notes;
+      default: return "";
+    }
+  };
+  std::sort(view.begin(), view.end(), [&](int x, int y) {
+    const store::LogEntry& a = log[(size_t)x];
+    const store::LogEntry& b = log[(size_t)y];
+    const int byHz = a.hz < b.hz ? -1 : a.hz > b.hz ? 1 : 0;
+    int order;
+    if (column == 4) {
+      order = byHz;
+    } else {
+      const std::string s = text(a), t = text(b);
+      if (s.empty() != t.empty()) return t.empty();
+      // Bands go in order of frequency, not of their names, and a band's contacts count as equal.
+      order = column == 5 ? (s == t ? 0 : byHz) : compareNatural(s, t);
+    }
+    if (order != 0) return ascending ? order < 0 : order > 0;
+    return column == 0 && ascending ? x < y : x > y;
+  });
+}
+
+void App::drawLogBook() {
+  if (!openLogBook_) {
+    setLogBookFull(false);
+    return;
+  }
+  ImGuiViewport* vp = ImGui::GetMainViewport();
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+  if (logBookFull_) {
+    // The status bar stays in view, so the radio's state and any message can still be seen.
+    ImGui::SetNextWindowPos(vp->Pos);
+    ImGui::SetNextWindowSize(ImVec2(vp->Size.x, std::max(S(200), vp->Size.y - ImGui::GetFrameHeightWithSpacing() - ImGui::GetStyle().WindowPadding.y)));
+    flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+  } else if (logBookPutBack_) {
+    ImGui::SetNextWindowPos(logBookPos_);
+    ImGui::SetNextWindowSize(logBookSize_);
+    logBookPutBack_ = false;
+  } else {
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + S(30), vp->WorkPos.y + S(130)), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(std::max(S(640), vp->WorkSize.x - S(400)), std::max(S(360), vp->WorkSize.y - S(240))), ImGuiCond_FirstUseEver);
+  }
+  if (!ImGui::Begin("Log book", &openLogBook_, flags)) {
+    ImGui::End();
+    return;
+  }
+  std::string query = logBookQuery_;
+  for (char& c : query) c = (char)tolower((unsigned char)c);
+  const bool scopeChanged = logBookViewRevision_ != logRevision_ || logBookViewAll_ != logBookAll_;
+  if (scopeChanged) {
+    std::set<std::string> calls, countries;
+    logBookContacts_ = logBookConfirmed_ = 0;
+    for (const store::LogEntry& e : log_) {
+      if (!logBookAll_ && !onActiveStation(e)) continue;
+      logBookContacts_++;
+      calls.insert(e.call);
+      std::string where = e.country.empty() ? dx::countryOf(e.call) : e.country;
+      if (!where.empty()) countries.insert(where);
+      if (!store::confirmedBy(e).empty()) logBookConfirmed_++;
+    }
+    logBookCalls_ = (int)calls.size(), logBookCountries_ = (int)countries.size();
+  }
+  if (scopeChanged || logBookViewFor_ != query) {
+    logBookViewRevision_ = logRevision_, logBookViewAll_ = logBookAll_, logBookViewFor_ = query;
+    logBookView_.clear();
     for (int i = (int)log_.size() - 1; i >= 0; i--) {
       const store::LogEntry& e = log_[(size_t)i];
-      ImGui::TableNextRow();
-      ImGui::TableNextColumn();
-      ImGui::TextUnformatted(e.utc.size() > 5 ? e.utc.c_str() + 5 : e.utc.c_str());
-      ImGui::TableNextColumn();
-      ImGui::TextUnformatted(e.call.c_str());
-      if (ImGui::IsItemHovered() && (!e.notes.empty() || !e.name.empty())) ImGui::SetTooltip("%s %s  %s/%s  %s", e.name.c_str(), e.mode.c_str(), e.rstSent.c_str(), e.rstRcvd.c_str(), e.notes.c_str());
-      ImGui::TableNextColumn();
-      ImGui::Text("%.1f", (double)e.hz / 1000.0);
+      if (!logBookAll_ && !onActiveStation(e)) continue;
+      if (!query.empty()) {
+        std::string hay = e.utc + " " + e.call + " " + e.station + " " + e.mode + " " + bands::adifBand(e.hz) + " " + e.name + " " + e.qth + " " + e.locator + " " + e.country + " " + e.contest + " " + e.notes + " " + store::confirmedBy(e);
+        for (char& c : hay) c = (char)tolower((unsigned char)c);
+        if (hay.find(query) == std::string::npos) continue;
+      }
+      logBookView_.push_back(i);
     }
+    logBookViewSorted_ = false;
+    buildLogPins();
+  }
+
+  drawStationPicker();
+  ImGui::SameLine();
+  ImGui::Text("%d contacts, %d callsigns, %d countries, %d confirmed", logBookContacts_, logBookCalls_, logBookCountries_, logBookConfirmed_);
+  ImGui::SameLine(0, S(20));
+  ImGui::SetNextItemWidth(S(200));
+  ImGui::InputTextWithHint("##logsearch", "Search", logBookQuery_, sizeof logBookQuery_);
+  ImGui::SameLine();
+  if (panelButton("Export ADIF")) {
+    // One callsign at a time is what LoTW wants uploaded, and All callsigns is the whole log in one file.
+    std::vector<store::LogEntry> out;
+    for (const store::LogEntry& e : log_)
+      if (logBookAll_ || onActiveStation(e)) out.push_back(e);
+    std::string name = "log.adi";
+    if (!logBookAll_ && callsign_[0]) {
+      name = std::string("log-") + callsign_ + ".adi";
+      for (char& c : name)
+        if (c == '/' || c == '\\') c = '-';
+    }
+    std::string path = store::dataDir() + name;
+    if (store::exportAdif(path, out, callsign_, locator_)) say("Exported " + std::to_string(out.size()) + " QSOs to " + path);
+    else say("Couldn't write " + path);
+  }
+  ImGui::SameLine();
+  ImGui::BeginDisabled(logPick_ != nullptr);
+  if (panelButton("Import ADIF...")) pickLogToImport();
+  ImGui::EndDisabled();
+  ImGui::SetItemTooltip("Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak.");
+  ImGui::SameLine();
+  // A contact being changed on the Log tab is known by its place in the log, which this would move.
+  ImGui::BeginDisabled(logEditing_ >= 0);
+  if (panelButton("Sort")) sortLogFile();
+  ImGui::EndDisabled();
+  ImGui::SetItemTooltip(logEditing_ >= 0 ? "Finish changing the contact on the Log tab first." : "Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.");
+  // At the far right if there's room, and just along from the others if not.
+  ImGui::SameLine();
+  const char* fullLabel = logBookFull_ ? "Restore" : "Maximise";
+  const float fullX = ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(fullLabel).x - ImGui::GetStyle().FramePadding.x * 2;
+  if (fullX > ImGui::GetCursorPosX()) ImGui::SetCursorPosX(fullX);
+  if (panelButton(fullLabel)) {
+    if (!logBookFull_) logBookPos_ = ImGui::GetWindowPos(), logBookSize_ = ImGui::GetWindowSize();
+    setLogBookFull(!logBookFull_);
+  }
+
+  bool showMap = false;
+  if (ImGui::BeginTabBar("logbookviews")) {
+    if (ImGui::BeginTabItem("Contacts")) ImGui::EndTabItem();
+    if (ImGui::BeginTabItem("World map")) {
+      showMap = true;
+      ImGui::EndTabItem();
+    }
+    ImGui::EndTabBar();
+  }
+  if (showMap) {
+    drawLogMap();
+    ImGui::End();
+    return;
+  }
+
+  static const char* const kHeads[] = {"Began", "Ended", "Call", "Station", "kHz", "Band", "Mode", "Confirmed", "Sent", "Rcvd", "Name", "QTH", "Locator", "W", "Country", "Contest", "Exch sent", "Exch rcvd", "Notes"};
+  static const float kWidths[] = {112, 112, 90, 90, 74, 44, 56, 110, 36, 36, 90, 110, 62, 34, 130, 90, 70, 70, 240};
+  const int columns = 19;
+  int bring = -1;
+  if (ImGui::BeginTable("logbook", columns, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable)) {
+    // Newest first until a heading is clicked.
+    for (int c = 0; c < columns; c++) ImGui::TableSetupColumn(kHeads[c], ImGuiTableColumnFlags_WidthFixed | (c == 0 ? ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_PreferSortDescending : 0), S(kWidths[c]));
+    ImGui::TableSetupScrollFreeze(3, 1);
+    ImGui::TableHeadersRow();
+    ImGuiTableSortSpecs* sort = ImGui::TableGetSortSpecs();
+    if (sort && sort->SpecsCount > 0 && (sort->SpecsDirty || !logBookViewSorted_)) {
+      sortLogBookView(logBookView_, log_, sort->Specs[0].ColumnIndex, sort->Specs[0].SortDirection == ImGuiSortDirection_Ascending);
+      sort->SpecsDirty = false;
+      logBookViewSorted_ = true;
+    }
+    ImGuiListClipper clip;
+    clip.Begin((int)logBookView_.size());
+    while (clip.Step())
+      for (int row = clip.DisplayStart; row < clip.DisplayEnd; row++) {
+        int i = logBookView_[(size_t)row];
+        if (i >= (int)log_.size()) continue;
+        const store::LogEntry& e = log_[(size_t)i];
+        ImGui::PushID(i);
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        if (ImGui::Selectable(e.utc.c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
+        ImGui::SetItemTooltip("Double-click to change it on the Log tab");
+        auto cell = [](const std::string& s) {
+          ImGui::TableNextColumn();
+          ImGui::TextUnformatted(s.c_str());
+        };
+        cell(e.utcOff);
+        cell(e.call);
+        cell(e.station);
+        ImGui::TableNextColumn();
+        ImGui::Text("%.1f", (double)e.hz / 1000.0);
+        cell(bands::adifBand(e.hz));
+        cell(e.mode), cell(store::confirmedBy(e)), cell(e.rstSent), cell(e.rstRcvd), cell(e.name), cell(e.qth), cell(e.locator), cell(e.power);
+        cell(e.country), cell(e.contest), cell(e.exchSent), cell(e.exchRcvd), cell(e.notes);
+        ImGui::PopID();
+      }
     ImGui::EndTable();
   }
+  if (bring >= 0) editLogEntry(bring);
+  ImGui::End();
+}
+
+// ---------------------------------------------------------------- scanning
+
+scan::Config App::scanConfig() const {
+  scan::Config c;
+  c.dwell = scanDwellMs_ / 1000.0;
+  c.thresholdDb = scanLevelDb(scanLevel_);
+  c.resume = scanResume_;
+  return c;
+}
+
+bool App::buildScanChannels(std::vector<scan::Channel>& out, size_t& first, std::string& why) const {
+  out.clear();
+  first = 0;
+  auto addRange = [&](long long lo, long long hi, const std::string& label) {
+    long long step = kScanSteps[scanStepIdx_];
+    for (long long hz = (lo + step - 1) / step * step; hz <= hi && out.size() <= kMaxScanChannels; hz += step) {
+      if (!radio().canTune(hz)) continue;
+      scan::Channel c;
+      c.hz = hz, c.label = label;
+      out.push_back(c);
+    }
+  };
+  if (scanSource_ == 0) {
+    int b = plan_.bandOf(st_.hz);
+    if (b < 0) {
+      why = "The dial isn't on a band in the " + plan_.name + " plan. Tune to one, or scan a range.";
+      return false;
+    }
+    const bands::Band& band = plan_.bands[(size_t)b];
+    for (const bands::Segment& s : band.segments) addRange(s.lo, s.hi, band.title());
+    // Segments can share an edge, which a step can land on.
+    std::sort(out.begin(), out.end(), [](const scan::Channel& x, const scan::Channel& y) { return x.hz < y.hz; });
+    out.erase(std::unique(out.begin(), out.end(), [](const scan::Channel& x, const scan::Channel& y) { return x.hz == y.hz; }), out.end());
+  } else if (scanSource_ == 1) {
+    long long lo = tuning::parseFreq(scanFrom_, st_.hz, radio()), hi = tuning::parseFreq(scanTo_, st_.hz, radio());
+    if (lo < 0 || hi < 0) {
+      why = "Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say";
+      return false;
+    }
+    if (lo > hi) std::swap(lo, hi);
+    addRange(lo, hi, "Range");
+  } else if (scanSource_ == 2) {
+    std::string filter = scanFilter_;
+    for (char& c : filter) c = (char)tolower((unsigned char)c);
+    for (const store::Memory& m : memories_) {
+      std::string hay = m.name;
+      for (char& c : hay) c = (char)tolower((unsigned char)c);
+      if ((!filter.empty() && hay.find(filter) == std::string::npos) || !radio().canTune(m.hz)) continue;
+      scan::Channel c;
+      c.hz = m.hz, c.mode = m.mode, c.data = m.data, c.filter = m.filter, c.label = m.name;
+      out.push_back(c);
+    }
+  } else {
+    long long now = (long long)time(nullptr);
+    int weekday = (int)((now / 86400 + 3) % 7), minute = (int)(now % 86400 / 60);
+    for (const bands::StationFile& f : stations_.files)
+      for (const bands::Station& s : f.stations) {
+        bool wanted = scanService_ == bands::S_COUNT ? showService_[s.service] : (int)s.service == scanService_;
+        if (!wanted || (onAirOnly_ && !s.onAir(weekday, minute)) || !radio().canTune(s.tuneHz())) continue;
+        scan::Channel c;
+        c.hz = s.tuneHz(), c.mode = s.mode, c.data = s.data, c.label = s.label;
+        if (c.mode >= 0) c.filter = 1;
+        out.push_back(c);
+      }
+    std::stable_sort(out.begin(), out.end(), [](const scan::Channel& x, const scan::Channel& y) { return x.hz < y.hz; });
+    out.erase(std::unique(out.begin(), out.end(), [](const scan::Channel& x, const scan::Channel& y) { return x.hz == y.hz; }), out.end());
+  }
+  if (out.size() > kMaxScanChannels) {
+    why = "That's more than " + std::to_string(kMaxScanChannels) + " channels. Choose a bigger step or a smaller range.";
+    return false;
+  }
+  if (out.empty()) {
+    why = "There's nothing to scan there that the " + std::string(radio().name) + " can tune";
+    return false;
+  }
+  // Ranges and stations are in order, so carry on up from the dial. Memories go from the top of their list.
+  if (scanSource_ != 2)
+    for (size_t i = 0; i < out.size(); i++)
+      if (out[i].hz > st_.hz) {
+        first = i;
+        break;
+      }
+  return true;
+}
+
+void App::startScan() {
+  std::vector<scan::Channel> channels;
+  size_t first = 0;
+  std::string why;
+  if (!buildScanChannels(channels, first, why)) {
+    say(why);
+    return;
+  }
+  scanErrorSeq_ = st_.lastErrorSeq;
+  scan_.start(std::move(channels), scanConfig(), first);
+}
+
+void App::pumpScan() {
+  if (!scan_.running()) {
+    // Lock out, on the Scan tab, can end a scan between frames.
+    if (scan_.update(glfwGetTime(), st_.hz, -999) == scan::NOTHING_LEFT) say("Scan stopped: every channel has been locked out");
+    return;
+  }
+  if (!st_.connected) {
+    scan_.stop();
+    say("Scan stopped: the rig isn't answering");
+    return;
+  }
+  // The scan only ever tunes while receiving, whoever keyed the rig.
+  if (st_.tx) {
+    scan_.stop();
+    say("Scan stopped: the rig is transmitting");
+    return;
+  }
+  scan_.setConfig(scanConfig());
+  // A frequency the rig refuses, such as a blocked band on a receiver, is only left out.
+  if (st_.lastErrorSeq != scanErrorSeq_) {
+    scanErrorSeq_ = st_.lastErrorSeq;
+    if (st_.lastError.find("frequency") != std::string::npos) scan_.lockOut();
+    if (!scan_.running()) {
+      say("Scan stopped: the rig refused every frequency in it");
+      return;
+    }
+  }
+  int raw = st_.meter[civ::M_S];
+  switch (scan_.update(glfwGetTime(), st_.hz, raw >= 0 ? civ::smeterDb(raw) : -999)) {
+    case scan::TUNE: {
+      const scan::Channel& c = scan_.current();
+      rig_.setFreq(c.hz);
+      if (c.mode >= 0 && (c.mode != st_.mode || c.data != st_.data)) rig_.setMode(c.mode, c.data, c.filter ? c.filter : 1);
+      break;
+    }
+    case scan::HIT: {
+      ScanHit h;
+      h.utc = utcNow("%H:%M"), h.channel = scan_.current(), h.db = scan_.peakDb();
+      scanHits_.insert(scanHits_.begin(), h);
+      if (scanHits_.size() > 100) scanHits_.pop_back();
+      break;
+    }
+    case scan::DIAL_MOVED: say("Scan stopped: the dial was tuned"); break;
+    case scan::NOTHING_LEFT: say("Scan stopped: every channel has been locked out"); break;
+    default: break;
+  }
+}
+
+void App::drawScan() {
+  const bool running = scan_.running();
+  const float fieldW = S(190);
+  static const char* const kSources[] = {"The band the dial is on", "A range of frequencies", "Memories", "Stations"};
+  ImGui::BeginDisabled(running);
+  ImGui::SetNextItemWidth(fieldW);
+  ImGui::Combo("Scan", &scanSource_, kSources, 4);
+  note("scansource");
+  if (scanSource_ == 0 || scanSource_ == 1) {
+    if (scanSource_ == 1) {
+      ImGui::SetNextItemWidth(fieldW);
+      ImGui::InputTextWithHint("From", "14.0", scanFrom_, sizeof scanFrom_);
+      note("scanfrom");
+      ImGui::SetNextItemWidth(fieldW);
+      ImGui::InputTextWithHint("To", "14.35", scanTo_, sizeof scanTo_);
+      note("scanto");
+    }
+    ImGui::SetNextItemWidth(fieldW);
+    ImGui::Combo("Step", &scanStepIdx_, kScanStepNames, kScanStepCount);
+  } else if (scanSource_ == 2) {
+    ImGui::SetNextItemWidth(fieldW);
+    ImGui::InputTextWithHint("Names with", "Empty for all of them", scanFilter_, sizeof scanFilter_);
+  } else {
+    std::string shown = scanService_ == bands::S_COUNT ? "All those showing" : bands::serviceName((bands::Service)scanService_);
+    ImGui::SetNextItemWidth(fieldW);
+    if (ImGui::BeginCombo("Service", shown.c_str())) {
+      if (ImGui::Selectable("All those showing", scanService_ == bands::S_COUNT)) scanService_ = bands::S_COUNT;
+      for (int s = 0; s < bands::S_COUNT; s++)
+        if (ImGui::Selectable(bands::serviceName((bands::Service)s), scanService_ == s)) scanService_ = s;
+      ImGui::EndCombo();
+    }
+    ImGui::SetItemTooltip("Broadcasters go by the Stations menu's \"Only what's scheduled now\", as of when the scan starts.");
+  }
+  ImGui::EndDisabled();
+
+  ImGui::SetNextItemWidth(fieldW);
+  ImGui::SliderInt("Each one for", &scanDwellMs_, 300, 3000, "%d ms");
+  ImGui::SetItemTooltip("How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal.");
+  std::string levelName = scanLevelName(scanLevel_);
+  ImGui::SetNextItemWidth(fieldW);
+  ImGui::SliderInt("Stop at", &scanLevel_, 1, 13, levelName.c_str());
+  note("scanlevel");
+  ImGui::SetItemTooltip("The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere.");
+  static const char* const kResumes[] = {"Stay until I carry on", "Carry on after 5 s", "Carry on after 10 s", "Carry on when it stops"};
+  ImGui::SetNextItemWidth(fieldW);
+  ImGui::Combo("On a signal", &scanResume_, kResumes, scan::RESUME_COUNT);
+
+  float gap = ImGui::GetStyle().ItemSpacing.x;
+  float w3 = (ImGui::GetContentRegionAvail().x - gap * 2) / 3;
+  if (running) {
+    if (actionButton("STOP", ImVec2(w3, 0), V_RED, V_RED_HI, "scanstop")) {
+      scan_.stop();
+    }
+  } else {
+    ImGui::BeginDisabled(!st_.connected || st_.tx);
+    if (actionButton("START", ImVec2(w3, 0), V_ACCENT, V_ACCENT_HI, "scanstart")) startScan();
+    ImGui::EndDisabled();
+  }
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!scan_.running());
+  if (panelButton("Next", ImVec2(w3, 0))) scan_.next();
+  note("scannext");
+  ImGui::SetItemTooltip("Carry on to the next channel");
+  ImGui::SameLine();
+  if (panelButton("Lock out", ImVec2(w3, 0))) scan_.lockOut();
+  note("scanlock");
+  ImGui::SetItemTooltip("Leave this channel out until the scan is stopped, for a signal that's always there");
+  ImGui::EndDisabled();
+
+  if (scan_.running()) {
+    const scan::Channel& c = scan_.current();
+    if (scan_.state() == scan::STOPPED) ImGui::TextColored(ImColor(C_GREEN), "Signal at %s  %s", tuning::formatHz(c.hz).c_str(), sUnitsName(scan_.peakDb()).c_str());
+    else ImGui::TextColored(ImColor(C_AMBER), "Listening at %s", tuning::formatHz(c.hz).c_str());
+    ImGui::TextDisabled("%s  %d of %d%s", c.label.c_str(), (int)scan_.index() + 1, (int)scan_.count(), scan_.lockedCount() ? (", " + std::to_string((int)scan_.lockedCount()) + " locked out").c_str() : "");
+  } else {
+    ImGui::TextDisabled("S meter now: %s. Tuning stops a scan.", st_.meter[civ::M_S] >= 0 ? sUnitsName(civ::smeterDb(st_.meter[civ::M_S])).c_str() : "--");
+  }
+
+  ImGui::Separator();
+  ImGui::TextColored(ImColor(C_ACCENT), "HEARD");
+  ImGui::SameLine();
+  if (!scanHits_.empty()) {
+    ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - S(50));
+    if (panelButton("Clear", ImVec2(S(50), 0))) scanHits_.clear();
+  }
+  if (ImGui::BeginTable("scanhits", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
+    ImGui::TableSetupColumn("UTC", ImGuiTableColumnFlags_WidthFixed, S(42));
+    ImGui::TableSetupColumn("Where", ImGuiTableColumnFlags_WidthFixed, S(92));
+    ImGui::TableSetupColumn("What", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("S", ImGuiTableColumnFlags_WidthFixed, S(46));
+    ImGui::TableSetupScrollFreeze(0, 1);
+    ImGui::TableHeadersRow();
+    const ScanHit* chosen = nullptr;
+    for (size_t i = 0; i < scanHits_.size(); i++) {
+      const ScanHit& h = scanHits_[i];
+      ImGui::PushID((int)i);
+      ImGui::TableNextRow();
+      ImGui::TableNextColumn();
+      if (ImGui::Selectable(h.utc.c_str(), false, ImGuiSelectableFlags_SpanAllColumns)) chosen = &h;
+      ImGui::SetItemTooltip("Click to stop the scan and go back there");
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(tuning::formatHz(h.channel.hz).c_str());
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(h.channel.label.c_str());
+      ImGui::TableNextColumn();
+      ImGui::TextUnformatted(sUnitsName(h.db).c_str());
+      ImGui::PopID();
+    }
+    ImGui::EndTable();
+    if (chosen && st_.connected) {
+      scan_.stop();
+      if (tuneTo(chosen->channel.hz) && chosen->channel.mode >= 0) rig_.setMode(chosen->channel.mode, chosen->channel.data, chosen->channel.filter ? chosen->channel.filter : 1);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- DX spots
+
+void App::startSpots() {
+  if (opt_.demo) {
+    dx_.startDemo();
+  } else {
+    if (!callsign_[0]) {
+      say("A DX cluster logs you in by callsign. Put yours in Rig > Settings first.");
+      return;
+    }
+    dx_.start(dxHost_, dxPort_, callsign_, dxCommands_);
+  }
+  dxOn_ = true;
+}
+
+void App::stopSpots() {
+  dx_.stop();
+  dxOn_ = false;
+  spots_.clear();
+  spotRows_.clear();
+}
+
+// Where a click on a spot goes. The comment's word for the mode comes first, and then the band plan's. If neither says,
+// the rig's mode is left alone. An FT8 or FT4 spot is of a tone above the dial, so it goes to that band's own frequency.
+bands::Marker App::markerForSpot(const dx::Spot& s, dx::ModeHint hint) const {
+  bands::Marker m;
+  m.hz = s.hz, m.label = s.call;
+  std::string country = dx::countryOf(s.call);
+  m.note = country;
+  if (!s.comment.empty()) m.note += (m.note.empty() ? "" : "\n") + s.comment;
+  m.note += (m.note.empty() ? "" : "\n") + std::string("Spotted by ") + s.spotter + (s.utc.empty() ? "" : " at " + s.utc + "Z");
+  int bandIdx = plan_.bandOf(s.hz);
+  const bands::Segment* seg = plan_.segmentAt(s.hz);
+  bool data = false;
+  int mode = -1;
+  auto voice = [&] { return s.hz < 10000000 && !(s.hz >= 5000000 && s.hz < 5500000) ? (int)civ::LSB : (int)civ::USB; };
+  switch (hint) {
+    case dx::HINT_CW: mode = civ::CW; break;
+    case dx::HINT_SSB: mode = voice(); break;
+    case dx::HINT_FM: mode = civ::FM; break;
+    case dx::HINT_RTTY: mode = civ::RTTY; break;
+    case dx::HINT_FT8:
+    case dx::HINT_FT4:
+    case dx::HINT_DATA: mode = civ::USB, data = true; break;
+    default:
+      if (seg) {
+        if (seg->use == bands::U_CW) mode = civ::CW;
+        else if (seg->use == bands::U_SSB) mode = voice();
+        else if (seg->use == bands::U_FM) mode = civ::FM;
+        else if (seg->use == bands::U_DIGI) mode = civ::USB, data = true;
+      }
+  }
+  if (data && !radio().hasDataMode) data = false;
+  m.mode = mode, m.data = data;
+  if ((hint == dx::HINT_FT8 || hint == dx::HINT_FT4) && bandIdx >= 0) {
+    const char* wanted = hint == dx::HINT_FT8 ? "FT8" : "FT4";
+    for (const bands::Marker& p : plan_.bands[(size_t)bandIdx].markers)
+      if (p.label == wanted && s.hz >= p.hz && s.hz <= p.hz + 4000) m.dialHz = p.hz;
+  }
+  return m;
+}
+
+void App::rebuildSpotRows() {
+  spotRows_.clear();
+  spotRows_.reserve(spots_.spots().size());
+  for (const dx::Spot& s : spots_.spots()) {
+    SpotRow r;
+    dx::ModeHint hint = dx::modeHint(s.comment);
+    r.marker = markerForSpot(s, hint);
+    r.country = dx::countryOf(s.call);
+    int m = r.marker.mode;
+    bool digital = hint == dx::HINT_FT8 || hint == dx::HINT_FT4 || hint == dx::HINT_DATA || hint == dx::HINT_RTTY || r.marker.data;
+    r.kind = m < 0 ? 0 : m == civ::CW || m == civ::CW_R ? 1 : digital || m == civ::RTTY || m == civ::RTTY_R ? 3 : 2;
+    spotRows_.push_back(std::move(r));
+  }
+  spotsDirty_ = false;
+}
+
+void App::pumpSpots() {
+  if (!dxOn_) return;
+  std::vector<dx::Spot> incoming;
+  dx_.take(incoming);
+  for (dx::Spot& s : incoming) {
+    spots_.add(std::move(s));
+    spotsDirty_ = true;
+  }
+  double now = glfwGetTime();
+  if (now >= nextSpotPrune_) {
+    nextSpotPrune_ = now + 20;
+    if (spots_.prune((long long)time(nullptr), dxAgeMinutes_ * 60LL)) spotsDirty_ = true;
+  }
+  if (spotsDirty_) rebuildSpotRows();
+}
+
+bool App::spotShown(size_t i, bool useBandFilter) const {
+  const dx::Spot& s = spots_.spots()[i];
+  const SpotRow& r = spotRows_[i];
+  if (s.skimmer && !showSkimmers_) return false;
+  if (!radio().canTune(s.hz)) return false;
+  if (spotModeFilter_ && r.kind != spotModeFilter_) return false;
+  if (useBandFilter && spotBandFilter_ == 1) {
+    int here = plan_.bandOf(st_.hz);
+    if (here < 0 || plan_.bandOf(s.hz) != here) return false;
+  }
+  return true;
+}
+
+void App::drawSpotsPanel() {
+  ImGui::BeginChild("spots", ImVec2(0, 0), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextColored(ImColor(C_ACCENT), "DX SPOTS");
+  dx::Client::Status status = dx_.status();
+  if (dxOn_) {
+    ImGui::SameLine();
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImU32 dot = status.state == dx::Client::CONNECTED ? C_GREEN : status.state == dx::Client::WAITING ? C_RED : C_AMBER;
+    ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(p.x + S(4), p.y + ImGui::GetFrameHeight() / 2), S(4), dot);
+    ImGui::Dummy(ImVec2(S(9), ImGui::GetFrameHeight()));
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", status.message.c_str());
+  }
+  float bw = S(62);
+  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - bw);
+  if (toggle(dxOn_ ? "On##spots" : "Off##spots", dxOn_, ImVec2(bw, 0), "spotson")) {
+    if (dxOn_) stopSpots();
+    else startSpots();
+  }
+  ImGui::SetItemTooltip("Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign.");
+
+  if (dxOn_) {
+    static const char* const kBandFilters[] = {"All bands", "This band"};
+    static const char* const kModeFilters[] = {"All modes", "CW", "Voice", "Data"};
+    float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) / 2;
+    ImGui::SetNextItemWidth(w);
+    ImGui::Combo("##spotband", &spotBandFilter_, kBandFilters, 2);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(w);
+    ImGui::Combo("##spotmode", &spotModeFilter_, kModeFilters, 4);
+    // Row numbers, worked out once a frame so the clipper knows how many there are.
+    std::vector<int> rows;
+    if (spotRows_.size() == spots_.spots().size())
+      for (size_t i = 0; i < spotRows_.size(); i++)
+        if (spotShown(i, true)) rows.push_back((int)i);
+    if (rows.empty()) {
+      ImGui::PushStyleColor(ImGuiCol_Text, C_DIM);
+      ImGui::TextWrapped("%s", status.state == dx::Client::CONNECTED ? "No spots here yet." : status.message.c_str());
+      ImGui::PopStyleColor();
+    } else if (ImGui::BeginTable("spotlist", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
+      ImGui::TableSetupColumn("kHz", ImGuiTableColumnFlags_WidthFixed, S(66));
+      ImGui::TableSetupColumn("Call", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Mode", ImGuiTableColumnFlags_WidthFixed, S(46));
+      ImGui::TableSetupColumn("Age", ImGuiTableColumnFlags_WidthFixed, S(30));
+      ImGui::TableSetupScrollFreeze(0, 1);
+      ImGui::TableHeadersRow();
+      long long now = (long long)time(nullptr);
+      int chosen = -1;
+      ImGuiListClipper clip;
+      clip.Begin((int)rows.size());
+      while (clip.Step())
+        for (int k = clip.DisplayStart; k < clip.DisplayEnd; k++) {
+          int i = rows[(size_t)k];
+          const dx::Spot& s = spots_.spots()[(size_t)i];
+          const SpotRow& r = spotRows_[(size_t)i];
+          ImGui::PushID(i);
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          char khz[24];
+          snprintf(khz, sizeof khz, "%.1f", (double)s.hz / 1000.0);
+          bool here = st_.hz > 0 && llabs(r.marker.tuneHz() - st_.hz) < 200;
+          if (ImGui::Selectable(khz, here, ImGuiSelectableFlags_SpanAllColumns)) chosen = i;
+          note("spotrow:" + s.call);
+          std::string band = bands::adifBand(s.hz);
+          bool onBand = workedOnBand_.count(s.call + "|" + band) != 0, ever = workedCalls_.count(s.call) != 0;
+          if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s\n%s\n%s\n\nClick to tune there and put the call in the log", s.call.c_str(), r.marker.note.c_str(),
+                              onBand ? "Worked on this band" : ever ? "Worked, but not on this band" : "Not worked before");
+          }
+          ImGui::TableNextColumn();
+          ImGui::TextColored(ImColor(onBand ? C_DIM : ever ? C_AMBER : C_GREEN), "%s", s.call.c_str());
+          ImGui::TableNextColumn();
+          ImGui::TextUnformatted(r.marker.mode >= 0 ? modeLabel(r.marker.mode, r.marker.data).c_str() : "");
+          ImGui::TableNextColumn();
+          ImGui::TextDisabled("%lldm", (now - s.gotAt) / 60);
+          ImGui::PopID();
+        }
+      ImGui::EndTable();
+      if (chosen >= 0 && st_.connected) {
+        // By value: the list can change once the call's been dealt with, but not before.
+        bands::Marker m = spotRows_[(size_t)chosen].marker;
+        fillLogCall(m.label);
+        goMarker(m);
+      }
+    }
+  }
+  ImGui::EndChild();
 }
 
 void App::drawCwVoice() {
@@ -3369,10 +4767,19 @@ void App::drawCwVoice() {
 }
 
 void App::drawRightTabs() {
-  ImGui::BeginChild("right", ImVec2(0, 0), ImGuiChildFlags_Borders);
+  // The spots go under the tabs, whichever is showing. Turned off, they take only the one line.
+  ImGui::BeginChild("rightcolumn", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  float total = ImGui::GetContentRegionAvail().y, tabsH = 0;
+  if (showSpots_) {
+    const float barH = S(5);
+    float spotsH = dxOn_ ? std::max(S(130), std::min(total - S(300), spotsFrac_ * total)) : ImGui::GetFrameHeight() + ImGui::GetStyle().WindowPadding.y * 2 + S(2);
+    tabsH = total - spotsH - barH - ImGui::GetStyle().ItemSpacing.y * 2;
+  }
+  ImGui::BeginChild("right", ImVec2(0, tabsH), ImGuiChildFlags_Borders);
   if (ImGui::BeginTabBar("tabs")) {
     auto tab = [&](const char* name, int i) {
-      return ImGui::BeginTabItem(name, nullptr, frameCount_ == 1 && opt_.tab == i ? ImGuiTabItemFlags_SetSelected : 0);
+      bool select = (frameCount_ == 1 && opt_.tab == i) || (i == 2 && logShowTab_);
+      return ImGui::BeginTabItem(name, nullptr, select ? ImGuiTabItemFlags_SetSelected : 0);
     };
     if (tab("Keypad", 0)) {
       drawKeypad();
@@ -3390,7 +4797,24 @@ void App::drawRightTabs() {
       drawCwVoice();
       ImGui::EndTabItem();
     }
+    if (tab("Scan", 4)) {
+      drawScan();
+      ImGui::EndTabItem();
+    }
+    logShowTab_ = false;
     ImGui::EndTabBar();
+  }
+  ImGui::EndChild();
+  if (showSpots_) {
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    float w = ImGui::GetContentRegionAvail().x;
+    ImGui::InvisibleButton("##spotssplitter", ImVec2(w, S(5)));
+    if (dxOn_) {
+      if (ImGui::IsItemHovered() || ImGui::IsItemActive()) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+      if (ImGui::IsItemActive()) spotsFrac_ = std::max(0.15f, std::min(0.7f, spotsFrac_ - ImGui::GetIO().MouseDelta.y / total));
+      ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x + w / 2 - S(20), p.y + S(1.5f)), ImVec2(p.x + w / 2 + S(20), p.y + S(3.5f)), C_DIM, 1);
+    }
+    drawSpotsPanel();
   }
   ImGui::EndChild();
 }
@@ -3428,6 +4852,11 @@ void App::drawStatus() {
     // Main and sub can't share a band, so a band change can be refused for that. It may not be the reason.
     bool maybeSub = radio().hasMainSub && st_.lastError.find("frequency") != std::string::npos;
     if (!st_.lastError.empty()) say(st_.lastError + (maybeSub ? ". Is the SUB band on that band?" : ""));
+  }
+  if (scan_.running()) {
+    ImGui::SameLine(0, S(20));
+    if (scan_.state() == scan::STOPPED) ImGui::TextColored(ImColor(C_GREEN), "SCAN: signal. Next is on the Scan tab.");
+    else ImGui::TextColored(ImColor(C_AMBER), "SCANNING. Tune to stop it.");
   }
   if (now < statusUntil_) {
     ImGui::SameLine(0, S(20));
@@ -3487,6 +4916,11 @@ void App::drawMenu() {
     ImGui::MenuItem("Band scope", nullptr, &showScope_);
     ImGui::MenuItem("Audio waterfall", nullptr, &showAudio_);
     ImGui::MenuItem("Band plan on the scope", nullptr, &showBandPlan_);
+    ImGui::Separator();
+    ImGui::MenuItem("DX spots panel", nullptr, &showSpots_);
+    ImGui::MenuItem("DX spots on the scope", nullptr, &showSpotFlags_);
+    ImGui::Separator();
+    if (ImGui::MenuItem("Log book...")) openLogBook_ = true;
     ImGui::EndMenu();
   }
   drawStationsMenu();
@@ -3562,8 +4996,41 @@ void App::drawSettings() {
   ImGui::SetNextItemWidth(S(160));
   ImGui::InputText("Callsign", callsign_, sizeof callsign_, ImGuiInputTextFlags_CharsUppercase);
   ImGui::SetNextItemWidth(S(160));
+  ImGui::InputText("Your locator", locator_, sizeof locator_);
+  ImGui::SetItemTooltip("Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.");
+  ImGui::SetNextItemWidth(S(160));
   ImGui::SliderInt("PTT time limit", &txLimit_, 5, 600, "%d s");
   ImGui::SetItemTooltip("PTT from this program lets go by itself after this long");
+
+  ImGui::Spacing();
+  ImGui::TextColored(ImColor(C_ACCENT), "DX CLUSTER");
+  ImGui::Separator();
+  static const struct {
+    const char* name;
+    const char* host;
+    int port;
+  } kClusters[] = {{"VE7CC-1, Canada", "dxc.ve7cc.net", 23}, {"NC7J, United States", "dxc.nc7j.com", 7373}, {"N2KI, United States", "dxc.n2ki.com", 7300}, {"F5LEN, France", "dxcluster.f5len.org", 7373}};
+  ImGui::SetNextItemWidth(S(240));
+  if (ImGui::BeginCombo("Choose one", "Fill in from a list")) {
+    for (const auto& c : kClusters)
+      if (ImGui::Selectable(c.name)) {
+        setBuf(dxHost_, c.host);
+        dxPort_ = c.port;
+      }
+    ImGui::EndCombo();
+  }
+  ImGui::SetNextItemWidth(S(240));
+  ImGui::InputText("Server", dxHost_, sizeof dxHost_);
+  ImGui::SetNextItemWidth(S(90));
+  ImGui::InputInt("Port", &dxPort_, 0, 0);
+  dxPort_ = std::max(1, std::min(65535, dxPort_));
+  ImGui::SetNextItemWidth(S(240));
+  ImGui::InputText("Commands after login", dxCommands_, sizeof dxCommands_);
+  ImGui::SetItemTooltip("Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty.");
+  ImGui::SetNextItemWidth(S(160));
+  ImGui::SliderInt("Keep spots for", &dxAgeMinutes_, 5, 240, "%d min");
+  ImGui::Checkbox("Show robot spots (Reverse Beacon Network)", &showSkimmers_);
+  ImGui::SetItemTooltip("Spots from automatic CW and data skimmers. There can be a great many.");
 
   ImGui::TableNextColumn();
   ImGui::TextColored(ImColor(C_ACCENT), "BAND PLAN");
@@ -3647,6 +5114,7 @@ void App::drawSettings() {
     if (!opt_.demo && !opt_.noRig) connect();
     audio_.stopCapture();
     audioRetryAt_ = 0;
+    if (dxOn_) startSpots();  // the server or the callsign may have changed
     saveSettings();
     ImGui::CloseCurrentPopup();
   }
@@ -3691,8 +5159,11 @@ void App::drawHelp() {
           {"Wheel", "On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it."},
           {"Click a digit", "Top half up, bottom half down"},
           {"Click the band scope", "Tune there. Right-click for split and memories."},
+          {"< and > above the band scope", "Move the dial one whole page of the scope, in Centre mode."},
           {"Click the audio waterfall", "Moves that signal to the pitch (not in data modes)"},
           {"Right-click a band", "CW, FT8, FT4, WSPR, SSB frequencies"},
+          {"Click a DX spot", "Tune there, and put the call in the log. Red flags and green calls aren't worked yet."},
+          {"Double-click a log entry", "Bring it back to the Log tab, to change it and log it again"},
       };
       ImGui::TableSetupColumn("k", ImGuiTableColumnFlags_WidthFixed, S(170));
       for (auto& r : rows) {
@@ -3752,7 +5223,22 @@ void App::frame() {
   followRigMode();
   pumpDecoder();
   pumpScope();
+  pumpScan();
+  pumpSpots();
   rememberBand();
+  pumpLogPick();
+  if (logIndexedFor_ != callsign_) indexLog();  // changed in Settings
+  if (!droppedFiles_.empty()) {
+    std::vector<std::string> files;
+    files.swap(droppedFiles_);
+    for (const std::string& f : files) {
+      size_t dot = f.find_last_of('.');
+      std::string ext = dot == std::string::npos ? "" : f.substr(dot);
+      for (char& c : ext) c = (char)tolower((unsigned char)c);
+      if (ext == ".adi" || ext == ".adif") importLog(f);
+      else say("Only ADIF files can be dropped here, to import them into the log");
+    }
+  }
 
   ImGuiViewport* vp = ImGui::GetMainViewport();
   ImGui::SetNextWindowPos(vp->WorkPos);
@@ -3779,6 +5265,7 @@ void App::frame() {
     stationSearchOpen_ = true;
   }
   drawStationSearch();
+  drawLogBook();
   drawHelp();
   ImGui::End();
 }
@@ -4376,6 +5863,13 @@ int App::run() {
   // A scripted run gets no real mouse or keyboard at all: only what the script injects.
   ImGui_ImplGlfw_InitForOpenGL(win_, opt_.selfTest.empty());
   ImGui_ImplOpenGL3_Init(glsl);
+  if (!automated) {
+    glfwSetWindowUserPointer(win_, this);
+    glfwSetDropCallback(win_, [](GLFWwindow* w, int n, const char** paths) {
+      App* app = (App*)glfwGetWindowUserPointer(w);
+      for (int i = 0; i < n; i++) app->droppedFiles_.push_back(paths[i]);
+    });
+  }
 
   wfScope_.init(civ::kScopePoints, kWaterfallRows);
   applyFft();
@@ -4388,6 +5882,8 @@ int App::run() {
   decoder_->setMode(decodeMode_);
   connect();
   keepAudioOpen();
+  // It was on when the program last closed, which is the operator having asked for it.
+  if (!automated && cfg_.getInt("dx_on", 0)) startSpots();
   if (!plans_.errors.empty()) say("A band plan has a problem: " + plans_.errors[0]);
   else if (!automated && cfg_.get("band_plan").empty()) say("The band plan is set to " + plan_.name + ". Choose your country in Settings.");
   if (monitor_ && !opt_.demo) {
@@ -4443,6 +5939,7 @@ int App::run() {
   }
 
   if (!automated) saveSettings();
+  dx_.stop();
   rec_.close();
   decoder_.reset();  // finishes the logs and any chart under way
   if (faxTex_) glDeleteTextures(1, &faxTex_);

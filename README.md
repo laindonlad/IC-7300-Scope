@@ -5,7 +5,7 @@ A desktop front end for the Icom IC-7300 and IC-9700 transceivers and the IC-R86
 - **Full CAT control**: frequency, mode, filters, levels, noise controls, RIT/XIT, split, meters and the tuner (on the radios that have them), and the IC-R8600's antennas, WFM and digital modes
 - **An audio waterfall**, from the radio's built-in USB sound card
 - **A band waterfall**, from the radio's own wideband scope
-- **Station tools**: memories, a log with ADIF export, a CW keyer with macros, voice memories and WAV recording
+- **Station tools**: memories, scanning, live DX spots, a log with ADIF import and export, a CW keyer with macros, voice memories and WAV recording
 - **A demo mode** with a simulated radio, so you can try it all with no hardware
 
 It's written in C++17 with Dear ImGui, GLFW and miniaudio. It builds to a single executable with nothing to install.
@@ -273,7 +273,7 @@ On the rear USB port, the scope needs CI-V USB Port set to Unlink from [REMOTE],
 | `--port COM11` | Uses this serial port instead of the saved or detected one |
 | `--no-rig` | Audio waterfall only: leaves the serial port alone |
 | `--size 1600x900` | Sets the window size |
-| `--tab N` | Opens on a right-hand tab: 0 Keypad, 1 Memories, 2 Log, 3 CW / Voice |
+| `--tab N` | Opens on a right-hand tab: 0 Keypad, 1 Memories, 2 Log, 3 CW / Voice, 4 Scan |
 | `--settings` | Opens with the Settings dialog showing |
 | `--tune HZ` | Tunes to this frequency soon after starting |
 | `--find TEXT` | Opens Find a station with this search |
@@ -294,7 +294,7 @@ Port, baud rate, CI-V address, sound devices, your callsign and the PTT time lim
 | **Below that** | Band, mode, data mode, filter and tuning step |
 | **Left** | Receive, filter and noise controls, including AF, RF gain, preamp, attenuator, AGC, Twin PBT, NB, NR and notch |
 | **Centre** | The band scope and the audio waterfall, which can share its space with a [decoder](#decoding). Drag the bar between them to resize. Either can be hidden from **View** |
-| **Right** | Tabs for Keypad (with the tuning dial), Memories, Log and CW / Voice |
+| **Right** | Tabs for Keypad (with the tuning dial), Memories, Log, CW / Voice and Scan, with [DX spots](#dx-spots) under them |
 | **Bottom** | Connection status, UTC and the **Sync** button for [setting the clock](#setting-the-clock). The dot is green when connected, amber when the port is open but the radio isn't answering, and red when the port can't be opened |
 
 ### Decoding
@@ -315,6 +315,48 @@ Decoding carries on while you transmit, but it hears silence, so your own signal
 For WEFAX, use USB with the dial 1.9 kHz below the station's listed frequency. Each chart measures its own slant from its phasing, and the last measurement is kept for the next. **Centre** and **Slant** are there for a signal that's off tune or a chart that leans.
 
 **Overlay**, above the chart on the right, lays a map over it, including one still coming in. Overlays are transparent PNGs in the `overlays` folder beside the program, and the Northwood one is there as an example, with a `README.txt` on making your own. Each is made for one station's charts and is scaled to the chart's width. **X** and **Y** move it if a chart doesn't line up, such as one tuned in late. **Save a copy** writes the chart with its overlay to the `received` folder as `CHART-OVERLAY.png`, numbered if that name is taken, so neither the chart nor an earlier copy is overwritten. It's available once the chart has finished, and only for the chart received in this session.
+
+### Scanning
+
+The **Scan** tab goes through the band the dial is on, a range of frequencies, your memories or a service from the station list, and stops where the S meter reaches the level you set. Set that level above the band's noise, or it will stop everywhere. The fast AGC setting scans best, as a slow one can still be holding on after a strong signal.
+
+| Control | What it does |
+|---|---|
+| **Step** | The gap between channels, for a band or a range. Gaps in a band's plan are skipped |
+| **Each one for** | How long it listens to each channel, from 300 ms to 3 s |
+| **Stop at** | The reading that counts as a signal, from S1 to S9+40 |
+| **On a signal** | Stay until you press **Next**, carry on after 5 or 10 seconds, or carry on 2 seconds after the signal stops |
+| **Lock out** | Leaves that channel out until the scan is stopped |
+
+Everything it stopped on is listed under **Heard**, and clicking a line goes back there. A scan of memories or stations also sets each one's mode.
+
+Tuning in any way stops the scan, including the radio's own knob, and so does transmitting or losing the radio. The status bar says when a scan is running. A frequency the radio refuses is left out and the scan carries on.
+
+### DX spots
+
+The panel under the tabs shows live spots from a DX cluster. Press **Off** in its title to turn it on, which connects and logs in with the callsign in **Rig > Settings**, so a real callsign is needed. Nothing connects until then, and it reconnects by itself when you next start the program if it was on when you closed it. It tries again every minute if the connection is lost. Hold the mouse over the dot to see how it's getting on. Drag the bar above the panel to resize it. **View** hides the panel, or the flags on the scope.
+
+- **Clicking a spot** tunes there and puts the call in the log. The mode comes from the spot's comment or, failing that, the band plan, and otherwise stays as it is. An FT8 or FT4 spot goes to that band's usual dial frequency.
+- **Colours**: in the list, green is a call you haven't worked, amber is one you have but not on this band, and grey is one you have on this band. On the scope, a red flag hasn't been worked on this band and a grey one has.
+- **Filters**: all bands or the band you're on, and CW, voice or data. Spots for frequencies the radio can't tune aren't shown.
+
+The server, how long spots are kept and whether to show robot spots from the Reverse Beacon Network are in **Rig > Settings**, along with a short list of servers. In `--demo` the spots are made up and nothing connects. A spot's country comes from its callsign's prefix, using the ITU's allocations and the usual DXCC prefixes as a guide, so special calls and some islands will be wrong.
+
+### The log
+
+The **Log** tab records callsign, RST, name, QTH, locator, power and notes, with contest name and exchanges under **Contest**. It gives the country from the callsign, what you've worked that station on before, and the distance and bearing if you've put your own locator in Settings. The distance in km and miles is stored with the contact in `log.csv`, as the last two columns. Contacts already in the log get theirs from your current locator when the program starts, after it copies the log to `log.csv.bak`. A contact begins when its callsign goes in and ends when it's logged. If you leave power empty, it uses the radio's power setting. An exchange sent that's only a number goes up by one with each contact.
+
+**Double-click an entry** in the Log tab or the log book to bring it back to the form. Change anything, including its times, frequency and mode, then press **Update** to save it over the original. **Cancel** leaves it as it was, and **Delete** removes it after asking again. Whatever you were typing beforehand comes back afterwards.
+
+**Log book**, on the Log tab or the **View** menu, shows every field of every contact, with a search box and totals. Click a column heading to sort on it, to group countries together for example, and click it again to reverse the order. Empty cells stay at the bottom, and contacts that tie are newest first. That only changes the view. **Sort** puts the log file itself in date order, oldest first, for every callsign, after copying it to `log.csv.bak`. **Maximise** gives it the whole screen apart from the status bar, and **Restore** puts everything back.
+
+Its **World map** tab puts a pin on a world map for each place you've worked, from the contacts' locators. It follows the log book's callsign choice and search box, so it can show one callsign, all of them, or only what you've searched for, such as `20m`. Contacts with no locator are left out, and the tab says how many. Contacts at the same locator share a pin, amber with a count on it, and contacts alone at their place get a red one. Hover over a pin to see the date, time and details of every contact there. A green diamond marks your own locator, and the map's faint grid is the Maidenhead fields and, as you zoom in, squares. Scroll or double-click to zoom in, and drag to move.
+
+**More than one callsign.** Every contact records which of your callsigns made it, all in the one log. The list at the top of the log book flips between them, and **New callsign** at the bottom of it adds one, such as a special event station. The chosen callsign is the one you're on the air as, the same one as in Settings: new contacts go under it, and the Log tab, worked-before marks and duplicate warnings count only its contacts. **All callsigns** shows the whole log in the log book without changing that. To move a single contact to another callsign, double-click it and change **Your callsign for this contact**. A log from before this was added is put under the callsign set when it's first loaded.
+
+**Export ADIF** writes what's showing: `log-CALLSIGN.adi` for one callsign, or `log.adi` for all of them.
+
+**Import ADIF...** lets you choose a file, or you can drag one onto the window. Use it to back-load old logs, or to bring in confirmations from a QSL service's download. A record is the same contact as one in the log if it has the same call and band, the same station callsign (where both give one) and starts within a minute, or within half an hour for an eQSL inbox, since that carries the other station's clock. A contact already there isn't added again. Its paper, LoTW and eQSL status is brought up to date, and any empty fields are filled, but nothing else is overwritten, and a confirmed contact stays confirmed. The **Confirmed** column shows who has confirmed each one. Records with no station callsign that aren't in the log go under the callsign in use. Importing and deleting first copy the log to `log.csv.bak`.
 
 ### Setting the clock
 
@@ -370,7 +412,7 @@ Just start typing, anywhere. Enter goes there and Esc cancels. You can also use 
 - **Digits**: the wheel tunes that digit. Click the top half to go up, the bottom half to go down.
 - **Waterfalls and the tuning dial**: the wheel tunes by the step.
 - **Sliders**: the wheel moves them.
-- **Band scope**: click to tune there. Right-click for split and memories. Click a flag to go to that frequency, in its mode if it has one.
+- **Band scope**: click to tune there. Right-click for split and memories. Click a flag to go to that frequency, in its mode if it has one. In Centre mode, **<** and **>** above the scope move the dial one whole page, to go through a band a chunk at a time.
 - **Band map**: click a portion to tune there.
 - **Audio waterfall**: click to move that signal to the pitch, which is 1500 Hz on SSB and your CW pitch on CW. In data modes the dial stays put, so a digital program keeps its place.
 - **Band buttons**: click to return to where you last were on that band. Right-click for CW, FT8, FT4, WSPR and SSB frequencies.
@@ -430,21 +472,23 @@ As well as the amateur bands, the scope flags what else is on the air, and this 
 |---|---|
 | Commercial | HFDL aircraft data, airline long-distance voice, Kyodo press fax, and the licence-free PMR446 and LPD433 bands |
 | Government | Time signals, VOLMET, North Atlantic air traffic control |
-| Naval and maritime | NAVTEX, WEFAX, GMDSS distress channels, coast guard and marine weather, French Navy STANAG 4285 |
-| Military | US HFGCS voice and ALE, RAF Volmet, Trenton, Russian stations such as The Buzzer |
-| Broadcast | About 1,800 shortwave and medium wave broadcasters from 66 countries with their schedules, such as the Voice of America, BBC World Service and China Radio International, plus the long wave stations, US clear channel AM stations, and the medium wave and shortwave bands |
-| Amateur satellites and beacons | The ISS, FM and linear satellites with their beacons, and a few long-running 2 m, 70 cm and 23 cm beacons |
+| Naval and maritime | NAVTEX, WEFAX, GMDSS distress channels, on-scene search and rescue, coast guard and marine weather, US Coast Guard voice, the HF marine voice channels by number, French Navy STANAG 4285 |
+| Land mobile and licence-free | CB channels by number, both the CEPT and FCC 40 and the UK 27/81 40, and PMR446 channels by number for an IC-9700 |
+| Military | US HFGCS voice and ALE, RAF Volmet and voice, Trenton, Russian stations such as The Goose |
+| Numbers and mystery | Numbers stations that keep to one frequency, with their times, such as S06 and New Star, plus The Buzzer, The Pip, The Squeaky Wheel and FGKT |
+| Broadcast | About 1,800 shortwave and medium wave broadcasters from 66 countries with their schedules, such as the Voice of America, BBC World Service and China Radio International, plus the long wave stations, US clear channel AM stations, pirate radio's usual haunts, and the medium wave and shortwave bands |
+| Amateur | Emergency centres of activity and nets such as the Hurricane Watch Net, the ISS, FM and linear satellites with their beacons, and a few long-running 2 m, 70 cm and 23 cm beacons |
 
-With an IC-R8600 connected there's a second list, `stations/receiver.json`, of about 930 more:
+With an IC-R8600 connected there's a second list, `stations/receiver.json`, of about 590 more:
 
 | Service | What's listed |
 |---|---|
 | Aviation | HF air routes by region, common VHF and UHF voice, ACARS, VDL Mode 2, ADS-B and radar |
-| Naval and maritime | Marine VHF channels, AIS, and the HF marine voice channels |
+| Naval and maritime | Marine VHF channels and AIS |
 | Military | VLF and LF naval stations |
 | Government | NOAA Weather Radio and the US interoperability channels |
 | Satellites and navigation | GPS and the other navigation systems, weather satellites, Inmarsat, distress beacons, the hydrogen line |
-| Land mobile and licence-free | CB, PMR446, LPD433, FRS and GMRS, MURS, Australian UHF CB, and short-range sensors and LoRa |
+| Land mobile and licence-free | LPD433, FRS and GMRS, MURS, Australian UHF CB, and short-range sensors and LoRa |
 | Broadcast | DAB channels, UHF TV channels, and the FM bands |
 
 Local things such as your own airport's frequencies aren't listed. Many of these are digital or encrypted, so a flag says what's there, not that you can hear it. The file names its sources, and says which entries come from general knowledge rather than a source checked when it was written.
@@ -485,7 +529,7 @@ Everything is stored as plain text files in a per-user folder. **Rig > Open data
 | `settings.ini` | Settings, as `key=value` |
 | `memories.csv` | Memories |
 | `log.csv` | The log |
-| `log.adi` | The log exported as ADIF, for other logging software |
+| `log.adi`, `log-CALLSIGN.adi` | The log exported as ADIF, for other logging software: all callsigns, or one |
 | `bandplans/*.json` | Band plans, which you can edit ([details](#band-plan)). Written the first time the program runs, and never overwritten |
 | `stations/*.json` | Station lists, which you can edit ([details](#stations)). Written the first time the program runs, and never overwritten |
 | `rx-<date>-<time>-<hz>.wav` | Recordings: 16-bit mono, 48 kHz |
@@ -598,6 +642,9 @@ The FFT size can be 2048, 4096, 8192 (the default, about 6 Hz per bin) or 16384.
 | `stations/*.json` | The built-in station lists, compiled into the program |
 | `src/store.h`, `src/store.cpp` | Settings, memories, log, ADIF, WAV |
 | `src/clock_sync.h`, `src/clock_sync.cpp` | Asking NTP servers the time and setting the computer's clock |
+| `src/scan.h` | What a scan decides: when to tune, stop and carry on |
+| `src/dxcluster.h`, `src/dxcluster.cpp` | The DX cluster connection, reading spots, callsign countries and locator distances |
+| `src/worldmap.h`, `src/worldmap.cpp` | The log book's world map. `tools/make_world_map.py` builds its data, `res/worldmap.bin`, from Natural Earth |
 | `src/app.h`, `src/app.cpp` | The window and the self-test script |
 | `src/main.cpp` | Command-line options |
 | `tests/test_core.cpp` | The core test suite |
@@ -705,6 +752,8 @@ These are bundled in `third_party/`, each under its own licence:
 | [stb_image and stb_image_write](https://github.com/nothings/stb) | Public domain or MIT, at the end of each header in `third_party/stb` |
 | Roboto font, by Christian Robertson | [Apache 2.0](third_party/imgui/fonts/LICENSE-Roboto.txt) |
 | Cousine font, by Steve Matteson | [SIL Open Font License 1.1](third_party/imgui/fonts/LICENSE-Cousine.txt) |
+
+The world map in `res/worldmap.bin` is made from [Natural Earth](https://www.naturalearthdata.com/) data, which is in the public domain.
 
 All of these are compiled into the programs in `bin`, so keep these licence files with them if you pass the programs on.
 

@@ -333,7 +333,7 @@ bool parseService(const std::string& s, Service& out) {
     const char* name;
     Service service;
   } t[] = {{"commercial", S_COMMERCIAL}, {"government", S_GOVERNMENT}, {"naval", S_NAVAL}, {"military", S_MILITARY}, {"broadcast", S_BROADCAST}, {"amateur", S_AMATEUR},
-           {"aviation", S_AVIATION}, {"space", S_SPACE}, {"land", S_LAND}};
+           {"aviation", S_AVIATION}, {"space", S_SPACE}, {"land", S_LAND}, {"mystery", S_MYSTERY}};
   for (const auto& e : t)
     if (s == e.name) {
       out = e.service;
@@ -341,7 +341,7 @@ bool parseService(const std::string& s, Service& out) {
     }
   return false;
 }
-const char kServiceNames[] = "commercial, government, naval, military, broadcast, amateur, aviation, space or land";
+const char kServiceNames[] = "commercial, government, naval, military, broadcast, amateur, aviation, space, land or mystery";
 
 // "0100-0230", or "2300-0100 135" for Monday, Wednesday and Friday, the days being those it starts on.
 bool parseAirTime(const std::string& text, Station::AirTime& out) {
@@ -429,7 +429,7 @@ const char kStationNotes[] =
     "  ranges                         Stretches of spectrum, such as a broadcast band.\n"
     "\n"
     "In a group:\n"
-    "  service           commercial, government, naval, military, broadcast, amateur, aviation, space or land.\n"
+    "  service           commercial, government, naval, military, broadcast, amateur, aviation, space, land or mystery.\n"
     "                    Sets the colour and the menu.\n"
     "  name, note        The note is shown under the mouse for every station in the group. A name with NAVTEX,\n"
     "                    fax or RTTY in it opens that decoder when one of its stations is chosen.\n"
@@ -461,6 +461,7 @@ const char* serviceName(Service s) {
     case S_AVIATION: return "Aviation";
     case S_SPACE: return "Satellites and navigation";
     case S_LAND: return "Land mobile and licence-free";
+    case S_MYSTERY: return "Numbers and mystery stations";
     default: return "";
   }
 }
