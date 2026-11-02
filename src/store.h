@@ -76,6 +76,12 @@ struct LogEntry {
 };
 // Who has confirmed a contact, such as "LoTW, eQSL", or "" if nobody has.
 std::string confirmedBy(const LogEntry& e);
+// The ways the program can show a log's dates. The log itself always holds "YYYY-MM-DD HH:MM", which sorts as text.
+const int kDateFormatCount = 6;
+const char* dateFormatName(int format);
+// A date, or a date and time, in one of those formats. Without the year it's only the day and month, for a narrow
+// column. Anything not starting with "YYYY-MM-DD" comes back as it is.
+std::string displayDate(const std::string& utc, int format, bool withYear = true);
 std::vector<LogEntry> loadLog(const std::string& path);
 bool appendLog(const std::string& path, const LogEntry& e);
 bool saveLog(const std::string& path, const std::vector<LogEntry>& log);

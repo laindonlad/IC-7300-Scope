@@ -70,6 +70,8 @@ In PowerShell, from the unzipped folder:
 
 To use a real radio, double-click `ic7300console.exe`. If SmartScreen stops it, choose **More info**, then **Run anyway**.
 
+To have it start maximised or minimised, make a shortcut to it and change **Run** in the shortcut's properties.
+
 ### Linux
 
 ```sh
@@ -286,11 +288,13 @@ On the rear USB port, the scope needs CI-V USB Port set to Unlink from [REMOTE],
 | `--screenshot out.bmp` | Saves a screenshot and exits |
 | `--frames N` | Which frame `--screenshot` captures |
 
-Port, baud rate, CI-V address, sound devices, your callsign and the PTT time limit are all in **Rig > Settings**. Keys and the radio setup are also listed in **Help**.
+Port, baud rate, CI-V address, sound devices, your callsign, the log's date format and the PTT time limit are all in **Rig > Settings**. Keys and the radio setup are also listed in **Help**.
 
 ## Using it
 
 ### The window
+
+It opens at the size you last left it. If you close it while it's maximised, it keeps the size from before you maximised it.
 
 | Area | What's there |
 |---|---|
@@ -349,6 +353,8 @@ The server, how long spots are kept and whether to show robot spots from the Rev
 ### The log
 
 The **Log** tab records callsign, RST, name, QTH, locator, power and notes, with contest name and exchanges under **Contest**. It gives the country from the callsign, what you've worked that station on before, and the distance and bearing if you've put your own locator in Settings. The distance in km and miles is stored with the contact in `log.csv`, as the last two columns. Contacts already in the log get theirs from your current locator when the program starts, after it copies the log to `log.csv.bak`. A contact begins when its callsign goes in and ends when it's logged. If you leave power empty, it uses the radio's power setting. An exchange sent that's only a number goes up by one with each contact.
+
+**Dates** are shown the way you choose in **Log date format** in **Rig > Settings**: `DD-MM-YYYY` to start with, or with slashes or dots, month first, or year first. The Log tab leaves out the year to save room, and all times are UTC. This changes only what's shown: the log file and exported logs keep their own format, and the **Began** and **Ended** boxes for changing a contact still take `2026-10-31 19:05`.
 
 **Double-click an entry** in the Log tab or the log book to bring it back to the form. Change anything, including its times, frequency and mode, then press **Update** to save it over the original. **Cancel** leaves it as it was, and **Delete** removes it after asking again. Whatever you were typing beforehand comes back afterwards.
 

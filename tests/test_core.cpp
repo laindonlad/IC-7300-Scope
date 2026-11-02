@@ -1781,6 +1781,20 @@ static void testLogFields() {
     std::ofstream f(file, std::ios::binary);
     f << "2026-01-02 03:04,G4OLD,14205000,USB,59,57,Ann,hello\n";
   }
+  // Dates as they're shown, with and without the year.
+  CHECK(store::displayDate("2026-11-01 10:56", 0) == "01-11-2026 10:56");
+  CHECK(store::displayDate("2026-11-01 10:56", 0, false) == "01-11 10:56");
+  CHECK(store::displayDate("2026-11-01 10:56", 1) == "01/11/2026 10:56");
+  CHECK(store::displayDate("2026-11-01 10:56", 2, false) == "01.11 10:56");
+  CHECK(store::displayDate("2026-11-01 10:56", 3) == "11-01-2026 10:56");
+  CHECK(store::displayDate("2026-11-01 10:56", 4, false) == "11/01 10:56");
+  CHECK(store::displayDate("2026-11-01 10:56", 5) == "2026-11-01 10:56");
+  CHECK(store::displayDate("2026-11-01 10:56", 5, false) == "11-01 10:56");
+  CHECK(store::displayDate("2026-11-01", 0) == "01-11-2026");
+  CHECK(store::displayDate("", 0).empty());
+  CHECK(store::displayDate("yesterday, probably", 0) == "yesterday, probably");
+  CHECK(store::displayDate("2026-11-01 10:56", 99) == "2026-11-01 10:56");
+
   store::LogEntry e;
   e.utc = "2026-10-31 19:05", e.utcOff = "2026-10-31 19:09", e.call = "G4ABC", e.hz = 14205000, e.mode = "USB";
   e.rstSent = "59", e.rstRcvd = "57", e.name = "Bob", e.notes = "with, comma", e.power = "100", e.qth = "Leeds", e.locator = "IO93", e.country = "England";

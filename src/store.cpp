@@ -350,6 +350,23 @@ std::string confirmedBy(const LogEntry& e) {
   add(isConfirmed(e.qslRcvd), "QSL");
   return out;
 }
+static const struct {
+  const char* name;
+  bool dayFirst, yearFirst;
+  char separator;
+} kDateFormats[kDateFormatCount] = {
+    {"DD-MM-YYYY", true, false, '-'}, {"DD/MM/YYYY", true, false, '/'}, {"DD.MM.YYYY", true, false, '.'},
+    {"MM-DD-YYYY", false, false, '-'}, {"MM/DD/YYYY", false, false, '/'}, {"YYYY-MM-DD", false, true, '-'},
+};
+const char* dateFormatName(int format) { return format >= 0 && format < kDateFormatCount ? kDateFormats[format].name : ""; }
+std::string displayDate(const std::string& utc, int format, bool withYear) {
+  if (format < 0 || format >= kDateFormatCount || utc.size() < 10 || utc[4] != '-' || utc[7] != '-') return utc;
+  const auto& f = kDateFormats[format];
+  const std::string year = utc.substr(0, 4), month = utc.substr(5, 2), day = utc.substr(8, 2), time = utc.substr(10);
+  const std::string dayMonth = f.dayFirst ? day + f.separator + month : month + f.separator + day;
+  if (!withYear) return dayMonth + time;
+  return (f.yearFirst ? year + f.separator + dayMonth : dayMonth + f.separator + year) + time;
+}
 bool backupFile(const std::string& path) {
   std::ifstream f(path, std::ios::binary);
   if (!f) return true;

@@ -555,6 +555,7 @@ class App {
   int logPinned_ = 0, logUnpinned_ = 0;
   worldmap::View logMapView_;
   uint64_t logRevision_ = 1, logBookViewRevision_ = 0;
+  int dateFormat_ = 0;  // Settings: how the log's dates are shown, one of store's date formats
   std::set<std::string> workedCalls_, workedOnBand_, workedCountries_;  // "CALL|20M" for the band
   std::vector<std::string> droppedFiles_;
   char callsign_[24] = "";
@@ -802,6 +803,7 @@ void App::loadSettings() {
   txLimit_ = std::max(5, cfg_.getInt("tx_limit", 180));
   snprintf(callsign_, sizeof callsign_, "%s", cfg_.get("callsign").c_str());
   setBuf(locator_, cfg_.get("locator"));
+  dateFormat_ = std::max(0, std::min(store::kDateFormatCount - 1, cfg_.getInt("date_format", 0)));
   setBuf(logForm_.contest, cfg_.get("log_contest"));
   setBuf(logForm_.exchSent, cfg_.get("log_exch_sent"));
   for (const std::string& call : store::splitCsv(cfg_.get("station_calls")))
@@ -949,6 +951,7 @@ void App::saveSettings() {
     cfg_.set("station_calls", store::joinCsv(std::vector<std::string>(calls.begin(), calls.end())));
   }
   cfg_.set("locator", locator_);
+  cfg_.setInt("date_format", dateFormat_);
   // A contact being changed isn't what the next new one should start from.
   const LogForm& newForm = logEditing_ >= 0 ? logDraft_ : logForm_;
   cfg_.set("log_contest", newForm.contest);
@@ -984,11 +987,14 @@ void App::saveSettings() {
     if (b.valid)
       cfg_.set("band_" + e.first, store::joinCsv({std::to_string(b.hz), std::to_string(b.mode), b.data ? "1" : "0", std::to_string(b.filter)}));
   }
-  int w, h;
-  glfwGetWindowSize(win_, &w, &h);
-  cfg_.setInt("win_w", w);
-  cfg_.setInt("win_h", h);
-  cfg_.setInt("win_scale_pct", (int)roundf(scale_ * 100));
+  // Not while maximised, or un-maximising next time would leave it nearly filling the screen.
+  if (!glfwGetWindowAttrib(win_, GLFW_MAXIMIZED)) {
+    int w, h;
+    glfwGetWindowSize(win_, &w, &h);
+    cfg_.setInt("win_w", w);
+    cfg_.setInt("win_h", h);
+    cfg_.setInt("win_scale_pct", (int)roundf(scale_ * 100));
+  }
   cfg_.save(cfgPath_);
 }
 
@@ -3776,7 +3782,7 @@ void App::drawLog() {
       std::string list;
       for (const std::string& w : where) list += (list.empty() ? "" : ", ") + w;
       ImGui::PushStyleColor(ImGuiCol_Text, dupe ? C_RED : C_AMBER);
-      std::string lastDate = last.empty() ? "" : ", last on " + last.substr(0, 10);
+      std::string lastDate = last.empty() ? "" : ", last on " + store::displayDate(last.substr(0, 10), dateFormat_);
       ImGui::TextWrapped("%s%d time%s%s: %s", dupe ? "Already logged on this band and mode. " : "Worked ", worked, worked == 1 ? "" : "s", lastDate.c_str(), list.c_str());
       ImGui::PopStyleColor();
     } else {
@@ -3924,7 +3930,7 @@ void App::drawLog() {
         ImGui::PushID(i);
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        if (ImGui::Selectable(e.utc.size() > 5 ? e.utc.c_str() + 5 : e.utc.c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
+        if (ImGui::Selectable(store::displayDate(e.utc, dateFormat_, false).c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
         note("logrow:" + std::to_string(i));
         if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s  %s  %s/%s  %s %s\nDouble-click to change it", e.call.c_str(), e.mode.c_str(), e.rstSent.c_str(), e.rstRcvd.c_str(), e.name.c_str(), e.notes.c_str());
         ImGui::TableNextColumn();
@@ -4002,9 +4008,9 @@ void App::drawPinBubble(const LogPin& pin) {
     ImGui::PushFont(fMid_);
     ImGui::TextUnformatted(e.call.c_str());
     ImGui::PopFont();
-    std::string when = e.utc;
+    std::string when = store::displayDate(e.utc, dateFormat_);
     // The end needs no date of its own if it's the same day.
-    if (!e.utcOff.empty() && e.utcOff != e.utc) when += " to " + (e.utcOff.compare(0, 10, e.utc, 0, 10) == 0 && e.utcOff.size() > 11 ? e.utcOff.substr(11) : e.utcOff);
+    if (!e.utcOff.empty() && e.utcOff != e.utc) when += " to " + (e.utcOff.compare(0, 10, e.utc, 0, 10) == 0 && e.utcOff.size() > 11 ? e.utcOff.substr(11) : store::displayDate(e.utcOff, dateFormat_));
     ImGui::TextColored(ImColor(C_AMBER), "%s UTC", when.c_str());
     auto line = [](std::initializer_list<std::string> parts) {
       std::string out;
@@ -4224,7 +4230,8 @@ void App::drawLogBook() {
       const store::LogEntry& e = log_[(size_t)i];
       if (!logBookAll_ && !onActiveStation(e)) continue;
       if (!query.empty()) {
-        std::string hay = e.utc + " " + e.call + " " + e.station + " " + e.mode + " " + bands::adifBand(e.hz) + " " + e.name + " " + e.qth + " " + e.locator + " " + e.country + " " + e.contest + " " + e.notes + " " + store::confirmedBy(e);
+        // The date as it's stored and as it's shown, so either finds it.
+        std::string hay = e.utc + " " + store::displayDate(e.utc, dateFormat_) + " " + e.call + " " + e.station + " " + e.mode + " " + bands::adifBand(e.hz) + " " + e.name + " " + e.qth + " " + e.locator + " " + e.country + " " + e.contest + " " + e.notes + " " + store::confirmedBy(e);
         for (char& c : hay) c = (char)tolower((unsigned char)c);
         if (hay.find(query) == std::string::npos) continue;
       }
@@ -4318,14 +4325,14 @@ void App::drawLogBook() {
         ImGui::PushID(i);
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        if (ImGui::Selectable(e.utc.c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
+        if (ImGui::Selectable(store::displayDate(e.utc, dateFormat_).c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
         const bool rowTip = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip);
         ImGui::SetItemTooltip("Double-click to change it on the Log tab");
         auto cell = [](const std::string& s) {
           ImGui::TableNextColumn();
           ImGui::TextUnformatted(s.c_str());
         };
-        cell(e.utcOff);
+        cell(store::displayDate(e.utcOff, dateFormat_));
         cell(e.call);
         cell(e.station);
         ImGui::TableNextColumn();
@@ -5156,6 +5163,16 @@ void App::drawSettings() {
       if (!store::backupFile(logPath_) || !store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
     }
   }
+  ImGui::SetNextItemWidth(S(160));
+  if (ImGui::BeginCombo("Log date format", store::dateFormatName(dateFormat_))) {
+    for (int i = 0; i < store::kDateFormatCount; i++)
+      if (ImGui::Selectable(store::dateFormatName(i), i == dateFormat_) && i != dateFormat_) {
+        dateFormat_ = i;
+        logBookViewRevision_ = 0;  // the log book's search looks at the dates as shown
+      }
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed.");
   ImGui::SetNextItemWidth(S(160));
   ImGui::SliderInt("PTT time limit", &txLimit_, 5, 600, "%d s");
   ImGui::SetItemTooltip("PTT from this program lets go by itself after this long");
@@ -5993,6 +6010,9 @@ int App::run() {
     // A scripted run mustn't take the keyboard from whoever's using the machine.
     glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
+  } else {
+    // Otherwise GLFW ignores a Windows shortcut's Run setting: maximised, minimised or normal.
+    glfwWindowHint(GLFW_WIN32_SHOWDEFAULT, GLFW_TRUE);
   }
   int waX = 0, waY = 0, waW = 1920, waH = 1080;
   GLFWmonitor* primary = glfwGetPrimaryMonitor();
