@@ -34,9 +34,12 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_internal.h"  // ImRect, for the self-test's map of controls
+#include "locations.h"
+#include "printing.h"
 #include "rig.h"
 #include "scan.h"
 #include "sim_rig.h"
+#include "tilemap.h"
 #include "store.h"
 #include "transport.h"
 #include "tuning.h"
@@ -67,6 +70,13 @@ const int kFftSizes[] = {2048, 4096, 8192, 16384};
 const char* const kFftNames[] = {"2048 (23 Hz)", "4096 (12 Hz)", "8192 (6 Hz)", "16384 (3 Hz)"};
 const float kAudioRanges[] = {3000, 4000, 6000, 12000, 24000};
 const char* const kAudioRangeNames[] = {"0-3 kHz", "0-4 kHz", "0-6 kHz", "0-12 kHz", "0-24 kHz"};
+// The speaker equaliser's cuts. 0 is none.
+const float kEqLowHz[] = {0, 100, 150, 200, 300, 400};
+const char* const kEqLowNames[] = {"Off", "100 Hz", "150 Hz", "200 Hz", "300 Hz", "400 Hz"};
+constexpr int kEqLowCount = 6;
+const float kEqHighHz[] = {0, 3500, 3000, 2700, 2400, 2100};
+const char* const kEqHighNames[] = {"Off", "3.5 kHz", "3.0 kHz", "2.7 kHz", "2.4 kHz", "2.1 kHz"};
+constexpr int kEqHighCount = 6;
 const char* const kSpanNames[] = {"+/-2.5k", "+/-5k", "+/-10k", "+/-25k", "+/-50k", "+/-100k", "+/-250k", "+/-500k", "+/-1M", "+/-2.5M"};
 const int kWaterfallRows = 1024;
 // A chart on screen: 1809 pixels and up to 3000 lines at the usual IOC 576 are halved each way, as the panel
@@ -275,6 +285,12 @@ class App {
   void drawBandMap(double viewLo, double viewHi);
   void drawScopePane();
   void drawAudioPane();
+  void drawPaneSwitch();
+  void drawMapPane();
+  void drawMapInfo();
+  void findOnMap(const std::string& call, bool askQrz);
+  void showOnMap(const locations::Location& l, const std::string& how);
+  void pumpQrz();
   void drawDecodePane();
   void drawDecodeText();
   void drawDecodeFax();
@@ -284,11 +300,19 @@ class App {
   void drawDial();
   void drawKeypad();
   void drawMemories();
+  void drawMemoryEditor();
   void drawLog();
   void drawLogBook();
+  void drawLogBookWindow();
+  void followLogBookMonitor();
   void setLogBookFull(bool full);
   void buildLogPins();
   void drawLogMap();
+  void drawNet();
+  void loadNet();
+  void saveNet();
+  printing::Doc netDoc();
+  void drawNetPrint();
   void drawPinBubble(const LogPin& pin);
   void editLogEntry(int i);
   void endLogEdit();
@@ -470,6 +494,15 @@ class App {
   Waterfall wfAudio_;
   bool monitor_ = false;
   float monitorGain_ = 0.7f;
+  // Noise reduction for what's heard. nrMethod_: 0 by mode, then Enhancer::VOICE or SPECTRAL.
+  bool nrOn_ = false, nrLeveller_ = true;
+  int nrMethod_ = 0;
+  float nrStrength_ = 0.7f;
+  // The speaker's equaliser, on whether or not the noise reduction is. Indexes into the cut tables.
+  bool eqOn_ = false;
+  int eqLowIdx_ = 2, eqHighIdx_ = 0;
+  float eqBass_ = 0, eqMid_ = 0, eqTreble_ = 0;
+  int nrMethodFor(int mode) const;
   float peakDb_ = -100, peakHold_ = 0;
   store::WavWriter rec_;
 
@@ -509,9 +542,37 @@ class App {
   bool showScope_ = true, showAudio_ = true;
   float splitFrac_ = 0.5f;
 
+  // The map, which can take the audio pane's place: finds a station from the log, the kept locations or QRZ.com.
+  bool showMap_ = false;
+  tilemap::Map map_;
+  tilemap::View mapView_;
+  int mapLayer_ = tilemap::STREET;
+  int mapLocSquare_ = 0, mapOsSquare_ = 0;  // overlays, 0 off, 1 the station's squares, 2 the whole grid
+  bool mapLatLon_ = false;                   // and lines of latitude and longitude
+  char mapCall_[24] = "";
+  locations::Book places_;  // locations.csv: every station found so far
+  bool haveMapTarget_ = false, mapGoThere_ = false;
+  locations::Location mapTarget_;
+  std::string mapFoundHow_;  // "from your log" and so on
+  std::string mapMessage_;   // why the last search found nothing
+  char qrzUser_[48] = "", qrzPassword_[64] = "";
+  std::string qrzKey_;  // QRZ.com's session, kept between lookups
+  // A QRZ lookup waits on the network on a thread of its own, left to finish alone if the window closes.
+  struct QrzJob {
+    std::atomic<bool> done{false};
+    std::string call, user, password, key, error;
+    bool ok = false;
+    locations::Location found;
+  };
+  std::shared_ptr<QrzJob> qrzJob_;
+
   // tabs
   std::vector<store::Memory> memories_;
   char memName_[64] = "", memFilter_[64] = "";
+  // The memory being edited after a double-click, and the dialog's copy of it until Save.
+  int memEditing_ = -1;
+  store::Memory memEdit_;
+  char memEditName_[64] = "", memEditFreq_[32] = "";
   std::vector<store::LogEntry> log_;
   // The form on the Log tab, which is also where a logged contact comes back to be changed.
   struct LogForm {
@@ -526,6 +587,32 @@ class App {
   std::string logStarted_;      // when the callsign went in, which is when the contact began
   bool logFocusCall_ = false;
   bool openLogBook_ = false;
+  // The Net tab: who has checked in to a net being run, and when they joined and left. Kept in a file as it
+  // changes, so a crash or a restart part way through doesn't lose the list.
+  struct NetEntry {
+    std::string call, name;
+    std::string joined, left;  // "YYYY-MM-DD HH:MM" UTC; left is empty while they're still on the net
+  };
+  std::vector<NetEntry> net_;
+  std::string netPath_;
+  std::string netStarted_;  // when the first station checked in
+  long long netHz_ = 0;     // where the net was, then
+  std::string netMode_;
+  char netTitle_[64] = "", netCall_[24] = "", netName_[32] = "";
+  bool netFocusCall_ = false;
+  bool netClearing_ = false;  // New net has been pressed once
+  // Print list...: the page as it will print, and which printer it goes to. The job runs on a thread of its
+  // own, since a printer on the network can take a while to answer.
+  bool openNetPrint_ = false;
+  std::vector<std::string> printers_;
+  int printerIdx_ = 0;
+  std::string netPrinter_;  // the one chosen last time
+  struct PrintJob {
+    std::atomic<bool> done{false};
+    bool ok = false;
+    std::string printer, why;
+  };
+  std::shared_ptr<PrintJob> printJob_;
   char logBookQuery_[64] = "";
   // The file dialog runs on a thread of its own so the radio's display keeps going behind it. Left to die with
   // the program if it's still open at exit, which is why this is shared with that thread.
@@ -550,6 +637,17 @@ class App {
   // Filling the whole window, and where the log book goes back to afterwards.
   bool logBookFull_ = false, logBookPutBack_ = false, logBookWindowWasMaximised_ = false;
   ImVec2 logBookPos_, logBookSize_;
+  // In a window of its own the log book can be on another screen, and is then drawn at that screen's scale, with
+  // fonts and a style of its own. 0 is the same scale as the main window.
+  float logScale_ = 0;
+  struct FontSet {
+    ImFont *text, *small, *mid, *freq, *freqSmall, *logBig;
+  } logFonts_{};
+  ImGuiStyle logStyle_;
+  ImGuiID logBookViewport_ = 0;
+  int lastLogX_ = 0, lastLogY_ = 0;
+  float logBookResize_ = 0;  // a change of scale to apply to its size, when it's moved to a screen with another
+  ImVec2 logBookRoom_, logBookOwnSize_;  // the new screen's room for it, and its size as last drawn
   // The world map shows what the log book is showing: one pin to a place, however many contacts were made there.
   std::vector<LogPin> logPins_;  // north first, so that nearer the bottom of the screen is on top
   int logPinned_ = 0, logUnpinned_ = 0;
@@ -668,6 +766,9 @@ void App::setupStyle(float scale) {
   c[ImGuiCol_TitleBgActive] = V_ACCENT;
   c[ImGuiCol_Text] = ImGui::ColorConvertU32ToFloat4(C_TEXT);
   c[ImGuiCol_TextDisabled] = ImGui::ColorConvertU32ToFloat4(C_DIM);
+  const float logScale = logScale_ > 0 ? logScale_ : scale;
+  logStyle_ = s;
+  logStyle_.ScaleAllSizes(logScale);
   s.ScaleAllSizes(scale);
 
   ImGuiIO& io = ImGui::GetIO();
@@ -677,12 +778,19 @@ void App::setupStyle(float scale) {
   cfg.OversampleH = 2;
   void* roboto = const_cast<unsigned char*>(kRobotoMedium);
   void* cousine = const_cast<unsigned char*>(kCousine);
-  fText_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 15.f * scale, &cfg);
-  fSmall_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 12.5f * scale, &cfg);
-  fMid_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 19.f * scale, &cfg);
-  fFreq_ = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 56.f * scale, &cfg);
-  fFreqSmall_ = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 21.f * scale, &cfg);
-  fLogBig_ = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 30.f * scale, &cfg);  // twice fText_
+  auto fonts = [&](float k) {
+    FontSet f;
+    f.text = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 15.f * k, &cfg);
+    f.small = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 12.5f * k, &cfg);
+    f.mid = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 19.f * k, &cfg);
+    f.freq = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 56.f * k, &cfg);
+    f.freqSmall = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 21.f * k, &cfg);
+    f.logBig = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 30.f * k, &cfg);  // twice text
+    return f;
+  };
+  FontSet main = fonts(scale);  // first, so that its text font is ImGui's default
+  fText_ = main.text, fSmall_ = main.small, fMid_ = main.mid, fFreq_ = main.freq, fFreqSmall_ = main.freqSmall, fLogBig_ = main.logBig;
+  logFonts_ = fabsf(logScale - scale) < 0.01f ? main : fonts(logScale);
 }
 
 // The layout is designed in logical pixels and is comfortable at 1560x960 of them. Window sizes are real
@@ -761,6 +869,48 @@ void App::followMonitor() {
   lastWinX_ = nx, lastWinY_ = ny;
 }
 
+// The same for the log book in a window of its own, which only changes its own scale. Runs between frames too.
+void App::followLogBookMonitor() {
+  if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND || !openLogBook_ || !logBookViewport_) return;
+  ImGuiViewport* v = ImGui::FindViewportByID(logBookViewport_);
+  if (!v || v == ImGui::GetMainViewport() || !v->PlatformHandle) return;
+  GLFWwindow* w = (GLFWwindow*)v->PlatformHandle;
+  int x, y, ww, wh;
+  glfwGetWindowPos(w, &x, &y);
+  glfwGetWindowSize(w, &ww, &wh);
+  bool still = x == lastLogX_ && y == lastLogY_;
+  lastLogX_ = x, lastLogY_ = y;
+  if (!still || ww <= 0 || wh <= 0 || glfwGetWindowAttrib(w, GLFW_ICONIFIED)) return;
+
+  int count = 0;
+  GLFWmonitor** monitors = glfwGetMonitors(&count);
+  GLFWmonitor* best = nullptr;
+  long long bestArea = 0;
+  int waW = 0, waH = 0;
+  for (int i = 0; i < count; i++) {
+    int mx, my, mw, mh;
+    glfwGetMonitorWorkarea(monitors[i], &mx, &my, &mw, &mh);
+    long long ow = std::min(x + ww, mx + mw) - std::max(x, mx), oh = std::min(y + wh, my + mh) - std::max(y, my);
+    if (ow > 0 && oh > 0 && ow * oh > bestArea) {
+      bestArea = ow * oh;
+      best = monitors[i];
+      waW = mw, waH = mh;
+    }
+  }
+  if (!best) return;
+  const float now = logScale_ > 0 ? logScale_ : scale_, want = monitorScale(best);
+  if (fabsf(want - now) < 0.01f) return;
+  logScale_ = want;
+  setupStyle(scale_);
+  ImGui_ImplOpenGL3_DestroyFontsTexture();
+  if (glfwGetWindowAttrib(w, GLFW_MAXIMIZED)) return;  // Windows has already fitted it to the new screen
+  // Keep its logical size, as long as that fits on the new screen.
+  int left, top, right, bottom;
+  glfwGetWindowFrameSize(w, &left, &top, &right, &bottom);
+  logBookResize_ = want / now;
+  logBookRoom_ = ImVec2((float)(waW - left - right), (float)(waH - top - bottom));
+}
+
 void App::loadSettings() {
   std::string dir = store::dataDir();
   // The demo keeps to its own files, so trying it can't disturb a real set-up.
@@ -768,6 +918,7 @@ void App::loadSettings() {
   cfgPath_ = dir + prefix + "settings.ini";
   memPath_ = dir + prefix + "memories.csv";
   logPath_ = dir + prefix + "log.csv";
+  netPath_ = dir + prefix + "net.csv";
   cfg_.load(cfgPath_);
   port_ = cfg_.get("port");
   baud_ = cfg_.getInt("baud", 115200);
@@ -780,6 +931,16 @@ void App::loadSettings() {
   monitor_ = cfg_.getInt("monitor", 0) != 0;
   checkUpdates_ = cfg_.getInt("check_updates", 1) != 0;
   monitorGain_ = (float)cfg_.getDouble("monitor_gain", 0.7);
+  nrOn_ = cfg_.getInt("nr_on", 0) != 0;
+  nrMethod_ = std::max(0, std::min(2, cfg_.getInt("nr_method", 0)));
+  nrStrength_ = std::max(0.f, std::min(1.f, (float)cfg_.getDouble("nr_strength", 0.7)));
+  nrLeveller_ = cfg_.getInt("nr_leveller", 1) != 0;
+  eqOn_ = cfg_.getInt("eq_on", 0) != 0;
+  eqLowIdx_ = std::max(0, std::min(kEqLowCount - 1, cfg_.getInt("eq_low", 2)));
+  eqHighIdx_ = std::max(0, std::min(kEqHighCount - 1, cfg_.getInt("eq_high", 0)));
+  eqBass_ = std::max(-12.f, std::min(12.f, (float)cfg_.getDouble("eq_bass", 0)));
+  eqMid_ = std::max(-12.f, std::min(12.f, (float)cfg_.getDouble("eq_mid", 0)));
+  eqTreble_ = std::max(-12.f, std::min(12.f, (float)cfg_.getDouble("eq_treble", 0)));
   stepIdx_ = std::max(0, std::min(kStepCount - 1, cfg_.getInt("step", 2)));
   fftIdx_ = std::max(0, std::min(3, cfg_.getInt("fft", 2)));
   audioRangeIdx_ = std::max(0, std::min(4, cfg_.getInt("audio_range", 0)));
@@ -799,9 +960,23 @@ void App::loadSettings() {
   scopeEnabled_ = cfg_.getInt("scope", 1) != 0;
   showScope_ = cfg_.getInt("show_scope", 1) != 0;
   showAudio_ = cfg_.getInt("show_audio", 1) != 0;
+  showMap_ = cfg_.getInt("show_map", 0) != 0;
+  mapLayer_ = std::max(0, std::min(tilemap::LAYER_COUNT - 1, cfg_.getInt("map_layer", tilemap::STREET)));
+  mapLocSquare_ = std::max(0, std::min(2, cfg_.getInt("map_loc_square", 0)));
+  mapOsSquare_ = std::max(0, std::min(2, cfg_.getInt("map_os_square", 0)));
+  mapLatLon_ = cfg_.getInt("map_lat_lon", 0) != 0;
+  mapView_.cx = cfg_.getDouble("map_x", mapView_.cx);
+  mapView_.cy = cfg_.getDouble("map_y", mapView_.cy);
+  mapView_.zoom = cfg_.getDouble("map_zoom", mapView_.zoom);
+  setBuf(mapCall_, cfg_.get("map_call"));
+  setBuf(qrzUser_, cfg_.get("qrz_user"));
+  setBuf(qrzPassword_, cfg_.get("qrz_password"));
+  places_.load(dir + prefix + "locations.csv");
+  map_.setCacheDir(dir + "tiles/");
   splitFrac_ = (float)cfg_.getDouble("split", 0.5);
   txLimit_ = std::max(5, cfg_.getInt("tx_limit", 180));
   snprintf(callsign_, sizeof callsign_, "%s", cfg_.get("callsign").c_str());
+  netPrinter_ = cfg_.get("net_printer");
   setBuf(locator_, cfg_.get("locator"));
   dateFormat_ = std::max(0, std::min(store::kDateFormatCount - 1, cfg_.getInt("date_format", 0)));
   setBuf(logForm_.contest, cfg_.get("log_contest"));
@@ -866,6 +1041,7 @@ void App::loadSettings() {
     if (fillDistance(e)) logChanged = true;
   if (logChanged && store::backupFile(logPath_)) store::saveLog(logPath_, log_);
   indexLog();
+  loadNet();
 }
 
 // Saved by band name. Earlier versions saved by position in a fixed list of twelve, which these read.
@@ -924,6 +1100,16 @@ void App::saveSettings() {
   cfg_.setInt("monitor", monitor_);
   cfg_.setInt("check_updates", checkUpdates_);
   cfg_.setDouble("monitor_gain", monitorGain_);
+  cfg_.setInt("nr_on", nrOn_);
+  cfg_.setInt("nr_method", nrMethod_);
+  cfg_.setDouble("nr_strength", nrStrength_);
+  cfg_.setInt("nr_leveller", nrLeveller_);
+  cfg_.setInt("eq_on", eqOn_);
+  cfg_.setInt("eq_low", eqLowIdx_);
+  cfg_.setInt("eq_high", eqHighIdx_);
+  cfg_.setDouble("eq_bass", eqBass_);
+  cfg_.setDouble("eq_mid", eqMid_);
+  cfg_.setDouble("eq_treble", eqTreble_);
   cfg_.setInt("step", stepIdx_);
   cfg_.setInt("fft", fftIdx_);
   cfg_.setInt("audio_range", audioRangeIdx_);
@@ -942,9 +1128,21 @@ void App::saveSettings() {
   cfg_.setInt("scope", scopeEnabled_);
   cfg_.setInt("show_scope", showScope_);
   cfg_.setInt("show_audio", showAudio_);
+  cfg_.setInt("show_map", showMap_);
+  cfg_.setInt("map_layer", mapLayer_);
+  cfg_.setInt("map_loc_square", mapLocSquare_);
+  cfg_.setInt("map_os_square", mapOsSquare_);
+  cfg_.setInt("map_lat_lon", mapLatLon_);
+  cfg_.setDouble("map_x", mapView_.cx);
+  cfg_.setDouble("map_y", mapView_.cy);
+  cfg_.setDouble("map_zoom", mapView_.zoom);
+  cfg_.set("map_call", mapCall_);
+  cfg_.set("qrz_user", qrzUser_);
+  cfg_.set("qrz_password", qrzPassword_);
   cfg_.setDouble("split", splitFrac_);
   cfg_.setInt("tx_limit", txLimit_);
   cfg_.set("callsign", callsign_);
+  cfg_.set("net_printer", netPrinter_);
   {
     std::set<std::string> calls = stationCalls_;
     if (callsign_[0]) calls.insert(callsign_);
@@ -1427,6 +1625,13 @@ bool App::actionButton(const char* label, ImVec2 size, const ImVec4& col, const 
   ImGui::PopStyleColor(3);
   note(name ? name : label);
   return r;
+}
+
+int App::nrMethodFor(int mode) const {
+  if (nrMethod_ != 0) return nrMethod_;
+  bool phone = (mode == civ::LSB || mode == civ::USB || mode == civ::FM || mode == civ::WFM || civ::isAmLike(mode) ||
+                civ::isDigitalVoice(mode)) && !st_.data;
+  return phone ? Enhancer::VOICE : Enhancer::SPECTRAL;
 }
 
 void App::flow(float nextWidth) {
@@ -3133,7 +3338,7 @@ void App::drawAudioPane() {
   float least = std::min(S(220), (avail - grab) / 2);
   float paneW = split ? std::max(least, std::min(avail - grab - least, avail * decodeSplit_)) : 0;  // 0 is all of it
   ImGui::BeginChild("audiopane", ImVec2(paneW, 0), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-  ImGui::TextColored(ImColor(C_ACCENT), "AUDIO");
+  drawPaneSwitch();
   ImGui::SameLine();
   ImGui::SetNextItemWidth(S(76));
   if (ImGui::BeginCombo("##arange", kAudioRangeNames[audioRangeIdx_])) {
@@ -3195,6 +3400,54 @@ void App::drawAudioPane() {
   ImGui::SameLine();
   ImGui::SetNextItemWidth(S(60));
   if (ImGui::SliderFloat("##mon", &monitorGain_, 0.f, 1.5f, "%.1f")) audio_.setMonitorGain(monitorGain_);
+  flow(S(80));
+  if (toggle("Clean", nrOn_, ImVec2(0, 0), "clean")) nrOn_ = !nrOn_;
+  {
+    static const char* kHow[] = {"", "voice noise reduction", "spectral noise reduction"};
+    ImGui::SetItemTooltip("Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is.",
+                          kHow[nrMethodFor(st_.mode)]);
+  }
+  ImGui::SameLine(0, S(2));
+  if (toggle("...##clean", eqOn_, ImVec2(0, 0), "cleanset")) ImGui::OpenPopup("cleanset");
+  ImGui::SetItemTooltip(eqOn_ ? "How the audio is cleaned up, and the equaliser (on)" : "How the audio is cleaned up, and the equaliser");
+  if (ImGui::BeginPopup("cleanset")) {
+    static const char* kMethods[] = {"By mode", "Voice", "Spectral"};
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::Combo("Method", &nrMethod_, kMethods, 3);
+    ImGui::SetItemTooltip("Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\n"
+                          "Spectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data.");
+    ImGui::SetNextItemWidth(S(160));
+    int pct = (int)lround(nrStrength_ * 100);
+    if (ImGui::SliderInt("Strength", &pct, 0, 100, "%d%%")) nrStrength_ = pct / 100.f;
+    ImGui::SetItemTooltip("Higher takes out more noise, and more of the signal with it");
+    ImGui::Checkbox("Leveller", &nrLeveller_);
+    ImGui::SetItemTooltip("Evens out fading and quiet stations");
+    ImGui::Separator();
+    ImGui::Checkbox("Equaliser", &eqOn_);
+    ImGui::SetItemTooltip("Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers.");
+    ImGui::BeginDisabled(!eqOn_);
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::Combo("Low cut", &eqLowIdx_, kEqLowNames, kEqLowCount);
+    ImGui::SetItemTooltip("Takes out the boom and rumble below this");
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::SliderFloat("Bass", &eqBass_, -12.f, 12.f, "%+.0f dB");
+    ImGui::SetItemTooltip("Below about 250 Hz");
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::SliderFloat("Middle", &eqMid_, -12.f, 12.f, "%+.0f dB");
+    ImGui::SetItemTooltip("Around 1.2 kHz, where speech is easiest to follow");
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::SliderFloat("Treble", &eqTreble_, -12.f, 12.f, "%+.0f dB");
+    ImGui::SetItemTooltip("Above about 2.2 kHz: crisper consonants, but more hiss");
+    ImGui::SetNextItemWidth(S(160));
+    ImGui::Combo("High cut", &eqHighIdx_, kEqHighNames, kEqHighCount);
+    ImGui::SetItemTooltip("Takes out the hiss above this");
+    if (panelButton("Flat##eq")) eqLowIdx_ = 0, eqHighIdx_ = 0, eqBass_ = eqMid_ = eqTreble_ = 0;
+    ImGui::SameLine();
+    if (panelButton("Speech##eq")) eqLowIdx_ = 3, eqHighIdx_ = 2, eqBass_ = -3, eqMid_ = 3, eqTreble_ = 2;
+    ImGui::SetItemTooltip("A starting point for SSB: less bass, more presence");
+    ImGui::EndDisabled();
+    ImGui::EndPopup();
+  }
   flow(S(90));
   // The level coming in. The rig's USB AF Output Level sets this; clipping ruins a waterfall.
   {
@@ -3301,6 +3554,610 @@ void App::drawAudioPane() {
   }
 }
 
+// ---------------------------------------------------------------- the map
+
+// How far and which way from one place to another, the short way round.
+static void greatCircle(double lat1, double lon1, double lat2, double lon2, double& km, double& bearingDeg) {
+  const double rad = M_PI / 180;
+  const double p1 = lat1 * rad, p2 = lat2 * rad, dl = (lon2 - lon1) * rad;
+  const double a = pow(sin((p2 - p1) / 2), 2) + cos(p1) * cos(p2) * pow(sin(dl / 2), 2);
+  km = 2 * 6371.0 * atan2(sqrt(a), sqrt(1 - a));
+  bearingDeg = fmod(atan2(sin(dl) * cos(p2), cos(p1) * sin(p2) - sin(p1) * cos(p2) * cos(dl)) / rad + 360, 360);
+}
+
+static std::string keptHow(const locations::Location& l) {
+  return "kept since " + l.updated.substr(0, 10) + (l.source == "QRZ" ? ", from QRZ.com" : ", from your log");
+}
+
+// The audio pane and the map take turns in the bottom half.
+void App::drawPaneSwitch() {
+  if (toggle("Audio", !showMap_, ImVec2(0, 0), "pane_audio")) showMap_ = false;
+  ImGui::SetItemTooltip("The audio waterfall, recording and decoders");
+  ImGui::SameLine(0, S(2));
+  if (toggle("Map", showMap_, ImVec2(0, 0), "pane_map")) showMap_ = true;
+  ImGui::SetItemTooltip("Find a station by its callsign on a street or satellite map. The audio and decoders keep going.");
+}
+
+void App::showOnMap(const locations::Location& l, const std::string& how) {
+  mapTarget_ = l;
+  haveMapTarget_ = true;
+  mapGoThere_ = true;
+  mapFoundHow_ = how;
+  mapMessage_.clear();
+  setBuf(mapCall_, l.call);
+}
+
+// The log first, then what's been kept, then QRZ.com. A place kept from QRZ is usually closer than a locator in the
+// log, so it stands until QRZ is asked again; one kept from the log gives way to a newer locator there.
+void App::findOnMap(const std::string& callIn, bool askQrz) {
+  const std::string call = locations::normalCall(callIn);
+  if (call.empty()) {
+    mapMessage_ = "Type a callsign first";
+    return;
+  }
+  setBuf(mapCall_, call);
+  mapMessage_.clear();
+  if (!askQrz) {
+    locations::Location fromLog;
+    const bool inLog = locations::fromLog(log_, call, fromLog);
+    const locations::Location* kept = places_.find(call);
+    if (kept && (kept->source == "QRZ" || !inLog || locations::normalCall(kept->locator) == locations::normalCall(fromLog.locator))) {
+      showOnMap(*kept, keptHow(*kept));
+      return;
+    }
+    if (inLog) {
+      if (!places_.put(fromLog)) say("Couldn't save locations.csv in the data folder");
+      showOnMap(fromLog, "from your log");
+      return;
+    }
+  }
+  if (qrzJob_) {
+    mapMessage_ = "Still looking up " + qrzJob_->call + " on QRZ.com";
+    return;
+  }
+  if (!qrzUser_[0] || !qrzPassword_[0]) {
+    mapMessage_ = call + " isn't in your log with a locator. Put your QRZ.com login in Settings to look it up there.";
+    return;
+  }
+  auto job = std::make_shared<QrzJob>();
+  job->call = call, job->user = qrzUser_, job->password = qrzPassword_, job->key = qrzKey_;
+  qrzJob_ = job;
+  mapMessage_ = "Looking up " + call + " on QRZ.com...";
+  std::thread([job] {
+    job->ok = locations::qrzLookup(job->user, job->password, job->call, job->key, job->found, job->error);
+    job->done = true;
+  }).detach();
+}
+
+void App::pumpQrz() {
+  if (!qrzJob_ || !qrzJob_->done) return;
+  std::shared_ptr<QrzJob> job = qrzJob_;
+  qrzJob_.reset();
+  if (job->user == qrzUser_ && job->password == qrzPassword_) qrzKey_ = job->key;  // not if the login changed meanwhile
+  const bool current = locations::normalCall(mapCall_) == job->call;
+  if (!job->ok) {
+    if (current) mapMessage_ = job->error;
+    else say(job->error);
+    return;
+  }
+  if (!places_.put(job->found)) say("Couldn't save locations.csv in the data folder");
+  if (current) showOnMap(job->found, "from QRZ.com");
+  else say("Found " + job->call + " on QRZ.com, and kept it");
+}
+
+void App::drawMapInfo() {
+  if (!mapMessage_.empty()) {
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextColored(ImColor(C_AMBER), "%s", mapMessage_.c_str());
+    return;
+  }
+  if (!haveMapTarget_) {
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled("Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com.");
+    return;
+  }
+  const locations::Location& t = mapTarget_;
+  ImGui::PushFont(fMid_);
+  ImGui::TextUnformatted(t.call.c_str());
+  ImGui::PopFont();
+  std::string who;
+  for (const std::string& p : {t.name, t.qth, t.country, t.locator})
+    if (!p.empty()) who += (who.empty() ? "" : "   ") + p;
+  if (!who.empty()) {
+    ImGui::SameLine(0, S(10));
+    ImGui::TextUnformatted(who.c_str());
+  }
+  std::string more;
+  double homeLat, homeLon;
+  if (dx::gridToLatLon(locator_, homeLat, homeLon)) {
+    double km, bearing;
+    greatCircle(homeLat, homeLon, t.lat, t.lon, km, bearing);
+    char b[96];
+    snprintf(b, sizeof b, "%.0f km, %.0f miles, bearing %.0f degrees   ", km, km * kMilesPerKm, bearing);
+    more = b;
+  }
+  more += mapFoundHow_ + "; " + locations::accuracyName(t);
+  flow(ImGui::CalcTextSize(more.c_str()).x);
+  ImGui::TextDisabled("%s", more.c_str());
+}
+
+void App::drawMapPane() {
+  ImGui::BeginChild("mappane", ImVec2(0, 0), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  drawPaneSwitch();
+  ImGui::SameLine(0, S(12));
+  ImGui::SetNextItemWidth(S(110));
+  bool go = ImGui::InputTextWithHint("##mapcall", "Callsign", mapCall_, sizeof mapCall_,
+                                     ImGuiInputTextFlags_CharsUppercase | ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+  note("mapcall");
+  ImGui::SetItemTooltip("A callsign to find. Press Enter to look for it.");
+  ImGui::SameLine();
+  if (panelButton("Find")) go = true;
+  if (go) findOnMap(mapCall_, false);
+  ImGui::SameLine();
+  ImGui::BeginDisabled(qrzJob_ != nullptr);
+  if (panelButton("QRZ")) findOnMap(mapCall_, true);
+  ImGui::EndDisabled();
+  ImGui::SetItemTooltip("Look it up on QRZ.com even if it's in your log or kept already, and keep what's found");
+  flow(S(270));
+  for (int i = 0; i < tilemap::LAYER_COUNT; i++) {
+    if (i) ImGui::SameLine(0, S(2));
+    if (toggle(tilemap::kLayerNames[i], mapLayer_ == i)) mapLayer_ = i;
+    ImGui::SetItemTooltip("%s", tilemap::kLayerTips[i]);
+  }
+  flow(S(310));
+  auto overlayCombo = [&](const char* id, const char* name, int& mode, const char* tip) {
+    static const char* const kModes[] = {"Off", "Single", "All"};
+    char preview[40];
+    snprintf(preview, sizeof preview, "%s: %s", name, kModes[mode]);
+    ImGui::SetNextItemWidth(S(112));
+    if (ImGui::BeginCombo(id, preview)) {
+      for (int i = 0; i < 3; i++)
+        if (ImGui::Selectable(kModes[i], mode == i)) mode = i;
+      ImGui::EndCombo();
+    }
+    note(id);
+    ImGui::SetItemTooltip("%s", tip);
+  };
+  overlayCombo("##map_loc_square", "Locator", mapLocSquare_,
+               "Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger "
+               "one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in.");
+  ImGui::SameLine(0, S(2));
+  overlayCombo("##map_os_square", "OS grid", mapOsSquare_,
+               "Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's "
+               "10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map.");
+  ImGui::SameLine(0, S(2));
+  if (toggle("Lat/Lon", mapLatLon_, ImVec2(0, 0), "map_lat_lon")) mapLatLon_ = !mapLatLon_;
+  ImGui::SetItemTooltip("Show lines of latitude and longitude in yellow, closer together as you zoom in");
+  flow(S(190));
+  if (panelButton("Whole world")) mapView_ = tilemap::View();
+  ImGui::SameLine();
+  const bool streetView = panelButton("Street View");
+  ImGui::SetItemTooltip("Open Google Street View in your web browser at the middle of the map, to look around at street level");
+  drawMapInfo();
+
+  ImVec2 avail = ImGui::GetContentRegionAvail();
+  const ImVec2 size(std::max(1.f, avail.x), std::max(1.f, avail.y));
+  ImGui::InvisibleButton("##map", size);
+  note("map");
+  const ImVec2 p0 = ImGui::GetItemRectMin(), p1 = ImGui::GetItemRectMax();
+  const ImGuiIO& io = ImGui::GetIO();
+  const bool hovered = ImGui::IsItemHovered();
+  const bool dragging = ImGui::IsItemActive() && ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left, S(3));
+  const bool clicked = hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left, S(3));
+  if (mapGoThere_) {
+    tilemap::project(mapTarget_.lat, mapTarget_.lon, mapView_.cx, mapView_.cy);
+    mapView_.zoom = locations::suggestedZoom(mapTarget_);
+    mapGoThere_ = false;
+  }
+  if (hovered && io.MouseWheel != 0.f) tilemap::Map::zoomAt(mapView_, p0, size, scale_, io.MousePos, pow(2.0, io.MouseWheel * 0.5));
+  if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) tilemap::Map::zoomAt(mapView_, p0, size, scale_, io.MousePos, 2);
+  if (ImGui::IsItemActive() && (io.MouseDelta.x != 0.f || io.MouseDelta.y != 0.f)) tilemap::Map::pan(mapView_, size, scale_, io.MouseDelta);
+  tilemap::Map::clamp(mapView_, size, scale_);
+  if (streetView) {
+    double lat, lon;
+    tilemap::unproject(mapView_.cx, mapView_.cy, lat, lon);
+    char url[160];
+    snprintf(url, sizeof url, "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=%.6f,%.6f", lat, lon);
+    store::openFolder(url);
+  }
+
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  dl->PushClipRect(p0, p1, true);
+  map_.draw(dl, p0, size, mapView_, (tilemap::Layer)mapLayer_, scale_, fSmall_);
+
+  const ImU32 kEdge = IM_COL32(15, 20, 25, 255);
+  // The world repeats east to west. Of its copies, the one nearest the middle of the view.
+  auto shiftFor = [&](double x) { return floor(mapView_.cx - x + 0.5); };
+  auto at = [&](double lat, double lon) {
+    double x, y;
+    tilemap::project(lat, lon, x, y);
+    return tilemap::Map::toScreen(mapView_, p0, size, scale_, x + shiftFor(x), y);
+  };
+  auto near = [&](ImVec2 c, float r) { return hovered && !dragging && fabsf(io.MousePos.x - c.x) <= r && fabsf(io.MousePos.y - c.y) <= r; };
+
+  double homeLat = 0, homeLon = 0;
+  const bool haveHome = dx::gridToLatLon(locator_, homeLat, homeLon);
+
+  // The overlays asked for: lines of latitude and longitude, and the squares the station is in (or yours, with no
+  // station chosen).
+  auto overlayLabel = [&](ImVec2 o, ImU32 col, const char* text) {
+    const ImVec2 ts = fSmall_->CalcTextSizeA(fSmall_->FontSize, FLT_MAX, 0, text);
+    dl->AddRectFilled(ImVec2(o.x - S(3), o.y - S(1)), ImVec2(o.x + ts.x + S(3), o.y + ts.y + S(1)), IM_COL32(0, 0, 0, 170), S(2));
+    dl->AddText(fSmall_, fSmall_->FontSize, o, col, text);
+  };
+  // What's in view: x across the world (past 0 or 1 where it wraps), and latitude.
+  const double wpx = tilemap::Map::worldPixels(mapView_, scale_);
+  const double xa = mapView_.cx - size.x / 2 / wpx, xb = mapView_.cx + size.x / 2 / wpx;
+  double latTop, latBottom, unusedLon;
+  tilemap::unproject(0, std::max(0.0, mapView_.cy - size.y / 2 / wpx), latTop, unusedLon);
+  tilemap::unproject(0, std::min(1.0, mapView_.cy + size.y / 2 / wpx), latBottom, unusedLon);
+  latTop = std::min(85.0, latTop), latBottom = std::max(-85.0, latBottom);
+  if (mapLatLon_) {
+    const ImU32 line = IM_COL32(255, 225, 60, 160), text = IM_COL32(255, 225, 60, 255);
+    // The same spacing both ways, from how much longitude is in view: four to ten lines across.
+    static const double kSteps[] = {30, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005, 0.0002, 0.0001};
+    const double span = (xb - xa) * 360;
+    double step = kSteps[0];
+    for (double st : kSteps) {
+      step = st;
+      if (span / st >= 4) break;
+    }
+    const int dp = step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : step >= 0.001 ? 3 : 4;
+    const float th = fSmall_->FontSize;
+    char b[32];
+    for (double k = ceil((xa * 360 - 180) / step); k * step <= xb * 360 - 180 && k < 1e7; k++) {
+      double lon = fmod(k * step + 180, 360);
+      if (lon < 0) lon += 360;
+      lon -= 180;
+      if (fabs(lon) < step / 2) lon = 0;
+      const float x = tilemap::Map::toScreen(mapView_, p0, size, scale_, (k * step + 180) / 360, 0).x;
+      dl->AddLine(ImVec2(x, p0.y), ImVec2(x, p1.y), line, S(1));
+      snprintf(b, sizeof b, "%.*f%s", dp, fabs(lon), lon == 0 || fabs(lon) >= 180 - step / 2 ? "" : lon > 0 ? "E" : "W");
+      overlayLabel(ImVec2(x + S(4), p0.y + S(4)), text, b);
+    }
+    for (double k = ceil(latBottom / step); k * step <= latTop && k < 1e7; k++) {
+      double lat = k * step, x, y;
+      if (fabs(lat) < step / 2) lat = 0;
+      tilemap::project(lat, 0, x, y);
+      const float sy = tilemap::Map::toScreen(mapView_, p0, size, scale_, 0, y).y;
+      dl->AddLine(ImVec2(p0.x, sy), ImVec2(p1.x, sy), line, S(1));
+      snprintf(b, sizeof b, "%.*f%s", dp, fabs(lat), lat == 0 ? "" : lat > 0 ? "N" : "S");
+      const float tw = fSmall_->CalcTextSizeA(th, FLT_MAX, 0, b).x;
+      overlayLabel(ImVec2(p1.x - tw - S(8), sy - th - S(3)), text, b);
+    }
+  }
+  double sqLat = 0, sqLon = 0;
+  bool haveSq = false;
+  if (haveMapTarget_) sqLat = mapTarget_.lat, sqLon = mapTarget_.lon, haveSq = true;
+  else if (haveHome) sqLat = homeLat, sqLon = homeLon, haveSq = true;
+  // A closed outline through places, lightly filled, on the copy of the world nearest the middle.
+  auto outline = [&](const std::vector<std::pair<double, double>>& ll, ImU32 col, int fillAlpha = 35) {
+    double cx, cy;
+    tilemap::project(sqLat, sqLon, cx, cy);
+    const double shift = shiftFor(cx);
+    std::vector<ImVec2> pts;
+    for (const auto& p : ll) {
+      double x, y;
+      tilemap::project(p.first, p.second, x, y);
+      pts.push_back(tilemap::Map::toScreen(mapView_, p0, size, scale_, x + shift, y));
+    }
+    if (fillAlpha > 0) dl->AddConvexPolyFilled(pts.data(), (int)pts.size(), (col & ~IM_COL32_A_MASK) | IM_COL32(0, 0, 0, fillAlpha));
+    dl->AddPolyline(pts.data(), (int)pts.size(), col, ImDrawFlags_Closed, S(2));
+    return pts;
+  };
+  // The whole Maidenhead grid: fields, squares and subsquares, as fine as the zoom allows, the bigger ones thicker,
+  // and the finest that leaves room labelled in their north west corners.
+  if (mapLocSquare_ == 2) {
+    struct Level {
+      double lon, lat;
+      size_t chars;
+    };
+    static const Level kLevels[3] = {{20, 10, 2}, {2, 1, 4}, {2.0 / 24, 1.0 / 24, 6}};
+    const ImU32 line = IM_COL32(60, 150, 255, 190), text = IM_COL32(120, 185, 255, 255);
+    const double pxPerDeg = wpx / 360;
+    int finest = 0, labelled = -1;
+    for (int i = 0; i < 3; i++) {
+      if (kLevels[i].lon * pxPerDeg >= S(24)) finest = i;
+      if (kLevels[i].lon * pxPerDeg >= S(56)) labelled = i;
+    }
+    for (int i = 0; i <= finest; i++) {
+      const Level& L = kLevels[i];
+      const float th = S(1.f + (finest - i));
+      for (double k = ceil((xa * 360 - 180) / L.lon); k * L.lon <= xb * 360 - 180; k++) {
+        const float x = tilemap::Map::toScreen(mapView_, p0, size, scale_, (k * L.lon + 180) / 360, 0).x;
+        dl->AddLine(ImVec2(x, p0.y), ImVec2(x, p1.y), line, th);
+      }
+      for (double k = ceil(latBottom / L.lat); k * L.lat <= latTop; k++) {
+        double x, y;
+        tilemap::project(k * L.lat, 0, x, y);
+        const float sy = tilemap::Map::toScreen(mapView_, p0, size, scale_, 0, y).y;
+        dl->AddLine(ImVec2(p0.x, sy), ImVec2(p1.x, sy), line, th);
+      }
+    }
+    if (labelled >= 0) {
+      const Level& L = kLevels[labelled];
+      int count = 0;
+      for (double kx = floor((xa * 360 - 180) / L.lon); kx * L.lon < xb * 360 - 180 && count < 4000; kx++)
+        for (double ky = floor(latBottom / L.lat); ky * L.lat < latTop && count < 4000; ky++, count++) {
+          const double west = kx * L.lon, north = std::min(85.0, (ky + 1) * L.lat);
+          double x, y;
+          tilemap::project(north, 0, x, y);
+          const ImVec2 c = tilemap::Map::toScreen(mapView_, p0, size, scale_, (west + 180) / 360, y);
+          const std::string g = locations::latLonToGrid(ky * L.lat + L.lat / 2, west + L.lon / 2).substr(0, L.chars);
+          overlayLabel(ImVec2(c.x + S(4), c.y + S(3)), text, g.c_str());
+        }
+    }
+  }
+
+  // The whole National Grid over Great Britain: the 100 km squares, and the 10 km ones once they're big enough to
+  // see, each labelled in its north west corner when there's room.
+  if (mapOsSquare_ == 2) {
+    const ImU32 line = IM_COL32(235, 70, 225, 190), text = IM_COL32(245, 130, 240, 255);
+    double gx, gy;
+    tilemap::project(54.5, -2, gx, gy);
+    const double shift = shiftFor(gx);
+    // The part of the view over Britain, on the copy of the world nearest the middle.
+    const double lonA = std::max(-10.0, (xa - shift) * 360 - 180), lonB = std::min(4.0, (xb - shift) * 360 - 180);
+    const double latA = std::max(48.0, latBottom), latB = std::min(62.0, latTop);
+    if (lonA < lonB && latA < latB) {
+      double eMin = 1e9, eMax = -1e9, nMin = 1e9, nMax = -1e9;
+      for (int i = 0; i <= 4; i++)
+        for (int j = 0; j <= 4; j++) {
+          double E, N;
+          locations::osGridFromLatLon(latA + (latB - latA) * i / 4, lonA + (lonB - lonA) * j / 4, E, N);
+          eMin = std::min(eMin, E), eMax = std::max(eMax, E), nMin = std::min(nMin, N), nMax = std::max(nMax, N);
+        }
+      eMin = std::max(0.0, eMin), eMax = std::min(700000.0, eMax), nMin = std::max(0.0, nMin), nMax = std::min(1300000.0, nMax);
+      const double metresPerPx = 40075016.686 * cos(54.5 * M_PI / 180) / wpx;
+      const double px10 = 10000 / metresPerPx, px100 = 100000 / metresPerPx;
+      const bool tens = px10 >= S(24);
+      auto gridLine = [&](double e0, double n0, double e1, double n1, float th) {
+        const int n = 24;
+        ImVec2 pts[n + 1];
+        for (int i = 0; i <= n; i++) {
+          double la, lo, x, y;
+          locations::osGridToLatLon(e0 + (e1 - e0) * i / n, n0 + (n1 - n0) * i / n, la, lo);
+          tilemap::project(la, lo, x, y);
+          pts[i] = tilemap::Map::toScreen(mapView_, p0, size, scale_, x + shift, y);
+        }
+        dl->AddPolyline(pts, n + 1, line, ImDrawFlags_None, th);
+      };
+      if (eMin < eMax && nMin < nMax) {
+        for (double step : {100000.0, 10000.0}) {
+          if (step == 10000 && !tens) break;
+          const float th = step == 100000 ? S(tens ? 2.f : 1.5f) : S(1);
+          const double ea = std::floor(eMin / step) * step, eb = std::min(700000.0, std::ceil(eMax / step) * step);
+          const double na = std::floor(nMin / step) * step, nb = std::min(1300000.0, std::ceil(nMax / step) * step);
+          for (double E = ea; E <= eb; E += step) gridLine(E, na, E, nb, th);
+          for (double N = na; N <= nb; N += step) gridLine(ea, N, eb, N, th);
+        }
+        const double step = tens && px10 >= S(56) ? 10000 : px100 >= S(40) ? 100000 : 0;
+        if (step > 0) {
+          int count = 0;
+          for (double E = std::floor(eMin / step) * step; E < eMax && count < 4000; E += step)
+            for (double N = std::floor(nMin / step) * step; N < nMax && count < 4000; N += step, count++) {
+              const std::string ref = locations::osGridRef(E + step / 2, N + step / 2, step == 10000);
+              if (ref.empty()) continue;
+              double la, lo, x, y;
+              locations::osGridToLatLon(E, N + step, la, lo);
+              tilemap::project(la, lo, x, y);
+              const ImVec2 c = tilemap::Map::toScreen(mapView_, p0, size, scale_, x + shift, y);
+              overlayLabel(ImVec2(c.x + S(4), c.y + S(3)), text, ref.c_str());
+            }
+        }
+      }
+    }
+  }
+
+  if (haveSq && mapOsSquare_) {
+    std::string ref;
+    double e0, n0;
+    if (locations::osGridSquare(sqLat, sqLon, ref, e0, n0)) {
+      const ImU32 col = IM_COL32(235, 70, 225, 230);
+      // A square of the grid from its south west corner, anticlockwise from there by way of the north west: its
+      // edges bend a little on the map, so each is drawn in steps.
+      auto gridSquare = [&](double e0, double n0, double side, int steps) {
+        std::vector<std::pair<double, double>> ll;
+        const double es[4] = {e0, e0, e0 + side, e0 + side}, ns[4] = {n0, n0 + side, n0 + side, n0};
+        for (int k = 0; k < 4; k++)
+          for (int i = 0; i < steps; i++) {
+            const double f = (double)i / steps, e = es[k] + (es[(k + 1) % 4] - es[k]) * f, nn = ns[k] + (ns[(k + 1) % 4] - ns[k]) * f;
+            double la, lo;
+            locations::osGridToLatLon(e, nn, la, lo);
+            ll.push_back({la, lo});
+          }
+        return ll;
+      };
+      // The 100 km square it's in, such as TQ, outlined only, labelled in its north west corner.
+      const std::vector<ImVec2> big = outline(gridSquare(e0 - fmod(e0, 100000), n0 - fmod(n0, 100000), 100000, 24), col, 0);
+      overlayLabel(ImVec2(big[24].x + S(5), big[24].y + S(4)), col | IM_COL32_A_MASK, ref.substr(0, 2).c_str());
+      const std::vector<ImVec2> pts = outline(gridSquare(e0, n0, 10000, 8), col);
+      overlayLabel(ImVec2(pts[0].x + S(5), pts[0].y - fSmall_->FontSize - S(5)), col | IM_COL32_A_MASK, ref.c_str());
+    }
+  }
+  if (haveSq && mapLocSquare_) {
+    const ImU32 col = IM_COL32(60, 150, 255, 230);
+    const std::string g6 = locations::latLonToGrid(sqLat, sqLon), g4 = g6.substr(0, 4);
+    // The 6-character square only when the place is known that closely, not the middle of a 4-character one.
+    bool fine;
+    if (haveMapTarget_) {
+      const std::string& a = mapTarget_.accuracy;
+      fine = a == "user" || a == "geocode" || a == "zip" || ((a == "locator" || a == "grid") && locations::normalCall(mapTarget_.locator).size() >= 6);
+    } else {
+      fine = strlen(locator_) >= 6;
+    }
+    double s, w, nth, e;
+    // The 4-character square, such as JO01, outlined only when the smaller one is in it, labelled in its north west corner.
+    if (locations::gridBounds(g4, s, w, nth, e)) {
+      const std::vector<ImVec2> pts = outline({{nth, w}, {nth, e}, {s, e}, {s, w}}, col, fine ? 0 : 35);
+      overlayLabel(ImVec2(pts[0].x + S(5), pts[0].y + S(4)), col | IM_COL32_A_MASK, g4.c_str());
+    }
+    // And the 6-character one, such as JO01en, labelled in its south west corner.
+    if (fine && locations::gridBounds(g6, s, w, nth, e)) {
+      const std::vector<ImVec2> pts = outline({{nth, w}, {nth, e}, {s, e}, {s, w}}, col);
+      overlayLabel(ImVec2(pts[3].x + S(5), pts[3].y - fSmall_->FontSize - S(5)), col | IM_COL32_A_MASK, g6.c_str());
+    }
+  }
+
+  // The short path from here to there, the way a beam would point.
+  if (haveHome && haveMapTarget_) {
+    const double rad = M_PI / 180;
+    const double p1r = homeLat * rad, l1 = homeLon * rad, p2r = mapTarget_.lat * rad, l2 = mapTarget_.lon * rad;
+    const double d = 2 * asin(sqrt(pow(sin((p2r - p1r) / 2), 2) + cos(p1r) * cos(p2r) * pow(sin((l2 - l1) / 2), 2)));
+    if (d > 1e-6) {
+      const int n = 128;
+      std::vector<double> xs(n + 1), ys(n + 1);
+      for (int i = 0; i <= n; i++) {
+        const double f = (double)i / n, a = sin((1 - f) * d) / sin(d), b = sin(f * d) / sin(d);
+        const double x = a * cos(p1r) * cos(l1) + b * cos(p2r) * cos(l2), y = a * cos(p1r) * sin(l1) + b * cos(p2r) * sin(l2), z = a * sin(p1r) + b * sin(p2r);
+        tilemap::project(atan2(z, sqrt(x * x + y * y)) / rad, atan2(y, x) / rad, xs[i], ys[i]);
+        if (i) xs[i] += floor(xs[i - 1] - xs[i] + 0.5);  // carried on across the date line rather than back round
+      }
+      const double shift = shiftFor(xs[n]);
+      std::vector<ImVec2> pts(n + 1);
+      for (int i = 0; i <= n; i++) pts[i] = tilemap::Map::toScreen(mapView_, p0, size, scale_, xs[i] + shift, ys[i]);
+      dl->AddPolyline(pts.data(), (int)pts.size(), IM_COL32(0, 0, 0, 140), ImDrawFlags_None, S(4));
+      dl->AddPolyline(pts.data(), (int)pts.size(), C_AMBER, ImDrawFlags_None, S(2));
+    }
+  }
+
+  // The square a locator stands for, once it's big enough to see: the station is somewhere in it.
+  if (haveMapTarget_ && (mapTarget_.accuracy == "locator" || mapTarget_.accuracy == "grid")) {
+    double s, w, nth, e;
+    if (locations::gridBounds(mapTarget_.locator, s, w, nth, e)) {
+      double cx, cy, x0, y0, x1, y1;
+      tilemap::project(mapTarget_.lat, mapTarget_.lon, cx, cy);
+      tilemap::project(nth, w, x0, y0);
+      tilemap::project(s, e, x1, y1);
+      const double shift = shiftFor(cx);
+      const ImVec2 a = tilemap::Map::toScreen(mapView_, p0, size, scale_, x0 + shift, y0);
+      const ImVec2 b = tilemap::Map::toScreen(mapView_, p0, size, scale_, x1 + shift, y1);
+      if (b.x - a.x > S(14)) {
+        dl->AddRectFilled(a, b, IM_COL32(255, 80, 60, 40));
+        dl->AddRect(a, b, IM_COL32(255, 80, 60, 220), 0, 0, S(2));
+      }
+    }
+  }
+
+  // Every station found before, small, so they can be picked out and clicked.
+  const locations::Location* hotPlace = nullptr;
+  for (const auto& kv : places_.all()) {
+    const locations::Location& l = kv.second;
+    if (haveMapTarget_ && l.call == mapTarget_.call) continue;
+    const ImVec2 c = at(l.lat, l.lon);
+    if (c.x < p0.x - S(6) || c.x > p1.x + S(6) || c.y < p0.y - S(6) || c.y > p1.y + S(6)) continue;
+    const bool hot = near(c, S(6));
+    dl->AddCircleFilled(c, S(hot ? 6.f : 4.5f), kEdge, 12);
+    dl->AddCircleFilled(c, S(hot ? 4.5f : 3.f), hot ? IM_COL32(255, 255, 255, 255) : IM_COL32(80, 170, 255, 255), 12);
+    if (hot) hotPlace = &l;
+  }
+
+  if (haveHome) {
+    const ImVec2 c = at(homeLat, homeLon);
+    const float r = S(7), e = r + S(1.5f);
+    dl->AddQuadFilled(ImVec2(c.x, c.y - e), ImVec2(c.x + e, c.y), ImVec2(c.x, c.y + e), ImVec2(c.x - e, c.y), kEdge);
+    dl->AddQuadFilled(ImVec2(c.x, c.y - r), ImVec2(c.x + r, c.y), ImVec2(c.x, c.y + r), ImVec2(c.x - r, c.y), C_GREEN);
+    if (near(c, e) && !hotPlace) ImGui::SetTooltip("Your station, %s", locator_);
+  }
+
+  bool hotTarget = false;
+  if (haveMapTarget_) {
+    const ImVec2 tip = at(mapTarget_.lat, mapTarget_.lon);
+    const float r = S(9);
+    const ImVec2 head(tip.x, tip.y - r * 2.1f);
+    const float w = r * 0.8f, edge = S(1.5f);
+    dl->AddTriangleFilled(ImVec2(tip.x, tip.y + edge), ImVec2(head.x - w - edge, head.y), ImVec2(head.x + w + edge, head.y), kEdge);
+    dl->AddCircleFilled(head, r + edge, kEdge, 24);
+    dl->AddTriangleFilled(tip, ImVec2(head.x - w, head.y), ImVec2(head.x + w, head.y), C_RED);
+    dl->AddCircleFilled(head, r, C_RED, 24);
+    dl->AddCircleFilled(head, r * 0.38f, kEdge, 12);
+    const char* call = mapTarget_.call.c_str();
+    const ImVec2 ts = fText_->CalcTextSizeA(fText_->FontSize, FLT_MAX, 0, call);
+    const ImVec2 lp(head.x + r + S(5), head.y - ts.y / 2);
+    dl->AddRectFilled(ImVec2(lp.x - S(4), lp.y - S(2)), ImVec2(lp.x + ts.x + S(4), lp.y + ts.y + S(2)), IM_COL32(0, 0, 0, 190), S(3));
+    dl->AddText(fText_, fText_->FontSize, lp, IM_COL32(255, 255, 255, 255), call);
+    hotTarget = !hotPlace && (near(head, r + S(2)) || near(ImVec2(lp.x + ts.x / 2, lp.y + ts.y / 2), std::max(ts.x, ts.y) / 2));
+  }
+
+  // How far a stretch of the screen is, at the middle of the view, and where the mouse is.
+  {
+    double lat, lon;
+    tilemap::unproject(mapView_.cx, mapView_.cy, lat, lon);
+    const double metresPerPx = 40075016.686 * cos(lat * M_PI / 180) / tilemap::Map::worldPixels(mapView_, scale_);
+    double metres = metresPerPx * S(110);
+    const double mag = pow(10, floor(log10(metres)));
+    metres = metres / mag >= 5 ? 5 * mag : metres / mag >= 2 ? 2 * mag : mag;
+    const float len = (float)(metres / metresPerPx);
+    char label[96];
+    if (metres >= 1000) snprintf(label, sizeof label, "%.0f km", metres / 1000);
+    else snprintf(label, sizeof label, "%.0f m", metres);
+    std::string text = label;
+    if (hovered) {
+      double mlat, mlon;
+      const double wpx = tilemap::Map::worldPixels(mapView_, scale_);
+      const double mx = mapView_.cx + (io.MousePos.x - p0.x - size.x / 2) / wpx, my = mapView_.cy + (io.MousePos.y - p0.y - size.y / 2) / wpx;
+      tilemap::unproject(mx - floor(mx), std::max(0.0, std::min(1.0, my)), mlat, mlon);
+      char b[80];
+      snprintf(b, sizeof b, "      %.5f %c  %.5f %c   %s", fabs(mlat), mlat >= 0 ? 'N' : 'S', fabs(mlon), mlon >= 0 ? 'E' : 'W', locations::latLonToGrid(mlat, mlon).c_str());
+      text += b;
+    }
+    const float pad = S(4), fs = fSmall_->FontSize;
+    const ImVec2 ts = fSmall_->CalcTextSizeA(fs, FLT_MAX, 0, text.c_str());
+    const ImVec2 o(p0.x + pad, p1.y - ts.y - pad * 2 - S(6));
+    dl->AddRectFilled(ImVec2(o.x - pad / 2, o.y - pad / 2), ImVec2(o.x + std::max(len, ts.x) + pad, p1.y - pad / 2), IM_COL32(255, 255, 255, 170), S(2));
+    dl->AddText(fSmall_, fs, o, IM_COL32(30, 30, 30, 255), text.c_str());
+    const float y = p1.y - pad * 2;
+    dl->AddLine(ImVec2(o.x, y), ImVec2(o.x + len, y), IM_COL32(30, 30, 30, 255), S(2));
+    dl->AddLine(ImVec2(o.x, y - S(5)), ImVec2(o.x, y), IM_COL32(30, 30, 30, 255), S(2));
+    dl->AddLine(ImVec2(o.x + len, y - S(5)), ImVec2(o.x + len, y), IM_COL32(30, 30, 30, 255), S(2));
+  }
+
+  // Whether tiles are on their way, or can't be had.
+  {
+    std::string state;
+    if (map_.failing()) state = "Some of the map couldn't be fetched: " + map_.lastError();
+    else if (map_.pending() > 0) state = "Loading the map...";
+    if (!state.empty()) {
+      const ImVec2 ts = ImGui::CalcTextSize(state.c_str());
+      const ImVec2 o(p0.x + S(8), p0.y + S(6));
+      dl->AddRectFilled(ImVec2(o.x - S(5), o.y - S(3)), ImVec2(o.x + ts.x + S(5), o.y + ts.y + S(3)), IM_COL32(0, 0, 0, 170), S(3));
+      dl->AddText(o, map_.failing() ? C_AMBER : C_TEXT, state.c_str());
+    }
+  }
+  dl->PopClipRect();
+
+  auto bubble = [&](const locations::Location& l, bool target) {
+    ImGui::BeginTooltip();
+    ImGui::PushFont(fMid_);
+    ImGui::TextUnformatted(l.call.c_str());
+    ImGui::PopFont();
+    if (!l.name.empty()) ImGui::TextUnformatted(l.name.c_str());
+    std::string where = l.qth;
+    if (!l.country.empty()) where += (where.empty() ? "" : ", ") + l.country;
+    if (!where.empty()) ImGui::TextUnformatted(where.c_str());
+    ImGui::Text("%s   %.5f %c  %.5f %c", l.locator.c_str(), fabs(l.lat), l.lat >= 0 ? 'N' : 'S', fabs(l.lon), l.lon >= 0 ? 'E' : 'W');
+    if (haveHome) {
+      double km, bearing;
+      greatCircle(homeLat, homeLon, l.lat, l.lon, km, bearing);
+      ImGui::Text("%.0f km, %.0f miles, bearing %.0f degrees", km, km * kMilesPerKm, bearing);
+    }
+    ImGui::TextDisabled("%s, %s", l.source == "QRZ" ? "From QRZ.com" : "From your log", locations::accuracyName(l).c_str());
+    if (!target) ImGui::TextDisabled("Click to choose it");
+    ImGui::EndTooltip();
+  };
+  if (hotPlace) {
+    bubble(*hotPlace, false);
+    if (clicked) {
+      const locations::Location chosen = *hotPlace;
+      showOnMap(chosen, keptHow(chosen));
+      mapGoThere_ = false;  // it's on the screen already
+    }
+  } else if (hotTarget) {
+    bubble(mapTarget_, true);
+  }
+  ImGui::EndChild();
+}
+
 void App::drawCentre() {
   ImGui::BeginChild("centre", ImVec2(-S(330), 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
   float total = ImGui::GetContentRegionAvail().y;
@@ -3316,7 +4173,10 @@ void App::drawCentre() {
       ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x + w / 2 - S(20), p.y + S(1.5f)), ImVec2(p.x + w / 2 + S(20), p.y + S(3.5f)), C_DIM, 1);
     }
   }
-  if (showAudio_) drawAudioPane();
+  if (showAudio_) {
+    if (showMap_) drawMapPane();
+    else drawAudioPane();
+  }
   ImGui::EndChild();
 }
 
@@ -3528,7 +4388,7 @@ void App::drawMemories() {
   ImGui::EndDisabled();
   ImGui::SetNextItemWidth(-1);
   ImGui::InputTextWithHint("##memfilter", "Filter", memFilter_, sizeof memFilter_);
-  int del = -1;
+  int del = -1, edit = -1;
   if (ImGui::BeginTable("mems", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
     ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("MHz", ImGuiTableColumnFlags_WidthFixed, S(72));
@@ -3548,9 +4408,11 @@ void App::drawMemories() {
       ImGui::PushID(i);
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
-      if (ImGui::Selectable(m.name.c_str(), m.hz == st_.hz, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap) && st_.connected) {
-        if (tuneTo(m.hz)) rig_.setMode(m.mode, m.data, m.filter);
+      if (ImGui::Selectable(m.name.c_str(), m.hz == st_.hz, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_AllowDoubleClick)) {
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) edit = i;
+        else if (st_.connected && tuneTo(m.hz)) rig_.setMode(m.mode, m.data, m.filter);
       }
+      ImGui::SetItemTooltip("Click to tune, double-click to edit");
       note("mem:" + std::to_string(i));
       ImGui::TableNextColumn();
       ImGui::TextUnformatted(tuning::formatHz(m.hz).c_str());
@@ -3567,7 +4429,106 @@ void App::drawMemories() {
   if (del >= 0) {
     memories_.erase(memories_.begin() + del);
     store::saveMemories(memPath_, memories_);
+    if (memEditing_ == del) memEditing_ = -1;
+    else if (memEditing_ > del) memEditing_--;
   }
+  if (edit >= 0) {
+    memEditing_ = edit;
+    memEdit_ = memories_[(size_t)edit];
+    snprintf(memEditName_, sizeof memEditName_, "%s", memEdit_.name.c_str());
+    snprintf(memEditFreq_, sizeof memEditFreq_, "%s", tuning::formatHz(memEdit_.hz).c_str());
+    ImGui::OpenPopup("Edit memory");
+  }
+  drawMemoryEditor();
+}
+
+// The memory a double-click opened: its name, frequency, mode and filter, saved back over the old one.
+void App::drawMemoryEditor() {
+  ImGui::SetNextWindowSize(ImVec2(S(340), 0));
+  if (!ImGui::BeginPopupModal("Edit memory", nullptr, ImGuiWindowFlags_NoResize)) return;
+  if (memEditing_ < 0 || memEditing_ >= (int)memories_.size()) {
+    memEditing_ = -1;
+    ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+    return;
+  }
+  const float labelW = S(80);
+  auto label = [&](const char* text) {
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(text);
+    ImGui::SameLine(labelW);
+    ImGui::SetNextItemWidth(-1);
+  };
+
+  label("Name");
+  if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+  ImGui::InputText("##editname", memEditName_, sizeof memEditName_);
+
+  label("Frequency");
+  ImGui::InputTextWithHint("##editfreq", "e.g. 14.074 or 7030k", memEditFreq_, sizeof memEditFreq_);
+  // "+5" is 5 kHz up from the memory, not from the dial.
+  const long long hz = tuning::parseFreq(memEditFreq_, memories_[(size_t)memEditing_].hz, radio());
+  if (hz > 0) {
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + labelW);
+    ImGui::TextDisabled("%s MHz", tuning::formatHz(hz).c_str());
+  } else {
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + labelW);
+    ImGui::TextColored(ImColor(C_RED), "Not a frequency the %s can tune", radio().name);
+  }
+
+  // The modes this radio has, and whatever the memory already holds in case it came from another radio.
+  std::vector<int> modes = {civ::LSB, civ::USB, civ::CW, civ::CW_R, civ::AM, civ::FM, civ::RTTY, civ::RTTY_R};
+  if (radio().hasDigitalVoice) modes.insert(modes.end(), {civ::DV, civ::DD});
+  if (radio().hasReceiverModes)
+    modes.insert(modes.end(), {civ::WFM, civ::S_AM, civ::S_AM_L, civ::S_AM_U, civ::P25, civ::DPMR, civ::NXDN_VN, civ::NXDN_N, civ::DCR});
+  if (std::find(modes.begin(), modes.end(), memEdit_.mode) == modes.end()) modes.push_back(memEdit_.mode);
+  label("Mode");
+  if (ImGui::BeginCombo("##editmode", civ::modeName(memEdit_.mode))) {
+    for (int md : modes)
+      if (ImGui::Selectable(civ::modeName(md), md == memEdit_.mode)) memEdit_.mode = md;
+    ImGui::EndCombo();
+  }
+
+  if (radio().hasDataMode) {
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + labelW);
+    ImGui::BeginDisabled(!civ::hasData(memEdit_.mode));
+    bool data = memEdit_.data && civ::hasData(memEdit_.mode);
+    if (ImGui::Checkbox("Data mode", &data)) memEdit_.data = data;
+    ImGui::EndDisabled();
+  }
+
+  label("Filter");
+  ImGui::BeginDisabled(civ::hasNoFilters(memEdit_.mode) && radio().hasReceiverModes);
+  for (int f = 1; f <= 3; f++) {
+    char b[8];
+    snprintf(b, sizeof b, "FIL%d", f);
+    if (toggle(b, memEdit_.filter == f, ImVec2(S(46), 0), b)) memEdit_.filter = f;
+    if (f < 3) ImGui::SameLine();
+  }
+  ImGui::EndDisabled();
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+  const bool ok = hz > 0;
+  ImGui::BeginDisabled(!ok);
+  if (actionButton("Save", ImVec2(S(90), 0), V_ACCENT, V_ACCENT_HI, "memeditsave") || (ok && ImGui::IsKeyPressed(ImGuiKey_Enter, false))) {
+    memEdit_.name = memEditName_[0] ? memEditName_ : memories_[(size_t)memEditing_].name;
+    memEdit_.hz = hz;
+    if (!civ::hasData(memEdit_.mode)) memEdit_.data = false;
+    memories_[(size_t)memEditing_] = memEdit_;
+    store::saveMemories(memPath_, memories_);
+    say("Saved " + memEdit_.name + " at " + tuning::formatHz(hz));
+    memEditing_ = -1;
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::EndDisabled();
+  ImGui::SameLine();
+  if (panelButton("Cancel", ImVec2(S(90), 0)) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+    memEditing_ = -1;
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::EndPopup();
 }
 
 // What the worked-before marks and the log book's totals look through, so they needn't go through the log every frame.
@@ -4183,13 +5144,45 @@ static void sortLogBookView(std::vector<int>& view, const std::vector<store::Log
   });
 }
 
+// On another screen the log book is drawn at that screen's scale: everything sized with S(), its fonts and its
+// style, which are all put back for the rest of the frame.
 void App::drawLogBook() {
+  if (!openLogBook_ || logFonts_.text == fText_) {
+    drawLogBookWindow();
+    return;
+  }
+  const FontSet main{fText_, fSmall_, fMid_, fFreq_, fFreqSmall_, fLogBig_};
+  const float mainScale = scale_;
+  const ImGuiStyle mainStyle = ImGui::GetStyle();
+  fText_ = logFonts_.text, fSmall_ = logFonts_.small, fMid_ = logFonts_.mid, fFreq_ = logFonts_.freq, fFreqSmall_ = logFonts_.freqSmall, fLogBig_ = logFonts_.logBig;
+  scale_ = logScale_;
+  ImGui::GetStyle() = logStyle_;
+  ImGui::PushFont(fText_);
+  drawLogBookWindow();
+  ImGui::PopFont();
+  ImGui::GetStyle() = mainStyle;
+  scale_ = mainScale;
+  fText_ = main.text, fSmall_ = main.small, fMid_ = main.mid, fFreq_ = main.freq, fFreqSmall_ = main.freqSmall, fLogBig_ = main.logBig;
+}
+
+void App::drawLogBookWindow() {
   if (!openLogBook_) {
     setLogBookFull(false);
     return;
   }
   ImGuiViewport* vp = ImGui::GetMainViewport();
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+  // A window of its own, with the system's title bar and a taskbar button, so it can be snapped, maximised and put
+  // on another screen like any other. Its title bar is the system's, so it doesn't have one of ours as well.
+  const bool ownWindow = (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0;
+  if (ownWindow) {
+    setLogBookFull(false);
+    ImGuiWindowClass wc;
+    wc.ViewportFlagsOverrideSet = ImGuiViewportFlags_NoAutoMerge;
+    wc.ViewportFlagsOverrideClear = ImGuiViewportFlags_NoDecoration | ImGuiViewportFlags_NoTaskBarIcon;
+    ImGui::SetNextWindowClass(&wc);
+    flags |= ImGuiWindowFlags_NoTitleBar;
+  }
   if (logBookFull_) {
     // The status bar stays in view, so the radio's state and any message can still be seen.
     ImGui::SetNextWindowPos(vp->Pos);
@@ -4203,10 +5196,15 @@ void App::drawLogBook() {
     ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + S(30), vp->WorkPos.y + S(130)), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(std::max(S(640), vp->WorkSize.x - S(400)), std::max(S(360), vp->WorkSize.y - S(240))), ImGuiCond_FirstUseEver);
   }
+  if (ownWindow && logBookResize_ > 0 && logBookOwnSize_.x > 0) {
+    ImGui::SetNextWindowSize(ImVec2(std::min(logBookOwnSize_.x * logBookResize_, logBookRoom_.x), std::min(logBookOwnSize_.y * logBookResize_, logBookRoom_.y)));
+  }
+  logBookResize_ = 0;
   if (!ImGui::Begin("Log book", &openLogBook_, flags)) {
     ImGui::End();
     return;
   }
+  if (ownWindow) logBookViewport_ = ImGui::GetWindowViewport()->ID, logBookOwnSize_ = ImGui::GetWindowSize();
   std::string query = logBookQuery_;
   for (char& c : query) c = (char)tolower((unsigned char)c);
   const bool scopeChanged = logBookViewRevision_ != logRevision_ || logBookViewAll_ != logBookAll_;
@@ -4274,14 +5272,17 @@ void App::drawLogBook() {
   if (panelButton("Sort")) sortLogFile();
   ImGui::EndDisabled();
   ImGui::SetItemTooltip(logEditing_ >= 0 ? "Finish changing the contact on the Log tab first." : "Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.");
-  // At the far right if there's room, and just along from the others if not.
-  ImGui::SameLine();
-  const char* fullLabel = logBookFull_ ? "Restore" : "Maximise";
-  const float fullX = ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(fullLabel).x - ImGui::GetStyle().FramePadding.x * 2;
-  if (fullX > ImGui::GetCursorPosX()) ImGui::SetCursorPosX(fullX);
-  if (panelButton(fullLabel)) {
-    if (!logBookFull_) logBookPos_ = ImGui::GetWindowPos(), logBookSize_ = ImGui::GetWindowSize();
-    setLogBookFull(!logBookFull_);
+  // At the far right if there's room, and just along from the others if not. A window of its own has the
+  // system's maximise button instead.
+  if (!ownWindow) {
+    ImGui::SameLine();
+    const char* fullLabel = logBookFull_ ? "Restore" : "Maximise";
+    const float fullX = ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(fullLabel).x - ImGui::GetStyle().FramePadding.x * 2;
+    if (fullX > ImGui::GetCursorPosX()) ImGui::SetCursorPosX(fullX);
+    if (panelButton(fullLabel)) {
+      if (!logBookFull_) logBookPos_ = ImGui::GetWindowPos(), logBookSize_ = ImGui::GetWindowSize();
+      setLogBookFull(!logBookFull_);
+    }
   }
 
   bool showMap = false;
@@ -4860,6 +5861,278 @@ void App::drawCwVoice() {
   if (actionButton("STOP PLAYING", ImVec2(-1, 0), V_RED, V_RED_HI)) rig_.playVoice(0);
 }
 
+// ---------------------------------------------------------------- the Net tab
+
+void App::loadNet() {
+  net_.clear();
+  netStarted_.clear(), netMode_.clear(), netHz_ = 0, netTitle_[0] = 0;
+  FILE* f = fopen(netPath_.c_str(), "rb");
+  if (!f) return;
+  std::string text;
+  char b[4096];
+  size_t n;
+  while ((n = fread(b, 1, sizeof b, f)) > 0) text.append(b, n);
+  fclose(f);
+  size_t at = 0;
+  while (at < text.size()) {
+    size_t end = text.find('\n', at);
+    if (end == std::string::npos) end = text.size();
+    std::string line = text.substr(at, end - at);
+    at = end + 1;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.empty()) continue;
+    std::vector<std::string> v = store::splitCsv(line);
+    v.resize(std::max<size_t>(v.size(), 5));
+    if (v[0] == "#net") {  // the net's own details: title, started, Hz, mode
+      setBuf(netTitle_, v[1]);
+      netStarted_ = v[2], netHz_ = atoll(v[3].c_str()), netMode_ = v[4];
+    } else if (!v[0].empty()) {
+      net_.push_back({v[0], v[1], v[2], v[3]});
+    }
+  }
+}
+
+void App::saveNet() {
+  std::string text = store::joinCsv({"#net", netTitle_, netStarted_, std::to_string(netHz_), netMode_}) + "\n";
+  for (const NetEntry& e : net_) text += store::joinCsv({e.call, e.name, e.joined, e.left}) + "\n";
+  if (!store::saveText(netPath_, text)) say("Couldn't save the net list to " + netPath_);
+}
+
+// The net list as a page: a heading, a few lines about the net, and everyone who checked in.
+printing::Doc App::netDoc() {
+  auto when = [&](const std::string& t) { return t.empty() ? std::string() : store::displayDate(t, dateFormat_); };
+  printing::Doc d;
+  d.title = netTitle_[0] ? netTitle_ : "Net";
+  std::string about;
+  if (!netStarted_.empty()) about = "Started " + when(netStarted_) + " UTC";
+  if (netHz_ > 0) about += (about.empty() ? "" : ", ") + tuning::formatHz(netHz_) + (netMode_.empty() ? "" : " " + netMode_);
+  if (callsign_[0]) about += (about.empty() ? "Net control " : ", net control ") + std::string(callsign_);
+  if (!about.empty()) d.lines.push_back(about);
+  int still = 0;
+  for (const NetEntry& e : net_) still += e.left.empty();
+  d.lines.push_back(std::to_string(net_.size()) + " check-in" + (net_.size() == 1 ? "" : "s") + ", " + std::to_string(still) + " still on at " +
+                    store::displayDate(utcNow("%Y-%m-%d %H:%M"), dateFormat_) + " UTC");
+  d.columns = {"#", "Callsign", "Name", "Country", "Joined (UTC)", "Left (UTC)"};
+  for (size_t i = 0; i < net_.size(); i++) {
+    const NetEntry& e = net_[i];
+    d.rows.push_back({std::to_string(i + 1), e.call, e.name, dx::countryOf(e.call), when(e.joined), when(e.left)});
+    d.faint.push_back(!e.left.empty());
+  }
+  return d;
+}
+
+void App::drawNetPrint() {
+  if (printJob_ && printJob_->done) {
+    say(printJob_->ok ? "Sent the net list to " + printJob_->printer : printJob_->why);
+    printJob_.reset();
+  }
+  if (openNetPrint_) {
+    openNetPrint_ = false;
+    std::string def;
+    printers_ = printing::printers(def);
+    // The one used last time, or else the system's default.
+    printerIdx_ = 0;
+    for (int pass = 0; pass < 2; pass++) {
+      const std::string& want = pass ? def : netPrinter_;
+      auto it = std::find(printers_.begin(), printers_.end(), want);
+      if (!want.empty() && it != printers_.end()) {
+        printerIdx_ = (int)(it - printers_.begin());
+        break;
+      }
+    }
+    ImGui::OpenPopup("Print the net list");
+  }
+  ImGui::SetNextWindowSize(ImVec2(S(620), 0));
+  if (!ImGui::BeginPopupModal("Print the net list", nullptr, ImGuiWindowFlags_NoResize)) return;
+  printing::Doc d = netDoc();
+  ImGui::PushFont(fMid_);
+  ImGui::TextUnformatted(d.title.c_str());
+  ImGui::PopFont();
+  for (const std::string& l : d.lines) ImGui::TextDisabled("%s", l.c_str());
+  ImGui::Spacing();
+  float rowH = ImGui::GetTextLineHeightWithSpacing();
+  float tableH = std::min(S(320), rowH * (float)(d.rows.size() + 1) + S(8));
+  if (ImGui::BeginTable("netprint", (int)d.columns.size(), ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingFixedFit,
+                        ImVec2(0, tableH))) {
+    for (size_t c = 0; c < d.columns.size(); c++)
+      ImGui::TableSetupColumn(d.columns[c].c_str(), c == 2 ? ImGuiTableColumnFlags_WidthStretch : ImGuiTableColumnFlags_WidthFixed);
+    ImGui::TableSetupScrollFreeze(0, 1);
+    ImGui::TableHeadersRow();
+    for (size_t i = 0; i < d.rows.size(); i++) {
+      ImGui::TableNextRow();
+      bool faint = i < d.faint.size() && d.faint[i];
+      for (const std::string& cell : d.rows[i]) {
+        ImGui::TableNextColumn();
+        if (faint) ImGui::TextDisabled("%s", cell.c_str());
+        else ImGui::TextUnformatted(cell.c_str());
+      }
+    }
+    ImGui::EndTable();
+  }
+  ImGui::Spacing();
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted("Printer");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(-1);
+  if (printers_.empty()) {
+    ImGui::TextDisabled("No printers are set up on this computer");
+  } else {
+    printerIdx_ = std::max(0, std::min((int)printers_.size() - 1, printerIdx_));
+    if (ImGui::BeginCombo("##printer", printers_[(size_t)printerIdx_].c_str())) {
+      for (int i = 0; i < (int)printers_.size(); i++)
+        if (ImGui::Selectable(printers_[(size_t)i].c_str(), i == printerIdx_)) printerIdx_ = i;
+      ImGui::EndCombo();
+    }
+  }
+  ImGui::Spacing();
+  ImGui::BeginDisabled(printers_.empty() || printJob_ != nullptr);
+  if (actionButton(printJob_ ? "Printing..." : "Print", ImVec2(S(110), 0), V_ACCENT, V_ACCENT_HI)) {
+    netPrinter_ = printers_[(size_t)printerIdx_];
+    saveSettings();
+    auto job = std::make_shared<PrintJob>();
+    job->printer = netPrinter_;
+    printJob_ = job;
+    std::thread([job, d] {
+      job->ok = printing::print(job->printer, d, job->why);
+      job->done = true;
+    }).detach();
+    ImGui::CloseCurrentPopup();
+  }
+  ImGui::EndDisabled();
+  ImGui::SameLine();
+  if (panelButton("Cancel", ImVec2(S(90), 0))) ImGui::CloseCurrentPopup();
+  ImGui::EndPopup();
+}
+
+void App::drawNet() {
+  ImGui::SetNextItemWidth(-1);
+  ImGui::InputTextWithHint("##nettitle", "Net name, such as Sunday 80m net", netTitle_, sizeof netTitle_);
+  if (ImGui::IsItemDeactivatedAfterEdit()) saveNet();
+  if (netFocusCall_) {
+    ImGui::SetKeyboardFocusHere();
+    netFocusCall_ = false;
+  }
+  float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) / 2;
+  ImGui::PushFont(fLogBig_);
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, ImGui::GetStyle().FramePadding.y * 2));
+  ImGui::SetNextItemWidth(w);
+  bool enter = ImGui::InputTextWithHint("##netcall", "Callsign", netCall_, sizeof netCall_, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CharsUppercase);
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(w);
+  enter |= ImGui::InputTextWithHint("##netname", "Name", netName_, sizeof netName_, ImGuiInputTextFlags_EnterReturnsTrue);
+  ImGui::PopStyleVar();
+  ImGui::PopFont();
+  // Trimmed, so a stray space doesn't make a second entry for the same station.
+  std::string call = netCall_;
+  while (!call.empty() && call.back() == ' ') call.pop_back();
+  while (!call.empty() && call.front() == ' ') call.erase(0, 1);
+  int already = -1;
+  for (int i = 0; i < (int)net_.size(); i++)
+    if (net_[(size_t)i].call == call && net_[(size_t)i].left.empty()) already = i;
+  if (!call.empty()) {
+    std::string country = dx::countryOf(call);
+    if (already >= 0) ImGui::TextColored(ImColor(C_AMBER), "Already on the net, since %s UTC", net_[(size_t)already].joined.substr(std::min<size_t>(11, net_[(size_t)already].joined.size())).c_str());
+    else if (!country.empty()) ImGui::TextDisabled("%s", country.c_str());
+  }
+  ImGui::BeginDisabled(call.empty() || already >= 0);
+  bool add = panelButton("Check in", ImVec2(w, 0));
+  ImGui::EndDisabled();
+  if ((add || enter) && !call.empty() && already < 0) {
+    std::string now = utcNow("%Y-%m-%d %H:%M");
+    if (net_.empty() || netStarted_.empty()) {
+      netStarted_ = now;
+      netHz_ = st_.hz > 0 ? st_.hz : 0, netMode_ = modeLabel(st_.mode, st_.data);
+    }
+    // Someone checking in again keeps the name they gave before, if none is typed this time.
+    std::string name = netName_;
+    if (name.empty())
+      for (const NetEntry& e : net_)
+        if (e.call == call && !e.name.empty()) name = e.name;
+    net_.push_back({call, name, now, ""});
+    saveNet();
+    netCall_[0] = netName_[0] = 0;
+    netFocusCall_ = true;
+  }
+  ImGui::SameLine();
+  ImGui::BeginDisabled(net_.empty());
+  if (panelButton("Print list...", ImVec2(w, 0))) openNetPrint_ = true;
+  ImGui::EndDisabled();
+  if (!net_.empty()) {
+    int still = 0;
+    for (const NetEntry& e : net_) still += e.left.empty();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled("%d on the net, %d checked in", still, (int)net_.size());
+    ImGui::SameLine();
+    const char* label = netClearing_ ? "Really clear it?" : "New net";
+    float bw = ImGui::CalcTextSize(label).x + ImGui::GetStyle().FramePadding.x * 2;
+    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - bw));
+    if (netClearing_) {
+      if (actionButton(label, ImVec2(0, 0), V_RED, V_RED_HI)) {
+        net_.clear();
+        netStarted_.clear(), netHz_ = 0, netMode_.clear();
+        netClearing_ = false;
+        saveNet();
+      } else if (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)) {
+        netClearing_ = false;
+      }
+    } else if (panelButton(label)) {
+      netClearing_ = true;
+    }
+    ImGui::SetItemTooltip("Clears the list for the next net. Print it first to keep it.");
+  } else {
+    ImGui::TextDisabled("Type a callsign and press Enter as each station checks in.");
+  }
+  int remove = -1;
+  if (ImGui::BeginTable("net", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
+    float tw = ImGui::CalcTextSize("00:00").x + S(8);
+    ImGui::TableSetupColumn("Call", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("In", ImGuiTableColumnFlags_WidthFixed, tw);
+    ImGui::TableSetupColumn("Out", ImGuiTableColumnFlags_WidthFixed, tw);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize("Back").x + ImGui::GetStyle().FramePadding.x * 2 + S(6));
+    ImGui::TableSetupScrollFreeze(0, 1);
+    ImGui::TableHeadersRow();
+    auto hhmm = [](const std::string& t) { return t.size() >= 16 ? t.substr(11, 5) : t; };
+    for (int i = 0; i < (int)net_.size(); i++) {
+      NetEntry& e = net_[(size_t)i];
+      bool gone = !e.left.empty();
+      ImGui::PushID(i);
+      ImGui::TableNextRow();
+      if (gone) ImGui::PushStyleColor(ImGuiCol_Text, C_DIM);
+      ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
+      std::string label = e.call + (e.name.empty() ? "" : "  " + e.name);
+      ImGui::Selectable(label.c_str());
+      if (ImGui::BeginPopupContextItem("netrow")) {
+        if (ImGui::MenuItem("Find on the map")) findOnMap(e.call, true);
+        if (ImGui::MenuItem("Remove from the list")) remove = i;
+        ImGui::EndPopup();
+      }
+      std::string country = dx::countryOf(e.call);
+      ImGui::SetItemTooltip("%s%sRight-click to find them on the map, or to take them off if they went on by mistake.", country.c_str(), country.empty() ? "" : "\n");
+      ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
+      ImGui::TextUnformatted(hhmm(e.joined).c_str());
+      ImGui::TableNextColumn();
+      ImGui::AlignTextToFramePadding();
+      ImGui::TextUnformatted(hhmm(e.left).c_str());
+      if (gone) ImGui::PopStyleColor();
+      ImGui::TableNextColumn();
+      if (panelButton(gone ? "Back" : "Left", ImVec2(-1, 0))) {
+        // Back puts them on again as the same check-in, for someone who only dropped out for a moment.
+        e.left = gone ? "" : utcNow("%Y-%m-%d %H:%M");
+        saveNet();
+      }
+      ImGui::SetItemTooltip(gone ? "They're back: clears the time they left" : "They've left the net: greys them out and notes the time");
+      ImGui::PopID();
+    }
+    ImGui::EndTable();
+  }
+  if (remove >= 0) {
+    net_.erase(net_.begin() + remove);
+    saveNet();
+  }
+}
+
 void App::drawRightTabs() {
   // The spots go under the tabs, whichever is showing. Turned off, they take only the one line.
   ImGui::BeginChild("rightcolumn", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
@@ -4885,6 +6158,10 @@ void App::drawRightTabs() {
     }
     if (tab("Log", 2)) {
       drawLog();
+      ImGui::EndTabItem();
+    }
+    if (tab("Net", 5)) {
+      drawNet();
       ImGui::EndTabItem();
     }
     if (radio().hasTransmit && tab("CW / Voice", 3)) {
@@ -5066,7 +6343,14 @@ void App::drawMenu() {
   }
   if (ImGui::BeginMenu("View")) {
     ImGui::MenuItem("Band scope", nullptr, &showScope_);
-    ImGui::MenuItem("Audio waterfall", nullptr, &showAudio_);
+    if (ImGui::MenuItem("Audio waterfall", nullptr, showAudio_ && !showMap_)) {
+      showAudio_ = showMap_ || !showAudio_;
+      showMap_ = false;
+    }
+    if (ImGui::MenuItem("Map", nullptr, showAudio_ && showMap_)) {
+      showAudio_ = !showMap_ || !showAudio_;
+      showMap_ = true;
+    }
     ImGui::MenuItem("Band plan on the scope", nullptr, &showBandPlan_);
     ImGui::Separator();
     ImGui::MenuItem("DX spots panel", nullptr, &showSpots_);
@@ -5163,6 +6447,14 @@ void App::drawSettings() {
       if (!store::backupFile(logPath_) || !store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
     }
   }
+  ImGui::SetNextItemWidth(S(160));
+  ImGui::InputText("QRZ.com username", qrzUser_, sizeof qrzUser_);
+  if (ImGui::IsItemDeactivatedAfterEdit()) qrzKey_.clear();
+  ImGui::SetItemTooltip("For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position.");
+  ImGui::SetNextItemWidth(S(160));
+  ImGui::InputText("QRZ.com password", qrzPassword_, sizeof qrzPassword_, ImGuiInputTextFlags_Password);
+  if (ImGui::IsItemDeactivatedAfterEdit()) qrzKey_.clear();
+  ImGui::SetItemTooltip("Kept in settings.ini in the data folder, as plain text.");
   ImGui::SetNextItemWidth(S(160));
   if (ImGui::BeginCombo("Log date format", store::dateFormatName(dateFormat_))) {
     for (int i = 0; i < store::kDateFormatCount; i++)
@@ -5357,6 +6649,8 @@ void App::drawHelp() {
     ImGui::EndPopup();
   }
 
+  drawNetPrint();
+
   if (openPowerOff_) {
     ImGui::OpenPopup("Power off the rig?");
     openPowerOff_ = false;
@@ -5396,6 +6690,13 @@ void App::frame() {
   }
   keepAudioOpen();
   audio_.setMonitorMuted(st_.tx);
+  {
+    Enhancer& en = audio_.enhancer();
+    en.setMethod(nrOn_ ? nrMethodFor(st_.mode) : Enhancer::OFF);
+    en.setStrength(nrStrength_);
+    en.setLeveller(nrOn_ && nrLeveller_);
+    en.setEq(eqOn_, kEqLowHz[eqLowIdx_], eqBass_, eqMid_, eqTreble_, kEqHighHz[eqHighIdx_]);
+  }
   pumpAudio();
   followRigMode();
   pumpDecoder();
@@ -5404,6 +6705,7 @@ void App::frame() {
   pumpSpots();
   rememberBand();
   pumpLogPick();
+  pumpQrz();
   if (logIndexedFor_ != callsign_) indexLog();  // changed in Settings
   if (!droppedFiles_.empty()) {
     std::vector<std::string> files;
@@ -6031,6 +7333,9 @@ int App::run() {
     glfwTerminate();
     return 1;
   }
+  // Hints stay set for every window made after, and the shortcut's Run setting is only for this one: a log book
+  // opened maximised by it wouldn't fill its window, as ImGui never hears that it was.
+  if (!automated) glfwWindowHint(GLFW_WIN32_SHOWDEFAULT, GLFW_FALSE);
   glfwMakeContextCurrent(win_);
   glfwSwapInterval(1);
   setSizeLimits(primary);
@@ -6043,6 +7348,9 @@ int App::run() {
   ImGui::CreateContext();
   ImGuiIO& io = ImGui::GetIO();
   io.IniFilename = nullptr;
+  // A window such as the log book can be dragged out of the main one, onto another screen. Not in a scripted
+  // run, which must stay in the one window it screenshots and clicks about in.
+  if (!automated) io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
   setupStyle(scale_);
   // A scripted run gets no real mouse or keyboard at all: only what the script injects.
   ImGui_ImplGlfw_InitForOpenGL(win_, opt_.selfTest.empty());
@@ -6084,7 +7392,7 @@ int App::run() {
   while (!glfwWindowShouldClose(win_)) {
     glfwPollEvents();
     if (glfwGetWindowAttrib(win_, GLFW_ICONIFIED)) std::this_thread::sleep_for(std::chrono::milliseconds(15));
-    if (!automated) followMonitor();
+    if (!automated) followMonitor(), followLogBookMonitor();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     if (!opt_.selfTest.empty()) runSelfTest();
@@ -6098,6 +7406,13 @@ int App::run() {
     glClearColor(0.06f, 0.07f, 0.09f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    // Windows dragged outside the main one are drawn into their own, after which the main one's GL context is
+    // put back for the screenshot and the swap.
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+      ImGui::UpdatePlatformWindows();
+      ImGui::RenderPlatformWindowsDefault();
+      glfwMakeContextCurrent(win_);
+    }
     frames++;
     if (!opt_.screenshot.empty() && (int)frames == opt_.screenshotFrames) {
       saveBmp(opt_.screenshot, fw, fh);

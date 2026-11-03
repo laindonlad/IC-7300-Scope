@@ -10,7 +10,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # ---- everything below the window: no GUI, no audio, so the tests and the probe can use it ----
-add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp src/dxcluster.cpp src/decoder.cpp src/chart_overlay.cpp src/update_check.cpp)
+add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp src/dxcluster.cpp src/decoder.cpp src/chart_overlay.cpp src/update_check.cpp src/net.cpp src/locations.cpp src/printing.cpp)
 target_include_directories(rigcore PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(rigcore SYSTEM PRIVATE third_party/morse third_party/stb)
 
@@ -39,7 +39,7 @@ embed_folder(overlays png kBuiltinOverlays builtin_overlays.inc)
 find_package(Threads REQUIRED)
 target_link_libraries(rigcore PUBLIC Threads::Threads)
 if(WIN32)
-  target_link_libraries(rigcore PUBLIC setupapi shell32 ws2_32 ole32 comdlg32 winhttp)
+  target_link_libraries(rigcore PUBLIC setupapi shell32 ws2_32 ole32 comdlg32 winhttp winspool gdi32)
   target_compile_definitions(rigcore PUBLIC _USE_MATH_DEFINES)
 endif()
 if(MSVC)
@@ -80,9 +80,30 @@ if(BUILD_GUI)
   target_include_directories(imgui PUBLIC ${IMGUI} ${IMGUI}/backends)
   target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 
-  add_executable(ic7300console src/main.cpp src/app.cpp src/audio.cpp src/waterfall.cpp src/worldmap.cpp src/build_stamp.cpp)
+  # RNNoise, for the speaker's noise reduction, with its trained model built in. On x86 it picks SSE4.1 or
+  # AVX2 at run time, so the one build is quick on new machines and still runs on old ones.
+  set(RNN third_party/rnnoise/src)
+  add_library(rnnoise STATIC
+    ${RNN}/denoise.c ${RNN}/rnn.c ${RNN}/pitch.c ${RNN}/kiss_fft.c ${RNN}/celt_lpc.c ${RNN}/nnet.c
+    ${RNN}/nnet_default.c ${RNN}/parse_lpcnet_weights.c ${RNN}/rnnoise_data.c ${RNN}/rnnoise_tables.c)
+  target_include_directories(rnnoise PUBLIC third_party/rnnoise/include PRIVATE ${RNN})
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|i.86" AND NOT MSVC AND NOT CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+    target_sources(rnnoise PRIVATE ${RNN}/x86/x86_dnn_map.c ${RNN}/x86/x86cpu.c ${RNN}/x86/nnet_sse4_1.c ${RNN}/x86/nnet_avx2.c)
+    target_compile_definitions(rnnoise PRIVATE RNN_ENABLE_X86_RTCD CPU_INFO_BY_C)
+    set_source_files_properties(${RNN}/x86/nnet_sse4_1.c PROPERTIES COMPILE_OPTIONS "-msse4.1")
+    set_source_files_properties(${RNN}/x86/nnet_avx2.c PROPERTIES COMPILE_OPTIONS "-mavx;-mfma;-mavx2")
+  endif()
+  if(NOT MSVC)
+    target_compile_options(rnnoise PRIVATE -w)  # its own code, as it comes
+  endif()
+  if(UNIX)
+    target_link_libraries(rnnoise PRIVATE m)
+  endif()
+
+  add_executable(ic7300console src/main.cpp src/app.cpp src/audio.cpp src/enhance.cpp src/waterfall.cpp src/worldmap.cpp src/tilemap.cpp src/build_stamp.cpp)
   target_include_directories(ic7300console PRIVATE third_party/miniaudio ${CMAKE_CURRENT_BINARY_DIR})
-  target_link_libraries(ic7300console PRIVATE rigcore imgui ${CMAKE_DL_LIBS})
+  target_include_directories(ic7300console SYSTEM PRIVATE third_party/stb)
+  target_link_libraries(ic7300console PRIVATE rigcore imgui rnnoise ${CMAKE_DL_LIBS})
 
   # The build's date is the program's version, so it's written at every build.
   add_custom_target(build_stamp

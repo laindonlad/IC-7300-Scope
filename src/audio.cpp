@@ -82,7 +82,17 @@ struct AudioCallbacks {
     if (pk > cur) e->impl_->peak.store(pk, std::memory_order_relaxed);
     e->impl_->forDsp.push(s, frames);
     e->impl_->forDecoder.push(s, frames);
-    if (e->impl_->playOpen) e->impl_->forMonitor.push(s, frames);
+    if (e->impl_->playOpen) {
+      // Cleaned up on the way to the speakers, a piece at a time so nothing's allocated here.
+      float buf[1024];
+      for (ma_uint32 done = 0; done < frames;) {
+        ma_uint32 n = std::min<ma_uint32>(frames - done, 1024);
+        memcpy(buf, s + done, sizeof(float) * n);
+        e->enhancer_.process(buf, (int)n);
+        e->impl_->forMonitor.push(buf, n);
+        done += n;
+      }
+    }
   }
   static void output(ma_device* d, void* out, const void*, ma_uint32 frames) {
     auto* e = (AudioEngine*)d->pUserData;

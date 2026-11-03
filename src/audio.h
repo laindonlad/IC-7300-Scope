@@ -13,6 +13,8 @@
 #include <thread>
 #include <vector>
 
+#include "enhance.h"
+
 class AudioEngine {
  public:
   static constexpr int kRate = 48000;
@@ -40,6 +42,8 @@ class AudioEngine {
   bool monitoring() const;
   void setMonitorGain(float g) { monitorGain_ = g; }
   void setMonitorMuted(bool m) { monitorMuted_ = m; }
+  // Noise reduction and levelling for the speakers only. Its settings can change at any time.
+  Enhancer& enhancer() { return enhancer_; }
 
   // New samples for the waterfall, since the last read. Only one caller.
   size_t read(float* out, size_t max);
@@ -54,6 +58,7 @@ class AudioEngine {
   std::atomic<bool> lost_{false};
   std::atomic<float> monitorGain_{1.f};
   std::atomic<bool> monitorMuted_{false};
+  Enhancer enhancer_;
   std::string captureName_;
   std::thread genThread_;
   std::atomic<bool> genRun_{false};
