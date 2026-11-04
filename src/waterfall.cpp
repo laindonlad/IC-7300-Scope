@@ -82,6 +82,23 @@ void Waterfall::clear() {
   colourDirty_ = true;
 }
 
+void Waterfall::shift(int dx) {
+  if (!cols_ || !dx) return;
+  if (dx >= cols_ || dx <= -cols_) return clear();
+  int n = cols_ - (dx > 0 ? dx : -dx);
+  for (int r = 0; r < rows_; r++) {
+    uint8_t* row = &levels_[(size_t)r * cols_];
+    if (dx > 0) {
+      memmove(row, row + dx, (size_t)n);
+      memset(row + n, 0, (size_t)dx);
+    } else {
+      memmove(row - dx, row, (size_t)n);
+      memset(row, 0, (size_t)-dx);
+    }
+  }
+  colourDirty_ = true;
+}
+
 void Waterfall::pushRow(const uint8_t* in, int n) {
   if (!cols_ || n <= 0) return;
   uint8_t* row = &levels_[(size_t)head_ * cols_];

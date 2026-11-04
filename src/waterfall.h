@@ -24,6 +24,9 @@ class Waterfall {
   // Levels below lo are the palette's bottom; above hi, its top.
   void setDisplay(float lo, float hi, int palette);
   void clear();
+  // Moves the history sideways by dx columns, so what was at column x+dx is now at x. What comes in at the
+  // edge is the palette's bottom. For a scope whose edges moved: a signal stays at its own frequency.
+  void shift(int dx);
   // Draws the newest row at the top. u0 and u1 pick the part of the width to show, 0-1.
   void draw(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float u0, float u1, float pxPerRow);
 

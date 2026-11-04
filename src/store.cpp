@@ -165,21 +165,46 @@ static bool commandLine(const char* cmd, std::string& line) {
 }
 #endif
 
-bool pickAdifFile(void* owner, std::string& path) {
+#ifdef _WIN32
+static std::wstring wide(const std::string& u) {
+  int n = MultiByteToWideChar(CP_UTF8, 0, u.c_str(), -1, nullptr, 0);
+  std::wstring w(n > 1 ? (size_t)n - 1 : 0, L'\0');
+  if (n > 1) MultiByteToWideChar(CP_UTF8, 0, u.c_str(), -1, &w[0], n);
+  return w;
+}
+#endif
+
+bool pickFile(void* owner, const std::string& title, const std::string& kind, const std::vector<std::string>& exts, const std::string& startDir,
+              std::string& path) {
   path.clear();
 #ifdef _WIN32
   // The dialog's shell extensions want a single-threaded apartment on the thread that shows it.
   HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
   static wchar_t name[32768];
   name[0] = 0;
+  std::string pattern, shown;
+  for (const std::string& e : exts) {
+    pattern += (pattern.empty() ? "" : ";") + std::string("*.") + e;
+    shown += (shown.empty() ? "" : ", ") + std::string("*.") + e;
+  }
+  std::wstring filter = wide(kind + " (" + shown + ")");
+  filter += L'\0';
+  filter += wide(pattern);
+  filter += L'\0';
+  filter += L"All files";
+  filter += L'\0';
+  filter += L"*.*";
+  filter += L'\0';
+  std::wstring wtitle = wide(title), wdir = wide(startDir);
   OPENFILENAMEW o;
   memset(&o, 0, sizeof o);
   o.lStructSize = sizeof o;
   o.hwndOwner = (HWND)owner;
-  o.lpstrFilter = L"ADIF logs (*.adi, *.adif)\0*.adi;*.adif\0All files\0*.*\0";
+  o.lpstrFilter = filter.c_str();
   o.lpstrFile = name;
   o.nMaxFile = sizeof name / sizeof name[0];
-  o.lpstrTitle = L"Choose an ADIF log to import";
+  o.lpstrTitle = wtitle.c_str();
+  o.lpstrInitialDir = wdir.empty() ? nullptr : wdir.c_str();
   o.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
   if (GetOpenFileNameW(&o)) {
     int n = WideCharToMultiByte(CP_UTF8, 0, name, -1, nullptr, 0, nullptr, nullptr);
@@ -191,23 +216,37 @@ bool pickAdifFile(void* owner, std::string& path) {
   if (SUCCEEDED(com)) CoUninitialize();
   return true;
 #elif defined(__APPLE__)
-  (void)owner;
-  commandLine("osascript -e 'POSIX path of (choose file with prompt \"Choose an ADIF log to import\")' 2>/dev/null", path);
+  (void)owner, (void)kind, (void)exts;
+  std::string cmd = "osascript -e 'POSIX path of (choose file with prompt \"" + title + "\"";
+  if (!startDir.empty()) cmd += " default location (POSIX file \"" + startDir + "\")";
+  cmd += ")' 2>/dev/null";
+  commandLine(cmd.c_str(), path);
   return true;
 #else
   (void)owner;
-  std::string found;
+  std::string found, globs;
+  for (const std::string& e : exts) {
+    std::string up = e;
+    for (char& c : up) c = (char)toupper((unsigned char)c);
+    globs += (globs.empty() ? "" : " ") + std::string("*.") + e + " *." + up;
+  }
+  std::string dir = startDir.empty() ? "." : startDir;
+  if (!dir.empty() && dir.back() != '/') dir += '/';
   if (commandLine("command -v zenity", found)) {
-    commandLine("zenity --file-selection --title='Choose an ADIF log to import' --file-filter='ADIF logs | *.adi *.adif *.ADI *.ADIF' --file-filter='All files | *' 2>/dev/null", path);
+    std::string cmd = "zenity --file-selection --title='" + title + "' --filename='" + dir + "' --file-filter='" + kind + " | " + globs + "' --file-filter='All files | *' 2>/dev/null";
+    commandLine(cmd.c_str(), path);
     return true;
   }
   if (commandLine("command -v kdialog", found)) {
-    commandLine("kdialog --title 'Choose an ADIF log to import' --getopenfilename . '*.adi *.adif *.ADI *.ADIF|ADIF logs' 2>/dev/null", path);
+    std::string cmd = "kdialog --title '" + title + "' --getopenfilename '" + dir + "' '" + globs + "|" + kind + "' 2>/dev/null";
+    commandLine(cmd.c_str(), path);
     return true;
   }
   return false;
 #endif
 }
+
+bool pickAdifFile(void* owner, std::string& path) { return pickFile(owner, "Choose an ADIF log to import", "ADIF logs", {"adi", "adif"}, "", path); }
 
 void Settings::load(const std::string& path) {
   kv_.clear();

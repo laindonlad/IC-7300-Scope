@@ -107,6 +107,10 @@ void* activeWindow();
 // Asks for an ADIF file with the system's own dialog, and blocks until it's closed, so it belongs on its own
 // thread. path is UTF-8, and empty if they cancelled. False if this system has no dialog to show.
 bool pickAdifFile(void* owner, std::string& path);
+// The same for any kind of file: kind names it in the dialog's filter, exts are its extensions without the dot,
+// and startDir (UTF-8, may be empty) is where the dialog opens.
+bool pickFile(void* owner, const std::string& title, const std::string& kind, const std::vector<std::string>& exts, const std::string& startDir,
+              std::string& path);
 
 // A rough WAV writer for recording the receiver: 16-bit mono.
 class WavWriter {

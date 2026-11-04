@@ -18,6 +18,8 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <filesystem>
+#include <fstream>
 #include <vector>
 
 #include "audio.h"
@@ -253,6 +255,29 @@ const long long kScanSteps[] = {1000, 2500, 5000, 9000, 10000, 12500, 25000, 100
 const char* const kScanStepNames[] = {"1 kHz", "2.5 kHz", "5 kHz", "9 kHz", "10 kHz", "12.5 kHz", "25 kHz", "100 kHz", "1 MHz"};
 const int kScanStepCount = 9;
 const size_t kMaxScanChannels = 100000;
+// The antenna scope sweeps only these, the main HF bands and 6 m at their widest anywhere, and then only where the
+// chosen band plan also has the band. 60 m is left out as it's channels and power limits in most places.
+struct SweepBand {
+  const char* name;
+  long long lo, hi;
+};
+const SweepBand kSweepBands[] = {{"160 m", 1800000, 2000000},   {"80 m", 3500000, 4000000},   {"40 m", 7000000, 7300000},
+                                 {"30 m", 10100000, 10150000},  {"20 m", 14000000, 14350000}, {"17 m", 18068000, 18168000},
+                                 {"15 m", 21000000, 21450000},  {"12 m", 24890000, 24990000}, {"10 m", 28000000, 29700000},
+                                 {"6 m", 50000000, 54000000}};
+const long long kSweepSteps[] = {500, 1000, 2000, 5000, 10000, 25000, 50000};
+const char* const kSweepStepNames[] = {"500 Hz", "1 kHz", "2 kHz", "5 kHz", "10 kHz", "25 kHz", "50 kHz"};
+const int kSweepStepCount = 7;
+const int kSweepWatts[] = {2, 5, 10, 15};
+const char* const kSweepWattNames[] = {"2 W", "5 W", "10 W", "15 W"};
+const int kSweepWattCount = 4;
+const long long kSweepEdgeHz = 1000;   // kept inside every band edge
+const long long kSweepAvoidHz = 500;   // and this clear of beacons and satellites
+const double kSweepDwell = 0.5;        // seconds at each frequency
+const double kSweepSampleFrom = 0.25;  // meter readings before this are left out: the meters are still settling
+const double kSweepRest = 3.0;         // unkeyed, after each long stretch keyed
+const size_t kSweepMaxPoints = 4000;
+
 double scanLevelDb(int level) { return level <= 9 ? (level - 9) * 6.0 : (level - 9) * 10.0; }
 std::string scanLevelName(int level) { return level <= 9 ? "S" + std::to_string(level) : "S9+" + std::to_string((level - 9) * 10); }
 std::string sUnitsName(double db) {
@@ -355,6 +380,41 @@ class App {
   void useStation(const std::string& call);
   void drawStationPicker();
   void drawScan();
+  // The antenna scope: an SWR sweep across a band, on a low-power carrier with the tuner out of line.
+  struct SweepRange {
+    long long lo = 0, hi = 0;
+  };
+  struct SweepPlanBand {
+    std::string name;
+    long long lo = 0, hi = 0;
+    std::vector<SweepRange> inBand;  // where the plan has the band, merged: it stays keyed across one of these
+    std::vector<SweepRange> avoid;   // beacons and satellites inside them
+  };
+  struct SweepPoint {
+    long long hz = 0;
+    double swr = -1, watts = -1;  // -1: no reading
+  };
+  struct Sweep {
+    std::string band, when, stamp, radio;  // when: for reading; stamp: for a file name
+    long long lo = 0, hi = 0, stepHz = 0;
+    int watts = 0;
+    std::vector<SweepPoint> pts;
+    bool complete = false;
+  };
+  std::vector<SweepPlanBand> sweepBands() const;
+  bool sweepTargets(const SweepPlanBand& b, long long step, std::vector<long long>& hz, std::vector<int>& run) const;
+  void startSweep();
+  void endSweep(const std::string& why, bool failed);
+  void pumpSweep();
+  void restoreAfterSweep();
+  void drawAntennaScope();
+  void drawSweepPlot(const Sweep& s, float height);
+  void drawSweepSummary(const Sweep& s);
+  void saveSweepCsv(const Sweep& s);
+  void pickSweepToLoad();
+  void pumpSweepPick();
+  void loadSweepCsv(const std::string& path);
+  bool sweeping() const { return sweepPhase_ != SW_IDLE; }
   void drawSpotsPanel();
   void drawCwVoice();
   void drawStatus();
@@ -365,6 +425,7 @@ class App {
   float S(float v) const { return v * scale_; }
   bool toggle(const char* label, bool on, ImVec2 size = ImVec2(0, 0), const char* name = nullptr);
   bool panelButton(const char* label, const ImVec2& size = ImVec2(0, 0), ImGuiButtonFlags flags = 0);
+  bool titleBarMaximise(bool full);
   bool actionButton(const char* label, ImVec2 size, const ImVec4& col, const ImVec4& hi, const char* name = nullptr);
   void levelRow(const char* label, int level, const char* fmtOverride = nullptr);
   void switchLevelRow(const char* label, int sw, int level);
@@ -562,6 +623,7 @@ class App {
   Waterfall wfScope_;
   std::vector<float> scopeLine_;
   long long scopeLo_ = 0, scopeHi_ = 0;
+  double wfScopeLo_ = 0;  // the frequency the band waterfall's history has its left edge at
   bool scopeOor_ = false;
   long long scopeMenuHz_ = 0;
   double scopeLastAt_ = 0;
@@ -655,6 +717,7 @@ class App {
     std::string path;
   };
   std::shared_ptr<LogPick> logPick_;
+  std::shared_ptr<LogPick> sweepPick_;  // the same, for a saved antenna scope sweep
   // One log holds every callsign the operator uses. callsign_ is the one on the air: new contacts go under it,
   // and the Log tab and worked-before marks show only its contacts.
   std::set<std::string> stationCalls_;  // those in the log, and those added by hand
@@ -704,6 +767,41 @@ class App {
     double db = 0;
   };
   std::vector<ScanHit> scanHits_;  // newest first
+
+  // the antenna scope
+  enum SweepPhase { SW_IDLE, SW_PREP, SW_KEYING, SW_STEP, SW_REST, SW_RESTORE };
+  struct SweepSaved {
+    long long hz = -1;
+    int mode = -1, filter = 1, power = -1, atu = -1, split = -1, xit = -1;
+    bool data = false;
+  };
+  bool openAntScope_ = false, antScopeShown_ = false, sweepAck_ = false;
+  // Filling the program's window, and where it goes back to afterwards.
+  bool antScopeFull_ = false, antScopePutBack_ = false;
+  ImVec2 antScopePos_, antScopeSize_;
+  int sweepBand_ = -1, sweepStepIdx_ = 3, sweepWattIdx_ = 0;
+  SweepPhase sweepPhase_ = SW_IDLE;
+  SweepSaved sweepSaved_;
+  std::vector<long long> sweepHz_;
+  std::vector<int> sweepRun_;  // which in-band stretch each frequency is in: it never stays keyed from one to another
+  size_t sweepIdx_ = 0;
+  double sweepT0_ = 0, sweepKeyedAt_ = 0, sweepPointAt_ = 0, sweepFreqAt_ = 0, sweepRestFor_ = 0, sweepEndedAt_ = -10;
+  double sweepKeyedMax_ = 60;
+  long long sweepExpectHz_ = -1;
+  bool sweepFreqSent_ = false;
+  int sweepPowerRaw_ = 0;
+  // The IC-7300 keeps the tuner on or off band by band, and puts the band's own setting back when the frequency
+  // moves onto it. So the tuner is only taken out once the rig is on the band being swept (sweepTunerOff_), and
+  // what that band had (sweepBandAtu_, -1 not known yet) goes back afterwards.
+  bool sweepTunerOff_ = false, sweepResent_ = false;
+  int sweepBandAtu_ = -1;
+  double sweepSwrSum_ = 0, sweepPoSum_ = 0;
+  int sweepSwrN_ = 0, sweepPoN_ = 0;
+  uint64_t sweepErrorSeq_ = 0;
+  std::string sweepStatus_;
+  bool sweepFailed_ = false;
+  std::vector<Sweep> sweeps_;  // this session's, oldest first; the running one is last
+  int sweepShown_ = -1;
 
   // DX spots
   dx::Client dx_;
@@ -1470,9 +1568,28 @@ void App::pumpScope() {
   std::vector<uint8_t> row;
   while (rig_.popScope(l)) {
     long long oldSpan = scopeHi_ - scopeLo_, span = l.hiHz - l.loHz;
-    long long moved = llabs((l.loHz + l.hiHz) / 2 - (scopeLo_ + scopeHi_) / 2);
-    // History from another span, or from far away, would only mislead.
-    if (span != oldSpan || (span > 0 && moved > span / 4)) wfScope_.clear();
+    // History from another span would only mislead. When the edges move with the same span (the dial
+    // moving in Centre mode), the history moves with them, so a signal carries on down at its own
+    // frequency, under the dial if that's where it was tuned. Whole columns only, with the remainder kept,
+    // so many small steps don't drift.
+    if (span != oldSpan || span <= 0 || wfScope_.cols() <= 0) {
+      wfScope_.clear();
+      wfScopeLo_ = (double)l.loHz;
+    } else if ((double)l.loHz != wfScopeLo_) {
+      double hzPerCol = (double)span / wfScope_.cols();
+      double cols = ((double)l.loHz - wfScopeLo_) / hzPerCol;
+      if (fabs(cols) >= wfScope_.cols()) {
+        wfScope_.clear();
+        wfScopeLo_ = (double)l.loHz;
+      } else if (fabs(cols) > 0.5 + 1e-6) {
+        // Up to half a column is left where it is. Rounding it would leave half a column the other way,
+        // which the next sweep rounds back: the history twitched a column left and right on every sweep
+        // (an odd number of 2 kHz steps at +/-50 kHz leaves exactly half).
+        int dx = (int)lround(cols);
+        wfScope_.shift(dx);
+        wfScopeLo_ += dx * hzPerCol;
+      }
+    }
     scopeLo_ = l.loHz, scopeHi_ = l.hiHz, scopeOor_ = l.outOfRange;
     scopeLastAt_ = glfwGetTime();
     scopeLine_.resize(l.levels.size());
@@ -1633,6 +1750,48 @@ static void gradientRect(ImDrawList* dl, ImVec2 a, ImVec2 b, const ImVec4& top, 
 
 // ImGui::Button's behaviour with a rig's front-panel look: a bevelled rim round a glossy face, the shine stopping
 // sharply halfway down. The colour still comes from the style, so toggles and red and amber buttons keep theirs.
+// A maximise button in the current window's title bar, just left of its close button, drawn as one square, or as
+// two overlapping ones when the window is already full. A double click on the title bar does the same. Call it
+// straight after Begin. True when it's pressed.
+bool App::titleBarMaximise(bool full) {
+  ImGuiWindow* window = ImGui::GetCurrentWindow();
+  if (window->SkipItems || (window->Flags & ImGuiWindowFlags_NoTitleBar)) return false;
+  const ImGuiStyle& style = ImGui::GetStyle();
+  const ImRect title = window->TitleBarRect();
+  const float sz = ImGui::GetFontSize();
+  // Where ImGui puts the close button, and one button's width and a gap to the left of it.
+  const float closeX = title.Max.x - style.FramePadding.x - sz;
+  const ImVec2 pos(closeX - style.ItemInnerSpacing.x - sz, title.Min.y + style.FramePadding.y);
+  const ImRect bb(pos, pos + ImVec2(sz, sz));
+  const ImGuiID id = window->GetID("##titlemaximise");
+  ImGui::PushClipRect(title.Min, title.Max, false);
+  bool pressed = false;
+  if (ImGui::ItemAdd(bb, id)) {
+    bool hovered, held;
+    pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held);
+    ImDrawList* dl = window->DrawList;
+    if (hovered) dl->AddCircleFilled(bb.GetCenter(), std::max(2.f, sz * 0.5f), ImGui::GetColorU32(held ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered));
+    const ImU32 c = ImGui::GetColorU32(ImGuiCol_Text);
+    const float t = std::max(1.f, (float)(int)S(1.f)), e = (float)(int)(sz * 0.28f);
+    const ImVec2 m = ImFloor(bb.GetCenter());
+    if (full) {
+      // The window behind, peeping out above and to the right, and the one in front.
+      const float d = (float)(int)(e * 0.45f), f = e - d;
+      dl->AddLine(ImVec2(m.x - f + d, m.y - e), ImVec2(m.x + e, m.y - e), c, t);
+      dl->AddLine(ImVec2(m.x + e, m.y - e), ImVec2(m.x + e, m.y + f - d), c, t);
+      dl->AddRect(ImVec2(m.x - e, m.y - f), ImVec2(m.x + f, m.y + e), c, 0, 0, t);
+    } else {
+      dl->AddRect(ImVec2(m.x - e, m.y - e), ImVec2(m.x + e, m.y + e), c, 0, 0, t);
+    }
+    if (hovered) ImGui::SetTooltip("%s", full ? tr("Restore") : tr("Maximise"));
+    else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
+             title.Contains(ImGui::GetIO().MousePos) && ImGui::GetIO().MousePos.x < closeX - style.ItemInnerSpacing.x)
+      pressed = true;
+  }
+  ImGui::PopClipRect();
+  return pressed;
+}
+
 bool App::panelButton(const char* label, const ImVec2& sizeArg, ImGuiButtonFlags flags) {
   ImGuiWindow* window = ImGui::GetCurrentWindow();
   if (window->SkipItems) return false;
@@ -3099,6 +3258,21 @@ void App::drawScopePane() {
     double sp = st_.scopeSpan > 0 ? (double)st_.scopeSpan : 100000.0;
     lo = c - sp / 2, hi = c + sp / 2, span = sp;
   }
+  // Fixed edges wider than the band: show only the band, across the whole width, as the band map above
+  // does. Nothing past the edge is somewhere you can transmit, so it isn't worth the room.
+  double sweepLo = lo, sweepHi = hi;
+  float u0 = 0.f, u1 = 1.f;
+  if (st_.scopeMode == civ::SCOPE_FIXED && radio().hasTransmit && scopeHi_ > scopeLo_) {
+    int b = plan_.bandOf(st_.hz);
+    if (b >= 0) {
+      const bands::Band& band = plan_.bands[(size_t)b];
+      double vLo = std::max(lo, (double)band.lo), vHi = std::min(hi, (double)band.hi);
+      if (vHi - vLo > span * 0.05 && (vLo > lo || vHi < hi)) {
+        u0 = (float)((vLo - sweepLo) / span), u1 = (float)((vHi - sweepLo) / span);
+        lo = vLo, hi = vHi, span = vHi - vLo;
+      }
+    }
+  }
   double step = niceStep(span, 8);
   auto label = [&](double v) {
     char b[32];
@@ -3110,7 +3284,7 @@ void App::drawScopePane() {
   // taller row than the audio's 25 lines a second, or the band waterfall would barely move.
   if (showBandPlan_) drawBandMap(lo, hi);
   float stripH = showBandPlan_ ? S(16) : 0;
-  PlotArea a = drawPlot("scopeplot", lo, hi, scopeLine_, lo, hi, scopeFloor_, scopeFloor_ + scopeRange_, wfScope_, 0.f, 1.f, label, step, 4.f, stripH);
+  PlotArea a = drawPlot("scopeplot", lo, hi, scopeLine_, sweepLo, sweepHi, scopeFloor_, scopeFloor_ + scopeRange_, wfScope_, u0, u1, label, step, 4.f, stripH);
   auto toX = [&](double f) { return a.p0.x + (float)((f - lo) / (hi - lo)) * (a.p1.x - a.p0.x); };
   ImDrawList* dl = ImGui::GetWindowDrawList();
   dl->PushClipRect(a.p0, a.p1, true);
@@ -5718,6 +5892,715 @@ void App::drawScan() {
   }
 }
 
+// ---------------------------------------------------------------- the antenna scope
+//
+// An SWR sweep: the tuner out of line, a low-power RTTY carrier (a steady mark tone, at the dial frequency), and
+// the dial stepped across a band while keyed, reading the SWR and Po meters at each step. What it measures is the
+// antenna and its feeder together, as the rig sees them. It goes only where kSweepBands and the chosen plan both
+// say there's a band, keeps kSweepEdgeHz inside every edge, and steps over beacons and satellites. Every frame it
+// checks that nothing has changed under it, and anything unexpected ends the sweep and lets go of PTT. The
+// rig's settings go back only once the rig itself says it's receiving, so full power never goes out on a sweep
+// frequency.
+
+std::vector<App::SweepPlanBand> App::sweepBands() const {
+  std::vector<SweepPlanBand> out;
+  if (!radio().hasTransmit) return out;
+  for (const SweepBand& sb : kSweepBands) {
+    SweepPlanBand b;
+    b.name = sb.name, b.lo = sb.lo, b.hi = sb.hi;
+    std::vector<SweepRange> parts;
+    for (const bands::Band& band : plan_.bands) {
+      if (!band.group.empty() || band.hi < sb.lo || band.lo > sb.hi) continue;  // a group's band isn't an amateur one
+      for (const bands::Segment& s : band.segments) {
+        long long lo = std::max(s.lo, sb.lo), hi = std::min(s.hi, sb.hi);
+        if (lo >= hi || !radio().canTune(lo) || !radio().canTune(hi)) continue;
+        parts.push_back({lo, hi});
+        if (s.use == bands::U_BEACON || s.use == bands::U_SAT) b.avoid.push_back({lo, hi});
+      }
+    }
+    std::sort(parts.begin(), parts.end(), [](const SweepRange& x, const SweepRange& y) { return x.lo < y.lo; });
+    for (const SweepRange& p : parts) {
+      if (!b.inBand.empty() && p.lo <= b.inBand.back().hi) b.inBand.back().hi = std::max(b.inBand.back().hi, p.hi);
+      else b.inBand.push_back(p);
+    }
+    if (!b.inBand.empty()) out.push_back(b);
+  }
+  return out;
+}
+
+bool App::sweepTargets(const SweepPlanBand& b, long long step, std::vector<long long>& hz, std::vector<int>& run) const {
+  hz.clear();
+  run.clear();
+  for (size_t r = 0; r < b.inBand.size(); r++) {
+    long long lo = b.inBand[r].lo + kSweepEdgeHz, hi = b.inBand[r].hi - kSweepEdgeHz;
+    for (long long f = (lo + step - 1) / step * step; f <= hi; f += step) {
+      bool avoid = false;
+      for (const SweepRange& a : b.avoid)
+        if (f >= a.lo - kSweepAvoidHz && f <= a.hi + kSweepAvoidHz) avoid = true;
+      // And the plan asked again, each side of it: belt and braces, as this is where it transmits.
+      if (avoid || !radio().canTune(f) || !plan_.segmentAt(f) || !plan_.segmentAt(f - kSweepEdgeHz) || !plan_.segmentAt(f + kSweepEdgeHz)) continue;
+      if (hz.size() >= kSweepMaxPoints) return false;
+      hz.push_back(f);
+      run.push_back((int)r);
+    }
+  }
+  return !hz.empty();
+}
+
+void App::startSweep() {
+  std::vector<SweepPlanBand> list = sweepBands();
+  if (sweeping()) return;
+  if (sweepBand_ < 0 || sweepBand_ >= (int)list.size()) return say(tr("Choose a band to sweep"));
+  if (!st_.connected) return say(tr("The rig isn't connected"));
+  if (!st_.txArmed) return say(tr("Transmit isn't armed. Press ARM TX first."));
+  if (!sweepAck_) return say(tr("Tick the box to say you understand what the sweep does"));
+  if (st_.tx) return say(tr("The rig is already transmitting"));
+  if (st_.level[civ::L_POWER] < 0 || st_.mode < 0 || st_.hz <= 0) return say(tr("Still reading the rig's settings. Try again in a moment."));
+  const SweepPlanBand& b = list[(size_t)sweepBand_];
+  const long long step = kSweepSteps[sweepStepIdx_];
+  if (!sweepTargets(b, step, sweepHz_, sweepRun_))
+    return say(sweepHz_.empty() ? trf("There's nowhere in %s to sweep in the %s plan", b.name.c_str(), plan_.name.c_str())
+                                : trf("That's more than %d frequencies. Choose a bigger step.", (int)kSweepMaxPoints));
+
+  sweepSaved_ = SweepSaved();
+  sweepSaved_.hz = st_.hz, sweepSaved_.mode = st_.mode, sweepSaved_.data = st_.data, sweepSaved_.filter = st_.filter;
+  sweepSaved_.power = st_.level[civ::L_POWER], sweepSaved_.atu = st_.atu, sweepSaved_.split = st_.split, sweepSaved_.xit = st_.xitOn;
+
+  const int watts = kSweepWatts[sweepWattIdx_];
+  const int full = std::max(1, radio().maxWattsAt(b.lo));
+  sweepPowerRaw_ = std::max(1, std::min(255, (int)lround(watts * 255.0 / full)));
+  // Each stretch on air stays well inside the PTT limit, and the limit is pulled in to just past it while the
+  // sweep runs, so a hung window can't leave a carrier up for long.
+  sweepKeyedMax_ = std::max(3.0, std::min(60.0, (double)txLimit_ - 10));
+  rig_.setTxLimit(std::min(txLimit_, (int)sweepKeyedMax_ + 10));
+
+  scan_.stop();
+  rig_.setLevel(civ::L_POWER, sweepPowerRaw_);  // power down before anything else
+  if (st_.split == 1) rig_.setSplit(false);
+  if (st_.xitOn == 1) rig_.setXitOn(false);
+  rig_.setMode(civ::RTTY, false, 1);
+  rig_.setFreq(sweepHz_[0]);  // and the tuner once the rig's on that band: see pumpSweep
+  sweepTunerOff_ = !radio().hasTuner, sweepResent_ = false, sweepBandAtu_ = -1;
+
+  Sweep s;
+  s.band = b.name, s.radio = radio().name, s.when = utcNow("%Y-%m-%d %H:%M UTC"), s.stamp = utcNow("%Y%m%d-%H%M%S");
+  s.lo = b.lo, s.hi = b.hi, s.stepHz = step, s.watts = watts;
+  s.pts.reserve(sweepHz_.size());
+  sweeps_.push_back(std::move(s));
+  while (sweeps_.size() > 20) sweeps_.erase(sweeps_.begin());
+  sweepShown_ = (int)sweeps_.size() - 1;
+
+  const double now = glfwGetTime();
+  sweepIdx_ = 0;
+  sweepErrorSeq_ = st_.lastErrorSeq;
+  sweepExpectHz_ = sweepHz_[0], sweepFreqAt_ = now;
+  sweepPhase_ = SW_PREP, sweepT0_ = now;
+  sweepFailed_ = false;
+  sweepStatus_ = tr("Setting the rig up for the sweep");
+}
+
+void App::endSweep(const std::string& why, bool failed) {
+  rig_.ptt(false);  // at once: the rig thread sends it ahead of anything queued, and keeps on until the rig says it stopped
+  sweepStatus_ = why;
+  sweepFailed_ = failed;
+  say(why);
+  sweepPhase_ = SW_RESTORE;
+  sweepT0_ = glfwGetTime();
+}
+
+void App::restoreAfterSweep() {
+  const double now = glfwGetTime();
+  if (!st_.connected) {
+    rig_.setTxLimit(txLimit_);
+    sweepPhase_ = SW_IDLE, sweepEndedAt_ = now;
+    sweepStatus_ += "  " + std::string(tr("The rig stopped answering, so its settings couldn't be put back: check its power, mode and tuner."));
+    say(sweepStatus_);
+    return;
+  }
+  // Not until the rig itself says it's receiving: the power going back up mustn't reach a carrier.
+  if (st_.tx || now - sweepT0_ < 0.6) return;
+  const SweepSaved& v = sweepSaved_;
+  if (v.power >= 0) rig_.setLevel(civ::L_POWER, v.power);
+  if (v.mode >= 0) rig_.setMode(v.mode, v.data, v.filter ? v.filter : 1);
+  // The swept band's own tuner setting while the rig is still on it, then the frequency, which brings back the
+  // first band's. (If both are on, the setAtu below just replaces this one in the queue, still before the
+  // frequency, and the first band's own setting comes back on with it.)
+  if (radio().hasTuner && sweepTunerOff_ && sweepBandAtu_ >= 1) rig_.setAtu(true);
+  if (v.hz > 0) rig_.setFreq(v.hz);
+  if (v.split == 1) rig_.setSplit(true);
+  if (v.xit == 1) rig_.setXitOn(true);
+  if (radio().hasTuner && v.atu >= 1) rig_.setAtu(true);
+  rig_.setTxLimit(txLimit_);
+  sweepPhase_ = SW_IDLE, sweepEndedAt_ = now;
+}
+
+void App::pumpSweep() {
+  if (sweepPhase_ == SW_IDLE) return;
+  if (sweepPhase_ == SW_RESTORE) return restoreAfterSweep();
+  const double now = glfwGetTime();
+  Sweep& s = sweeps_.back();
+  const bool prep = sweepPhase_ == SW_PREP;
+  const double pointT = now - sweepPointAt_;
+  const double po = st_.meter[civ::M_PO] >= 0 ? civ::powerWatts(st_.meter[civ::M_PO], radio(), st_.hz) : -1;
+
+  // Anything not as the sweep left it ends the sweep.
+  std::string why;
+  if (!openAntScope_) why = tr("its window was closed");
+  else if (!st_.connected) why = tr("the rig stopped answering");
+  else if (!st_.txArmed) why = tr("transmit was disarmed");
+  else if (st_.lastErrorSeq != sweepErrorSeq_) why = rigMessage(st_.lastError);
+  else if (!prep && st_.mode >= 0 && st_.mode != civ::RTTY) why = tr("the mode was changed");
+  else if (!prep && st_.split == 1) why = tr("split was turned on");
+  else if (!prep && st_.xitOn == 1) why = tr("XIT was turned on");
+  else if (!prep && radio().hasTuner && st_.atu >= 1) why = tr("the tuner was put back in line");
+  else if (now - sweepFreqAt_ > 0.8 && st_.hz > 0 && st_.hz != sweepExpectHz_)
+    why = tr("the rig isn't on the frequency the sweep set (tuned by hand, or it won't retune while transmitting)");
+  else if (sweepPhase_ == SW_STEP && !st_.tx) why = tr("the rig stopped transmitting (PTT released, or the time limit)");
+  else if (sweepPhase_ == SW_STEP && pointT >= kSweepSampleFrom && st_.tx && po > s.watts * 3 + 3)
+    why = trf("the rig is putting out %.0f W, far more than the %d W asked for", po, s.watts);
+  if (!why.empty()) return endSweep(trf("Sweep aborted: %s", why.c_str()), true);
+
+  auto key = [&] {
+    if (!rig_.ptt(true)) return endSweep(tr("Sweep aborted: the rig wouldn't key"), true);
+    sweepPhase_ = SW_KEYING, sweepT0_ = sweepKeyedAt_ = now;
+  };
+  auto startPoint = [&] {
+    sweepPointAt_ = now;
+    sweepSwrSum_ = sweepPoSum_ = 0;
+    sweepSwrN_ = sweepPoN_ = 0;
+  };
+
+  switch (sweepPhase_) {
+    case SW_PREP: {
+      if (now - sweepT0_ < 1.5) return;
+      // First the frequency, and a tuner reading from after it (it's polled every second): that's the band's own
+      // setting, which the rig has just brought back. Then the tuner comes out, and the rest is checked.
+      if (!sweepTunerOff_) {
+        if (st_.hz != sweepHz_[0]) {
+          if (now - sweepT0_ > 4) endSweep(tr("Sweep aborted: the rig didn't take the sweep's settings") + std::string(" (frequency)"), true);
+          return;
+        }
+        sweepBandAtu_ = st_.atu;
+        rig_.setAtu(false);
+        sweepTunerOff_ = true, sweepT0_ = now;
+        return;
+      }
+      std::string off;
+      auto check = [&](bool ok, const char* what) {
+        if (!ok) off += std::string(off.empty() ? "" : ", ") + what;
+      };
+      check(st_.hz == sweepHz_[0], "frequency");
+      check(st_.mode == civ::RTTY, "mode");
+      check(st_.level[civ::L_POWER] == sweepPowerRaw_, "power");
+      check(!radio().hasTuner || st_.atu == 0, "tuner");
+      check(st_.split != 1, "split");
+      check(st_.xitOn != 1, "XIT");
+      if (off.empty()) return key();
+      // Once more, for a command the rig missed. The levels are only read every few seconds, so give it time.
+      if (!sweepResent_ && now - sweepT0_ > 2.5) {
+        sweepResent_ = true;
+        if (st_.level[civ::L_POWER] != sweepPowerRaw_) rig_.setLevel(civ::L_POWER, sweepPowerRaw_);
+        if (st_.mode != civ::RTTY) rig_.setMode(civ::RTTY, false, 1);
+        if (radio().hasTuner && st_.atu != 0) rig_.setAtu(false);
+        if (st_.split == 1) rig_.setSplit(false);
+        if (st_.xitOn == 1) rig_.setXitOn(false);
+        if (st_.hz != sweepHz_[0]) rig_.setFreq(sweepHz_[0]);
+        sweepT0_ = now;  // and checked again once the rig's own readings have replaced what was just sent
+      }
+      if (sweepResent_ && now - sweepT0_ > 4) endSweep(tr("Sweep aborted: the rig didn't take the sweep's settings") + std::string(" (") + off + ")", true);
+      return;
+    }
+    case SW_KEYING:
+      if (now - sweepT0_ < 0.5) return;
+      if (!st_.tx) {
+        if (now - sweepT0_ > 1.5) endSweep(tr("Sweep aborted: the rig didn't start transmitting"), true);
+        return;
+      }
+      sweepPhase_ = SW_STEP;
+      sweepStatus_.clear();
+      return startPoint();
+    case SW_STEP: {
+      if (pointT >= kSweepSampleFrom) {
+        if (st_.meter[civ::M_SWR] >= 0) sweepSwrSum_ += civ::swrRatio(st_.meter[civ::M_SWR]), sweepSwrN_++;
+        if (po >= 0) sweepPoSum_ += po, sweepPoN_++;
+      }
+      if (pointT < kSweepDwell) return;
+      SweepPoint p;
+      p.hz = sweepHz_[sweepIdx_];
+      if (sweepSwrN_) p.swr = sweepSwrSum_ / sweepSwrN_;
+      if (sweepPoN_) p.watts = sweepPoSum_ / sweepPoN_;
+      s.pts.push_back(p);
+      if (++sweepIdx_ >= sweepHz_.size()) {
+        s.complete = true;
+        return endSweep(trf("Sweep finished: %d frequencies across %s", (int)s.pts.size(), s.band.c_str()), false);
+      }
+      const bool newRun = sweepRun_[sweepIdx_] != sweepRun_[sweepIdx_ - 1];
+      if (newRun || now - sweepKeyedAt_ + kSweepDwell > sweepKeyedMax_) {
+        // Across a gap in the band it lets go, so nothing goes out between; and after a long stretch, a rest.
+        rig_.ptt(false);
+        sweepPhase_ = SW_REST, sweepT0_ = now, sweepRestFor_ = newRun ? 1.0 : kSweepRest, sweepFreqSent_ = false;
+        sweepStatus_ = newRun ? tr("Unkeyed to cross a gap in the band") : tr("Unkeyed for a short rest");
+        return;
+      }
+      rig_.setFreq(sweepHz_[sweepIdx_]);
+      sweepExpectHz_ = sweepHz_[sweepIdx_], sweepFreqAt_ = now;
+      return startPoint();
+    }
+    case SW_REST:
+      if (st_.tx) {
+        if (now - sweepT0_ > 5) endSweep(tr("Sweep aborted: the rig didn't stop transmitting"), true);
+        return;
+      }
+      if (!sweepFreqSent_) {
+        if (now - sweepT0_ < 0.6) return;
+        rig_.setFreq(sweepHz_[sweepIdx_]);  // only once the rig says it's receiving
+        sweepExpectHz_ = sweepHz_[sweepIdx_], sweepFreqAt_ = now, sweepFreqSent_ = true;
+        return;
+      }
+      if (now - sweepT0_ < sweepRestFor_ || now - sweepFreqAt_ < 0.9) return;
+      return key();
+    default: return;
+  }
+}
+
+static std::string kHzText(long long hz) {
+  char b[32];
+  snprintf(b, sizeof b, hz % 1000 ? "%.1f kHz" : "%.0f kHz", hz / 1000.0);
+  return b;
+}
+
+void App::saveSweepCsv(const Sweep& s) {
+  std::string base = store::dataDir();
+  const char sep = base.empty() ? '/' : base.back();
+  std::string dir = base + "antenna-scope";
+  store::makeDirs(dir);
+  std::string band = s.band;
+  band.erase(std::remove(band.begin(), band.end(), ' '), band.end());
+  std::string path = dir + sep + band + "-" + std::to_string(s.watts) + "W-" + s.stamp + ".csv";
+  std::string text = "# Antenna scope sweep: " + s.band + ", " + s.radio + ", " + s.when + ", " + kHzText(s.stepHz) + " steps, " + std::to_string(s.watts) + " W, tuner out of line" + (s.complete ? "" : ", stopped early") + "\n";
+  text += "frequency_hz,swr,watts\n";
+  char b[96];
+  for (const SweepPoint& p : s.pts) {
+    std::string swr, w;
+    if (p.swr >= 0) snprintf(b, sizeof b, "%.2f", p.swr), swr = b;
+    if (p.watts >= 0) snprintf(b, sizeof b, "%.1f", p.watts), w = b;
+    text += std::to_string(p.hz) + "," + swr + "," + w + "\n";
+  }
+  if (store::saveText(path, text)) say(trf("Saved %s", path.c_str()));
+  else say(trf("Couldn't write %s", path.c_str()));
+}
+
+void App::pickSweepToLoad() {
+  if (sweepPick_) return;
+  auto pick = std::make_shared<LogPick>();
+  sweepPick_ = pick;
+  void* owner = store::activeWindow();
+  std::string dir = store::dataDir() + "antenna-scope";
+  store::makeDirs(dir);
+  std::string title = tr("Choose a saved antenna scope sweep"), kind = tr("Sweeps");
+  std::thread([pick, owner, dir, title, kind] {
+    pick->available = store::pickFile(owner, title, kind, {"csv"}, dir, pick->path);
+    pick->done = true;
+  }).detach();
+}
+
+void App::pumpSweepPick() {
+  if (!sweepPick_ || !sweepPick_->done) return;
+  std::shared_ptr<LogPick> pick = sweepPick_;
+  sweepPick_.reset();
+  if (!pick->available) say(tr("There's no file dialog on this system (it needs zenity or kdialog)"));
+  else if (!pick->path.empty()) loadSweepCsv(pick->path);
+}
+
+// Reads back a file saveSweepCsv wrote: the comment line for what it was, then frequency_hz,swr,watts rows.
+void App::loadSweepCsv(const std::string& path) {
+  std::ifstream f(std::filesystem::u8path(path));
+  if (!f) return say(trf("Couldn't read %s", path.c_str()));
+  Sweep s;
+  std::string line;
+  bool header = false;
+  while (std::getline(f, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.empty()) continue;
+    if (line[0] == '#') {
+      const std::string tag = "# Antenna scope sweep: ";
+      if (line.compare(0, tag.size(), tag) != 0) continue;
+      header = true;
+      std::vector<std::string> parts;
+      for (size_t at = tag.size();;) {
+        size_t comma = line.find(", ", at);
+        parts.push_back(line.substr(at, comma == std::string::npos ? std::string::npos : comma - at));
+        if (comma == std::string::npos) break;
+        at = comma + 2;
+      }
+      if (parts.size() > 0) s.band = parts[0];
+      if (parts.size() > 1) s.radio = parts[1];
+      if (parts.size() > 2) s.when = parts[2];
+      s.complete = true;
+      for (size_t i = 3; i < parts.size(); i++) {
+        const std::string& p = parts[i];
+        if (p.find("kHz steps") != std::string::npos) s.stepHz = llround(atof(p.c_str()) * 1000);
+        else if (p.size() > 2 && p.compare(p.size() - 2, 2, " W") == 0) s.watts = atoi(p.c_str());
+        else if (p == "stopped early") s.complete = false;
+      }
+      continue;
+    }
+    if (!isdigit((unsigned char)line[0])) continue;  // the column names
+    SweepPoint pt;
+    size_t c1 = line.find(','), c2 = c1 == std::string::npos ? c1 : line.find(',', c1 + 1);
+    pt.hz = atoll(line.c_str());
+    if (pt.hz <= 0) continue;
+    if (c1 != std::string::npos) {
+      std::string swr = line.substr(c1 + 1, c2 == std::string::npos ? std::string::npos : c2 - c1 - 1);
+      if (!swr.empty()) pt.swr = atof(swr.c_str());
+    }
+    if (c2 != std::string::npos && c2 + 1 < line.size()) pt.watts = atof(line.c_str() + c2 + 1);
+    s.pts.push_back(pt);
+  }
+  if (s.pts.empty()) return say(trf("There's no sweep in %s", path.c_str()));
+  std::sort(s.pts.begin(), s.pts.end(), [](const SweepPoint& a, const SweepPoint& b) { return a.hz < b.hz; });
+  // The band's own edges for the plot, if it's one the scope knows; otherwise just around what was measured.
+  s.lo = s.pts.front().hz, s.hi = s.pts.back().hz;
+  bool known = false;
+  for (const SweepBand& sb : kSweepBands)
+    if (s.band == sb.name && s.lo >= sb.lo && s.hi <= sb.hi) s.lo = sb.lo, s.hi = sb.hi, known = true;
+  if (s.stepHz <= 0) {
+    for (size_t i = 1; i < s.pts.size(); i++) {
+      long long d = s.pts[i].hz - s.pts[i - 1].hz;
+      if (d > 0 && (s.stepHz <= 0 || d < s.stepHz)) s.stepHz = d;
+    }
+    if (s.stepHz <= 0) s.stepHz = 1000;
+  }
+  if (!known) s.lo -= s.stepHz, s.hi += s.stepHz;
+  std::string name = path.substr(path.find_last_of("\\/") + 1);
+  if (s.band.empty()) s.band = name;
+  if (s.when.empty()) s.when = name;
+  if (!header) s.complete = true;
+  s.when += "  (" + std::string(tr("loaded")) + ")";
+  s.stamp = name;
+  // A sweep that's running stays last, as pumpSweep writes to the last one.
+  if (sweeping() && !sweeps_.empty()) sweeps_.insert(sweeps_.end() - 1, std::move(s)), sweepShown_ = (int)sweeps_.size() - 2;
+  else sweeps_.push_back(std::move(s)), sweepShown_ = (int)sweeps_.size() - 1;
+  while (sweeps_.size() > 20) sweeps_.erase(sweeps_.begin()), sweepShown_--;
+  if (sweepShown_ < 0) sweepShown_ = 0;
+  say(trf("Loaded %s", path.c_str()));
+}
+
+void App::drawSweepPlot(const Sweep& s, float height) {
+  const ImVec2 p0 = ImGui::GetCursorScreenPos();
+  const float w = std::max(S(200), ImGui::GetContentRegionAvail().x);
+  ImGui::InvisibleButton("sweepplot", ImVec2(w, height));
+  const bool hovered = ImGui::IsItemHovered();
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  const ImVec2 a(p0.x + S(44), p0.y + S(10)), b(p0.x + w - S(12), p0.y + height - S(22));
+  dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + height), C_PANEL, S(4));
+  dl->AddRect(a, b, IM_COL32(60, 66, 78, 255));
+
+  double maxSwr = 1;
+  for (const SweepPoint& p : s.pts) maxSwr = std::max(maxSwr, p.swr);
+  const double yMax = maxSwr <= 2.9 ? 3 : maxSwr <= 3.9 ? 4 : 6;
+  const double span = (double)std::max(1LL, s.hi - s.lo);
+  auto X = [&](long long hz) { return a.x + (float)((hz - s.lo) / span) * (b.x - a.x); };
+  auto Y = [&](double swr) { return b.y - (float)((std::min(yMax, std::max(1.0, swr)) - 1) / (yMax - 1)) * (b.y - a.y); };
+  auto colourOf = [](double swr) { return swr <= 2 ? C_GREEN : swr <= 3 ? C_AMBER : C_RED; };
+
+  char t[48];
+  for (double v : {1.5, 2.0, 3.0, 4.0, 5.0, 6.0}) {
+    if (v > yMax) break;
+    const float y = Y(v);
+    const bool tuner = v == 3.0;
+    dl->AddLine(ImVec2(a.x, y), ImVec2(b.x, y), tuner ? IM_COL32(255, 190, 70, 110) : IM_COL32(125, 135, 150, 50), tuner ? S(1.5f) : 1);
+    snprintf(t, sizeof t, "%.1f", v);
+    dl->AddText(ImVec2(p0.x + S(8), y - ImGui::GetFontSize() / 2), C_DIM, t);
+    if (tuner && v < yMax) dl->AddText(ImVec2(b.x - ImGui::CalcTextSize(tr("3:1, the tuner's limit")).x - S(4), y - ImGui::GetFontSize() - S(1)),
+                                       C_AMBER, tr("3:1, the tuner's limit"));
+  }
+  dl->AddText(ImVec2(p0.x + S(8), b.y - ImGui::GetFontSize() / 2), C_DIM, "1.0");
+  // Frequency ticks, a round number apart, four to ten of them.
+  long long tick = 1000;
+  for (long long c : {1000LL, 2000LL, 5000LL, 10000LL, 20000LL, 25000LL, 50000LL, 100000LL, 200000LL, 250000LL, 500000LL, 1000000LL})
+    if (span / c <= 8) {
+      tick = c;
+      break;
+    }
+  for (long long f = (s.lo + tick - 1) / tick * tick; f <= s.hi; f += tick) {
+    const float x = X(f);
+    dl->AddLine(ImVec2(x, a.y), ImVec2(x, b.y), IM_COL32(125, 135, 150, 35));
+    snprintf(t, sizeof t, "%.3f", f / 1e6);
+    const float tw = ImGui::CalcTextSize(t).x;
+    if (x - tw / 2 >= p0.x && x + tw / 2 <= p0.x + w) dl->AddText(ImVec2(x - tw / 2, b.y + S(3)), C_DIM, t);
+  }
+
+  dl->PushClipRect(a, b, true);
+  const SweepPoint* prev = nullptr;
+  for (const SweepPoint& p : s.pts) {
+    if (p.swr < 0) {
+      prev = nullptr;
+      continue;
+    }
+    if (prev && p.hz - prev->hz <= s.stepHz * 3)
+      dl->AddLine(ImVec2(X(prev->hz), Y(prev->swr)), ImVec2(X(p.hz), Y(p.swr)), colourOf(std::max(p.swr, prev->swr)), S(2));
+    prev = &p;
+  }
+  if (s.pts.size() < 200)
+    for (const SweepPoint& p : s.pts)
+      if (p.swr >= 0) dl->AddCircleFilled(ImVec2(X(p.hz), Y(p.swr)), S(2.5f), colourOf(p.swr));
+  // Where it's transmitting now.
+  if (sweeping() && &s == &sweeps_.back() && sweepIdx_ < sweepHz_.size()) {
+    const float x = X(sweepHz_[sweepIdx_]);
+    dl->AddLine(ImVec2(x, a.y), ImVec2(x, b.y), st_.tx ? C_RED : C_DIM, S(1.5f));
+  }
+  dl->PopClipRect();
+
+  if (hovered && !s.pts.empty()) {
+    const float mx = ImGui::GetIO().MousePos.x;
+    const SweepPoint* closest = nullptr;
+    for (const SweepPoint& p : s.pts)
+      if (!closest || fabsf(X(p.hz) - mx) < fabsf(X(closest->hz) - mx)) closest = &p;
+    if (closest && fabsf(X(closest->hz) - mx) < S(20)) {
+      if (closest->swr >= 0) dl->AddCircle(ImVec2(X(closest->hz), Y(closest->swr)), S(5), C_TEXT, 0, S(1.5f));
+      std::string tip = tuning::formatHz(closest->hz) + "\n";
+      tip += closest->swr >= 0 ? trf("SWR %.2f:1", closest->swr) : std::string(tr("No SWR reading"));
+      if (closest->watts >= 0) tip += "\n" + trf("%.1f W out", closest->watts);
+      ImGui::SetTooltip("%s", tip.c_str());
+    }
+  }
+}
+
+void App::drawSweepSummary(const Sweep& s) {
+  int best = -1, readings = 0, over3 = 0;
+  double wLo = 1e9, wHi = -1, wSum = 0;
+  int wN = 0;
+  for (size_t i = 0; i < s.pts.size(); i++) {
+    const SweepPoint& p = s.pts[i];
+    if (p.watts >= 0) wLo = std::min(wLo, p.watts), wHi = std::max(wHi, p.watts), wSum += p.watts, wN++;
+    if (p.swr < 0) continue;
+    readings++;
+    if (p.swr > 3) over3++;
+    if (best < 0 || p.swr < s.pts[(size_t)best].swr) best = (int)i;
+  }
+  if (best < 0) {
+    ImGui::TextDisabled("%s", s.pts.empty() ? tr("Nothing measured yet") : tr("No SWR readings came back"));
+    return;
+  }
+  const SweepPoint& bp = s.pts[(size_t)best];
+  ImGui::TextColored(ImColor(bp.swr <= 2 ? C_GREEN : bp.swr <= 3 ? C_AMBER : C_RED), tr("Lowest SWR %.2f:1 at %s"), bp.swr, tuning::formatHz(bp.hz).c_str());
+  // The stretch either side of the lowest point that stays under a limit, crossing nothing it skipped.
+  auto stretch = [&](double limit) {
+    if (bp.swr > limit) return std::string(trf("Nowhere under %.0f:1", limit));
+    size_t lo = (size_t)best, hi = (size_t)best;
+    while (lo > 0 && s.pts[lo - 1].swr >= 0 && s.pts[lo - 1].swr <= limit && s.pts[lo].hz - s.pts[lo - 1].hz <= s.stepHz * 3) lo--;
+    while (hi + 1 < s.pts.size() && s.pts[hi + 1].swr >= 0 && s.pts[hi + 1].swr <= limit && s.pts[hi + 1].hz - s.pts[hi].hz <= s.stepHz * 3) hi++;
+    return trf("Under %.0f:1 from %s to %s (%.0f kHz)", limit, tuning::formatHz(s.pts[lo].hz).c_str(), tuning::formatHz(s.pts[hi].hz).c_str(),
+               (s.pts[hi].hz - s.pts[lo].hz) / 1000.0);
+  };
+  ImGui::TextUnformatted(stretch(2).c_str());
+  ImGui::TextUnformatted(stretch(3).c_str());
+  if (over3) ImGui::TextColored(ImColor(C_RED), tr("%d of %d frequencies are above 3:1, more than the rig's tuner can match"), over3, readings);
+  else ImGui::TextColored(ImColor(C_GREEN), "%s", tr("All of it is within 3:1, so the rig's tuner can match it"));
+  if (wN) {
+    ImGui::TextDisabled(tr("Power measured %.1f to %.1f W (%d W asked for)"), wLo, wHi, s.watts);
+    if (wSum / wN < 1.0)
+      ImGui::TextColored(ImColor(C_AMBER), "%s", tr("Very little power was measured, so the SWR readings may not be reliable. Try more power."));
+  }
+}
+
+void App::drawAntennaScope() {
+  if (!openAntScope_) {
+    antScopeShown_ = false;
+    // Closed while full, it opens again where it was before.
+    if (antScopeFull_) antScopeFull_ = false, antScopePutBack_ = true;
+    return;
+  }
+  if (!antScopeShown_) {
+    antScopeShown_ = true;
+    sweepAck_ = false;  // every time the window opens
+  }
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
+  if (antScopeFull_) {
+    // The whole of the program's window, but the status bar stays in view, as the log book's does.
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->Pos);
+    ImGui::SetNextWindowSize(ImVec2(vp->Size.x, std::max(S(200), vp->Size.y - ImGui::GetFrameHeightWithSpacing() - ImGui::GetStyle().WindowPadding.y)));
+    ImGui::SetNextWindowViewport(vp->ID);
+    flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+  } else if (antScopePutBack_) {
+    ImGui::SetNextWindowPos(antScopePos_);
+    ImGui::SetNextWindowSize(antScopeSize_);
+    antScopePutBack_ = false;
+  } else {
+    ImGui::SetNextWindowSize(ImVec2(S(780), S(760)), ImGuiCond_FirstUseEver);
+  }
+  if (!ImGui::Begin(trId("Antenna Scope"), &openAntScope_, flags)) {
+    ImGui::End();
+    return;
+  }
+  if (titleBarMaximise(antScopeFull_)) {
+    if (antScopeFull_) antScopePutBack_ = true;
+    else antScopePos_ = ImGui::GetWindowPos(), antScopeSize_ = ImGui::GetWindowSize();
+    antScopeFull_ = !antScopeFull_;
+  }
+  const bool running = sweeping() && sweepPhase_ != SW_RESTORE;
+  const bool restoring = sweepPhase_ == SW_RESTORE;
+
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("WHAT THE SWEEP DOES"));
+  ImGui::Separator();
+  ImGui::PushTextWrapPos(0);
+  ImGui::TextUnformatted(tr(
+      "The antenna scope measures how well your antenna, and the feeder between it and the radio, match the rig across a band. "
+      "When you press START SWEEP it takes the antenna tuner out of line, turns split and XIT off, puts the rig in RTTY and turns "
+      "the RF power down to the level chosen below. Then it keys the transmitter and sends a steady, unmodulated carrier, moving "
+      "it up the band one step at a time and spending about half a second on each frequency while it reads the rig's SWR and power "
+      "meters. It stays keyed as it moves, and only lets go to cross a gap in the band and for a few seconds' rest after each "
+      "minute or so on the air. It transmits only inside the band edges of the chosen band plan, keeps 1 kHz inside them, and "
+      "steps over beacon and satellite segments. When it finishes, or you abort it, it releases PTT and puts the frequency, mode, "
+      "power, tuner, split and XIT back as they were. The carrier isn't identified, and anyone listening will hear it on every "
+      "frequency it passes: listen first, sweep when the band is quiet, and make sure the band plan matches your licence."));
+  ImGui::TextDisabled("%s", tr("Transmit must be armed. ABORT, Esc, Ctrl+Space, ARM TX, tuning the dial, closing this window or losing the rig all stop it at once."));
+  ImGui::PopTextWrapPos();
+  ImGui::Spacing();
+  ImGui::BeginDisabled(running || restoring);
+  ImGui::Checkbox("##sweepack", &sweepAck_);
+  note("sweepack");
+  ImGui::SameLine();
+  ImGui::PushTextWrapPos(0);
+  ImGui::TextUnformatted(tr("I understand that this transmits a carrier across the band, that keeping it within my licence is my responsibility, and that I will watch the sweep and abort it if anything goes wrong"));
+  ImGui::PopTextWrapPos();
+  ImGui::EndDisabled();
+  ImGui::Spacing();
+
+  // What to sweep.
+  std::vector<SweepPlanBand> list = sweepBands();
+  if (sweepBand_ < 0 || sweepBand_ >= (int)list.size()) {
+    sweepBand_ = list.empty() ? -1 : 0;
+    for (int i = 0; i < (int)list.size(); i++)
+      if (st_.hz >= list[(size_t)i].lo && st_.hz <= list[(size_t)i].hi) sweepBand_ = i;
+  }
+  const float fieldW = S(130);
+  ImGui::BeginDisabled(running || restoring);
+  ImGui::SetNextItemWidth(fieldW);
+  if (ImGui::BeginCombo(trId("Band"), sweepBand_ >= 0 ? list[(size_t)sweepBand_].name.c_str() : tr("None"))) {
+    for (int i = 0; i < (int)list.size(); i++)
+      if (ImGui::Selectable(list[(size_t)i].name.c_str(), i == sweepBand_)) sweepBand_ = i;
+    ImGui::EndCombo();
+  }
+  ImGui::SetItemTooltip("%s", tr("The main HF bands and 6 m, where the chosen band plan has them"));
+  ImGui::SameLine(0, S(20));
+  ImGui::SetNextItemWidth(fieldW);
+  ImGui::Combo(trId("Step"), &sweepStepIdx_, kSweepStepNames, kSweepStepCount);
+  ImGui::SetItemTooltip("%s", tr("How far apart the frequencies it measures are"));
+  ImGui::SameLine(0, S(20));
+  ImGui::SetNextItemWidth(fieldW);
+  ImGui::Combo(trId("Power"), &sweepWattIdx_, kSweepWattNames, kSweepWattCount);
+  ImGui::SetItemTooltip("%s", tr("The RF power it transmits at. 2 W is plenty for the SWR meter on most rigs."));
+  ImGui::EndDisabled();
+
+  std::vector<long long> hz;
+  std::vector<int> run;
+  bool fits = false;
+  if (sweepBand_ >= 0) {
+    const SweepPlanBand& b = list[(size_t)sweepBand_];
+    fits = sweepTargets(b, kSweepSteps[sweepStepIdx_], hz, run);
+    if (fits) {
+      const double keyedMax = std::max(3.0, std::min(60.0, (double)txLimit_ - 10));
+      const double onAir = hz.size() * kSweepDwell;
+      const int gaps = run.back() - run.front(), rests = (int)(onAir / keyedMax);
+      const int secs = (int)(3 + onAir + gaps * 2.5 + rests * (kSweepRest + 1.5) + 0.5);
+      ImGui::TextDisabled(tr("%d frequencies from %s to %s, about %d min %02d s"), (int)hz.size(), tuning::formatHz(hz.front()).c_str(),
+                          tuning::formatHz(hz.back()).c_str(), secs / 60, secs % 60);
+    } else {
+      ImGui::TextColored(ImColor(C_AMBER), "%s", hz.empty() ? trf("There's nowhere in %s to sweep in the %s plan", b.name.c_str(), plan_.name.c_str()).c_str()
+                                                            : trf("That's more than %d frequencies. Choose a bigger step.", (int)kSweepMaxPoints).c_str());
+    }
+  } else {
+    ImGui::TextColored(ImColor(C_AMBER), tr("The %s plan has none of the bands the sweep covers for the %s"), plan_.name.c_str(), radio().name);
+  }
+
+  // The button: START, or ABORT while it runs.
+  const float bw = ImGui::GetContentRegionAvail().x, bh = S(56);
+  if (running) {
+    if (actionButton("ABORT SWEEP", ImVec2(bw, bh), V_RED, V_RED_HI, "sweepabort") ||
+        (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Escape)))
+      endSweep(tr("Sweep aborted"), true);
+  } else {
+    std::string why;
+    if (restoring) why = tr("Putting the rig back as it was...");
+    else if (!st_.connected) why = tr("The rig isn't connected");
+    else if (!fits) why = tr("Nothing to sweep");
+    else if (!st_.txArmed) why = tr("Transmit isn't armed. Press ARM TX first.");
+    else if (!sweepAck_) why = tr("Tick the box above to say you understand what the sweep does");
+    else if (st_.tx) why = tr("The rig is transmitting");
+    const bool settling = glfwGetTime() - sweepEndedAt_ < 2;  // so a second click on ABORT can't start another
+    ImGui::BeginDisabled(!why.empty() || settling);
+    if (actionButton("START SWEEP", ImVec2(bw, bh), V_ACCENT, V_ACCENT_HI, "sweepstart")) startSweep();
+    ImGui::EndDisabled();
+    if (!why.empty()) ImGui::TextColored(ImColor(C_AMBER), "%s", why.c_str());
+  }
+
+  // How it's going.
+  if (running) {
+    const long long at = sweepIdx_ < sweepHz_.size() ? sweepHz_[sweepIdx_] : 0;
+    ImGui::ProgressBar(sweepHz_.empty() ? 0.f : (float)sweepIdx_ / (float)sweepHz_.size(), ImVec2(-1, 0),
+                       trf("%d of %d", (int)sweepIdx_, (int)sweepHz_.size()).c_str());
+    if (st_.tx) {
+      std::string line = trf("TRANSMITTING at %s", tuning::formatHz(at).c_str());
+      if (st_.meter[civ::M_SWR] >= 0) line += "   " + trf("SWR %.1f:1", civ::swrRatio(st_.meter[civ::M_SWR]));
+      if (st_.meter[civ::M_PO] >= 0) line += "   " + trf("%.1f W", civ::powerWatts(st_.meter[civ::M_PO], radio(), st_.hz));
+      line += "   " + trf("keyed %d s", (int)(glfwGetTime() - sweepKeyedAt_));
+      ImGui::TextColored(ImColor(C_RED), "%s", line.c_str());
+    } else {
+      ImGui::TextColored(ImColor(C_AMBER), "%s", sweepStatus_.empty() ? tr("Receiving") : sweepStatus_.c_str());
+    }
+  } else if (!sweepStatus_.empty()) {
+    ImGui::TextColored(ImColor(sweepFailed_ ? C_AMBER : C_GREEN), "%s", sweepStatus_.c_str());
+  }
+
+  // What it found.
+  ImGui::Separator();
+  if (sweeps_.empty()) {
+    ImGui::TextDisabled("%s", tr("No sweeps yet. Results stay here until the program closes; Save keeps one as a CSV file."));
+    if (panelButton("Load")) pickSweepToLoad();
+    ImGui::SetItemTooltip("%s", tr("Opens a sweep saved earlier, to look at it again"));
+    ImGui::End();
+    return;
+  }
+  if (sweepShown_ < 0 || sweepShown_ >= (int)sweeps_.size()) sweepShown_ = (int)sweeps_.size() - 1;
+  auto label = [&](const Sweep& s) {
+    std::string l = s.band + "  " + s.when + "  " + std::to_string(s.watts) + " W";
+    if (!s.complete) l += "  (" + std::string(tr("stopped early")) + ")";
+    return l;
+  };
+  ImGui::SetNextItemWidth(S(360));
+  ImGui::BeginDisabled(running);
+  if (ImGui::BeginCombo(trId("Sweep"), label(sweeps_[(size_t)sweepShown_]).c_str())) {
+    for (int i = (int)sweeps_.size() - 1; i >= 0; i--)
+      if (ImGui::Selectable((label(sweeps_[(size_t)i]) + "##sw" + std::to_string(i)).c_str(), i == sweepShown_)) sweepShown_ = i;
+    ImGui::EndCombo();
+  }
+  ImGui::EndDisabled();
+  const Sweep& shown = sweeps_[(size_t)(running ? (int)sweeps_.size() - 1 : sweepShown_)];
+  ImGui::SameLine();
+  ImGui::BeginDisabled(running || shown.pts.empty());
+  if (panelButton("Save CSV")) saveSweepCsv(shown);
+  ImGui::EndDisabled();
+  ImGui::SetItemTooltip("%s", tr("Writes this sweep to the antenna-scope folder in the data folder"));
+  ImGui::SameLine();
+  ImGui::BeginDisabled(running);
+  if (panelButton("Load")) pickSweepToLoad();
+  ImGui::EndDisabled();
+  ImGui::SetItemTooltip("%s", tr("Opens a sweep saved earlier, to look at it again"));
+  ImGui::SameLine();
+  if (panelButton("Open folder")) {
+    std::string d = store::dataDir() + "antenna-scope";
+    store::makeDirs(d);
+    store::openFolder(d);
+  }
+  const float plotH = std::max(S(180), ImGui::GetContentRegionAvail().y - ImGui::GetTextLineHeightWithSpacing() * 6.5f);
+  drawSweepPlot(shown, plotH);
+  drawSweepSummary(shown);
+  ImGui::End();
+}
+
 // ---------------------------------------------------------------- DX spots
 
 void App::startSpots() {
@@ -6458,6 +7341,8 @@ void App::drawMenu() {
     if (ImGui::MenuItem(trId("Power on"))) rig_.powerOn();
     if (ImGui::MenuItem(trId("Power off..."), nullptr, false, st_.connected)) openPowerOff_ = true;
     ImGui::Separator();
+    if (ImGui::MenuItem(trId("Antenna Scope..."), nullptr, false, radio().hasTransmit)) openAntScope_ = true;
+    ImGui::Separator();
     if (ImGui::MenuItem(trId("Open data folder"))) store::openFolder(store::dataDir());
     if (ImGui::MenuItem(trId("Open received folder"))) store::openFolder(store::receivedDir());
     if (ImGui::MenuItem(trId("Quit"))) glfwSetWindowShouldClose(win_, 1);
@@ -6854,9 +7739,11 @@ void App::frame() {
   pumpDecoder();
   pumpScope();
   pumpScan();
+  pumpSweep();
   pumpSpots();
   rememberBand();
   pumpLogPick();
+  pumpSweepPick();
   pumpQrz();
   if (logIndexedFor_ != callsign_) indexLog();  // changed in Settings
   if (!droppedFiles_.empty()) {
@@ -6896,6 +7783,7 @@ void App::frame() {
     stationSearchOpen_ = true;
   }
   drawStationSearch();
+  drawAntennaScope();
   drawLogBook();
   drawHelp();
   ImGui::End();
