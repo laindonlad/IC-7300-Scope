@@ -1,0 +1,2290 @@
+# Nederlands (nl)
+
+%s is in use by another program
+= %s is in gebruik door een ander programma
+
+%s isn't there (radio off or unplugged?)
+= %s is er niet (radio uit of losgekoppeld?)
+
+%s: permission denied (on Linux, join the dialout group)
+= %s: geen toegang (voeg je op Linux toe aan de groep dialout)
+
+%s can't be opened
+= %s kan niet worden geopend
+
+The rig wouldn't %s
+= De radio weigerde %s
+
+A band plan has a problem: %s
+= Er is een probleem met een bandplan: %s
+
+A station list has a problem: %s
+= Er is een probleem met een stationslijst: %s
+
+Band plans and stations reloaded
+= Bandplannen en stations opnieuw geladen
+
+DEMO: simulated %s
+= DEMO: gesimuleerde %s
+
+The rig's USB audio isn't there (radio off?). Choose a device in Settings.
+= De USB-audio van de radio is er niet (radio uit?). Kies een apparaat in Instellingen.
+
+Saved %s
+= %s opgeslagen
+
+%s isn't on the %s, which tunes %s
+= %s valt buiten de %s, die %s afstemt
+
+"%s" isn't a frequency the %s can tune (%s)
+= "%s" is geen frequentie die de %s kan afstemmen (%s)
+
+The %s is a receiver: it can't transmit.
+= De %s is een ontvanger: hij kan niet zenden.
+
+Transmit isn't armed. Press ARM TX first.
+= Zenden is niet vrijgegeven. Druk eerst op ARM TX.
+
+Enter: %s MHz
+= Invoer: %s MHz
+
+keep typing, or Esc to cancel
+= typ verder, of Esc om te annuleren
+
+Other VFO
+= Andere VFO
+
+Listening on
+= Luistert op
+
+Click for the bar meter
+= Klik voor de staafmeter
+
+Click for the needle meter
+= Klik voor de naaldmeter
+
+Squelch open
+= Squelch open
+
+Squelch closed
+= Squelch dicht
+
+OVERLOAD
+= OVERSTURING
+
+No overload
+= Geen oversturing
+
+SIGNAL
+= SIGNAAL
+
+Saved %s to memories
+= %s opgeslagen in de geheugens
+
+Type-N, 50 ohms: 10 kHz to 3 GHz
+= N-type, 50 ohm: 10 kHz tot 3 GHz
+
+SO-239, 50 ohms: 10 kHz to 30 MHz
+= SO-239, 50 ohm: 10 kHz tot 30 MHz
+
+RCA, 500 ohms: 10 kHz to 30 MHz
+= RCA, 500 ohm: 10 kHz tot 30 MHz
+
+Save to memories
+= In geheugen opslaan
+
+Save this frequency and mode to memories
+= Deze frequentie en mode in de geheugens opslaan
+
+Receive only. Hold the mouse over an antenna for its port.
+= Alleen ontvangst. Houd de muis boven een antenne voor de aansluiting.
+
+Receive only. Above 30 MHz it can only use ANT1.
+= Alleen ontvangst. Boven 30 MHz kan alleen ANT1 worden gebruikt.
+
+Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT.
+= Niets hier kan zenden zolang dit niet aan staat. Uit bij elke start.\nUitzetten laat ook de PTT los.
+
+The rig isn't connected
+= De radio is niet verbonden
+
+Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).
+= Klik aan, klik uit. Ctrl+Spatie doet hetzelfde.\nLaat vanzelf los na %d s (Instellingen).
+
+Starts the rig's antenna tuner. This transmits a carrier.
+= Start de antennetuner van de radio. Dit zendt een draaggolf uit.
+
+The antenna tuner in or out of line
+= De antennetuner in- of uitschakelen
+
+Receive on this VFO, transmit on the other. Right-click for a quick offset.
+= Ontvangen op deze VFO, zenden op de andere. Rechtsklik voor een snelle offset.
+
+Split %+d kHz
+= Split %+d kHz
+
+Swap the two VFOs
+= De twee VFO's wisselen
+
+Copy this VFO to the other
+= Deze VFO naar de andere kopiëren
+
+Mem
+= Mem
+
+TRANSMITTING
+= ZENDEN
+
+%d s of %d s
+= %d s van %d s
+
+Armed: the buttons above will transmit
+= Vrijgegeven: de knoppen hierboven zenden uit
+
+Transmit locked
+= Zenden vergrendeld
+
+Bands
+= Banden
+
+The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order.
+= De band waarop je zit. Klik voor alle banden die de ontvanger dekt.\nPage Up en Page Down lopen ze op volgorde door.
+
+Go to the band
+= Naar de band
+
+Wide FM, for FM broadcast and other wide signals
+= Breedband-FM, voor FM-omroep en andere brede signalen
+
+Synchronous AM: both sidebands, or just the lower or upper one to dodge interference
+= Synchrone AM: beide zijbanden, of alleen de onderste of bovenste om storing te ontwijken
+
+Digital
+= Digitaal
+
+D-STAR, P25, dPMR, NXDN and DCR digital voice
+= Digitale spraak: D-STAR, P25, dPMR, NXDN en DCR
+
+Transmit bass and treble
+= Lage en hoge tonen bij zenden
+
+Receive bass and treble
+= Lage en hoge tonen bij ontvangst
+
+The rig has no bass or treble setting for %s
+= De radio heeft geen instelling voor lage of hoge tonen bij %s
+
+Not available: this radio hasn't said it's an IC-7300 (SSB only on an MK2)
+= Niet beschikbaar: deze radio heeft zich niet als IC-7300 gemeld (alleen SSB op een MK2)
+
+Not available: this radio hasn't said it's an IC-7300
+= Niet beschikbaar: deze radio heeft zich niet als IC-7300 gemeld
+
+Not available in %s
+= Niet beschikbaar in %s
+
+Transmit audio
+= Zendaudio
+
+Receive audio
+= Ontvangstaudio
+
+Bass
+= Laag
+
+Treble
+= Hoog
+
+%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.
+= %s. Gaat terug naar waar je op deze band was.\nRechtsklik: CW, FT8 enzovoort.
+
+The %s plan has no bands for the %s
+= Het %s-plan heeft geen banden voor de %s
+
+D-STAR digital voice
+= D-STAR digitale spraak
+
+D-STAR high-speed data, on 23 cm only
+= D-STAR snelle data, alleen op 23 cm
+
+Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)
+= Datamode: de radio neemt de zendaudio van de USB-geluidskaart (met DATA MOD op USB)
+
+Step
+= Stap
+
+Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too.
+= Pijl links en rechts stemmen met deze stap af; omhoog en omlaag wijzigen hem.\nHet muiswiel boven de watervallen gebruikt hem ook.
+
+RECEIVE
+= ONTVANGST
+
+RF gain
+= RF-gain
+
+Squelch
+= Squelch
+
+Preamp
+= Voorversterker
+
+The internal preamp, and any external one the rig powers (set up in its menu)
+= De interne voorversterker, en een externe die door de radio gevoed wordt (in te stellen in het menu)
+
+Improves how it copes with strong signals, at some cost in sensitivity
+= Verbetert het gedrag bij sterke signalen, ten koste van wat gevoeligheid
+
+Attenuator
+= Verzwakker
+
+Width
+= Breedte
+
+fixed by the mode
+= vast door de mode
+
+Shape
+= Vorm
+
+PBT inner
+= PBT binnen
+
+PBT outer
+= PBT buiten
+
+Centre PBT
+= PBT midden
+
+Notch
+= Notch
+
+Notch width
+= Notchbreedte
+
+Auto notch
+= Auto-notch
+
+RIT / XIT
+= RIT / XIT
+
+Clear
+= Wissen
+
+CW pitch
+= CW-toonhoogte
+
+TRANSMIT
+= ZENDEN
+
+RF power
+= Zendvermogen
+
+Mic gain
+= Mic-gain
+
+Comp
+= Comp
+
+SSB TX BW
+= SSB TX BW
+
+Monitor
+= Monitor
+
+Anti-VOX
+= Anti-VOX
+
+Break-in
+= Break-in
+
+Key speed
+= Seinsnelheid
+
+BK-IN delay
+= BK-IN-vertr.
+
+Not on a band in the %s plan
+= Niet op een band in het %s-plan
+
+In the %s band
+= In de %s-band
+
+%s: %s\n%s to %s MHz\nClick to tune here
+= %s: %s\n%s tot %s MHz\nKlik om hier af te stemmen
+
+Out of band under the %s plan
+= Buiten de band volgens het %s-plan
+
+Out of band
+= Buiten de band
+
+%s begins %s
+= %s begint %s
+
+%s ends %s
+= %s eindigt %s
+
+Stations
+= Stations
+
+Find a station...
+= Station zoeken...
+
+Show on the scope
+= Tonen op de scope
+
+Only what's scheduled now
+= Alleen wat nu gepland is
+
+Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it.
+= Markeert een omroepstation alleen tijdens de geplande uren. Dit menu en Station zoeken tonen ze allemaal,\nmet hun tijden in UTC. Gepland betekent niet dat je het ook hoort.
+
+%s to %s
+= %s tot %s
+
+Find a station
+= Station zoeken
+
+Name, type, place or frequency in kHz
+= Naam, soort, plaats of frequentie in kHz
+
+%d found. Click one to go there, or press Enter for the first.
+= %d gevonden. Klik er een aan om erheen te gaan, of druk op Enter voor de eerste.
+
+%d found. Connect the rig to go there.
+= %d gevonden. Verbind de radio om erheen te gaan.
+
+On
+= Aan
+
+Off
+= Uit
+
+Streams the rig's own spectrum scope over CI-V
+= Haalt de eigen spectrumscope van de radio op via CI-V
+
+Span, in Centre mode
+= Span, in Midden-modus
+
+Centre
+= Midden
+
+Fixed
+= Vast
+
+Centre follows the dial. Fixed uses the band edges set on the rig.
+= Midden volgt de afstemknop. Vast gebruikt de bandgrenzen die op de radio zijn ingesteld.
+
+Ref
+= Ref
+
+The rig's scope reference level
+= Het referentieniveau van de scope in de radio
+
+Fast
+= Snel
+
+Mid
+= Middel
+
+Slow
+= Traag
+
+Speed
+= Snelheid
+
+Sweep speed
+= Sweepsnelheid
+
+Auto
+= Auto
+
+Set the colours from the noise floor
+= De kleuren instellen op basis van de ruisvloer
+
+Display
+= Weergave
+
+Floor
+= Bodem
+
+Range
+= Bereik
+
+Colours
+= Kleuren
+
+Back one page of the scope. Centre mode only.
+= Eén scopebreedte terug. Alleen in Midden-modus.
+
+On one page of the scope. Centre mode only.
+= Eén scopebreedte verder. Alleen in Midden-modus.
+
+Click to tune there
+= Klik om daar af te stemmen
+
+Click to tune %s at %s
+= Klik om %s af te stemmen op %s
+
+Click to go there in %s
+= Klik om erheen te gaan in %s
+
+Scope data is off
+= Scopedata staat uit
+
+No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+= Geen scopedata. Op de radio: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+
+Out of the scope's range
+= Buiten het bereik van de scope
+
+Tune here
+= Hier afstemmen
+
+Transmit here (split)
+= Hier zenden (split)
+
+Recording to %s
+= Opnemen naar %s
+
+Can't write %s
+= Kan %s niet schrijven
+
+Clear this panel. What's in the file stays there.
+= Dit paneel wissen. Wat in het bestand staat, blijft bewaard.
+
+Hearing:
+= Hoort:
+
+CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing
+= CW wordt pas uitgeschreven als de decoder het zeker weet, zo'n 16 tekens achter op wat hij hoort
+
+Nothing decoded yet
+= Nog niets gedecodeerd
+
+Saving to %s
+= Opslaan naar %s
+
+Can't read the overlay %s
+= Kan de overlay %s niet lezen
+
+Overlay
+= Overlay
+
+None
+= Geen
+
+Open the overlays folder
+= Overlaymap openen
+
+Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts
+= Legt een kaart over de weerkaart. Overlays zijn de transparante PNG's in de overlaymap, elk gemaakt voor de kaarten van één station
+
+Save a copy
+= Kopie opslaan
+
+Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type
+= Verschuift de overlay horizontaal, in pixels van de kaart, voor een kaart die niet aansluit. Sleep, of dubbelklik om te typen
+
+Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type
+= Verschuift de overlay omlaag, in pixels van de kaart, voor een kaart die laat is ingesteld. Sleep, of dubbelklik om te typen
+
+Once the chart has finished
+= Zodra de kaart klaar is
+
+Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was.
+= Slaat de kaart met deze overlay op als nieuwe afbeelding in de map met ontvangsten. De kaart zelf blijft zoals hij was.
+
+Receiving: %u lines, IOC %d, %+.0f ppm (measured)
+= Ontvangen: %u lijnen, IOC %d, %+.0f ppm (gemeten)
+
+Receiving: %u lines, IOC %d, %+.0f ppm
+= Ontvangen: %u lijnen, IOC %d, %+.0f ppm
+
+Phasing: %d lines
+= Fasering: %d lijnen
+
+Start tone heard
+= Starttoon gehoord
+
+Waiting for a chart to start
+= Wachten tot een kaart begint
+
+Stop and save
+= Stop en opslaan
+
+Start now
+= Nu starten
+
+Start a chart from here, for one that's already under way. Set the slant by hand if it leans.
+= Start een kaart vanaf hier, voor een die al bezig is. Stel de scheefstand met de hand in als hij scheef loopt.
+
+Centre %.0f Hz
+= Midden %.0f Hz
+
+Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz
+= Waar het midden van het signaal gehoord wordt: het midden tussen zwart op -400 Hz en wit op +400 Hz
+
+Slant %+.0f ppm
+= Scheefst. %+.0f ppm
+
+Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself.
+= Past de lijnlengte aan, om een scheve kaart recht te zetten. Een kaart die met fasering begint, meet dit zelf.
+
+No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard.
+= Nog geen kaart. Stem in USB 1,9 kHz onder de opgegeven frequentie van het station af. Een kaart begint vanzelf als de starttoon of fasering gehoord wordt.
+
+%d lines/s
+= %d lijnen/s
+
+FFT size
+= FFT-grootte
+
+Larger shows finer detail but blurs fast changes
+= Groter toont meer detail maar vervaagt snelle veranderingen
+
+Rec
+= Opn
+
+Record the receiver to a WAV file in the received folder
+= De ontvanger opnemen in een WAV-bestand in de map met ontvangsten
+
+Listen
+= Luisteren
+
+Play the receiver through this computer's speakers. Muted while transmitting.
+= De ontvanger afspelen via de luidsprekers van deze computer. Gedempt tijdens zenden.
+
+Clean
+= Schoon
+
+voice noise reduction
+= ruisonderdrukking voor spraak
+
+spectral noise reduction
+= spectrale ruisonderdrukking
+
+Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is.
+= Ruisonderdrukking op deze computer, voor wat je hoort: nu %s. De waterval, decoders en opnames houden de audio van de radio zoals hij is.
+
+How the audio is cleaned up, and the equaliser (on)
+= Hoe de audio wordt opgeschoond, en de equalizer (aan)
+
+How the audio is cleaned up, and the equaliser
+= Hoe de audio wordt opgeschoond, en de equalizer
+
+By mode
+= Per mode
+
+Voice
+= Spraak
+
+Spectral
+= Spectraal
+
+Method
+= Methode
+
+Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\nSpectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data.
+= Spraak is een neuraal netwerk getraind op spraak: het beste voor SSB, AM en FM, maar het verwijdert CW- en datatonen.\nSpectraal volgt de ruisvloer en werkt op alles.\nPer mode gebruikt Spraak voor fonie en Spectraal voor CW, RTTY en data.
+
+Strength
+= Sterkte
+
+Higher takes out more noise, and more of the signal with it
+= Hoger haalt meer ruis weg, en ook meer van het signaal
+
+Leveller
+= Niveauregelaar
+
+Evens out fading and quiet stations
+= Vlakt fading en zwakke stations af
+
+Equaliser
+= Equalizer
+
+Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers.
+= Vormt wat je hoort, of Schoon nu aan staat of niet. De RX EQ van de radio werkt niet op de USB-audio, dus deze is voor de luidsprekers.
+
+Low cut
+= Lage afsnijd.
+
+Takes out the boom and rumble below this
+= Haalt gebrom en gerommel onder deze frequentie weg
+
+Below about 250 Hz
+= Onder ongeveer 250 Hz
+
+Middle
+= Midden
+
+Around 1.2 kHz, where speech is easiest to follow
+= Rond 1,2 kHz, waar spraak het best te volgen is
+
+Above about 2.2 kHz: crisper consonants, but more hiss
+= Boven ongeveer 2,2 kHz: scherpere medeklinkers, maar meer geruis
+
+High cut
+= Hoge afsnijd.
+
+Takes out the hiss above this
+= Haalt het geruis boven deze frequentie weg
+
+Flat
+= Vlak
+
+Speech
+= Spraak
+
+A starting point for SSB: less bass, more presence
+= Een vertrekpunt voor SSB: minder laag, meer presence
+
+Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level.
+= Audioniveau van de radio: %.0f dBFS. In te stellen met USB AF Output Level op de radio.
+
+Decode
+= Decoderen
+
+Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder
+= De ontvanger decoderen in een paneel naast de waterval, en het gedecodeerde opslaan in de map met ontvangsten
+
+Data mode: the dial stays put, so your digital program keeps its place
+= Datamode: de afstemming blijft staan, zodat je digitale programma op zijn plek blijft
+
+kept since %s, from %s
+= bewaard sinds %s, via %s
+
+Audio
+= Audio
+
+The audio waterfall, recording and decoders
+= De audiowaterval, opname en decoders
+
+Map
+= Kaart
+
+Find a station by its callsign on a street or satellite map. The audio and decoders keep going.
+= Zoek een station op roepnaam op een straat- of satellietkaart. De audio en decoders blijven doorlopen.
+
+Type a callsign first
+= Typ eerst een roepnaam
+
+Couldn't save locations.csv in the data folder
+= Kon locations.csv niet opslaan in de datamap
+
+from your log
+= uit je logboek
+
+Still looking up %s online
+= Nog bezig %s online op te zoeken
+
+%s isn't in your log with a locator. Put a HamQTH or QRZ.com login in Settings to look it up there.
+= %s staat niet met een locator in je logboek. Vul een HamQTH- of QRZ.com-login in bij Instellingen om het daar op te zoeken.
+
+Looking up %s on QRZ.com and HamQTH...
+= %s opzoeken op QRZ.com en HamQTH...
+
+Looking up %s on QRZ.com...
+= %s opzoeken op QRZ.com...
+
+Looking up %s on HamQTH...
+= %s opzoeken op HamQTH...
+
+from %s
+= via %s
+
+Found %s on %s, and kept it
+= %s gevonden op %s en bewaard
+
+Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com and HamQTH.
+= Typ een roepnaam en druk op Enter: er wordt gezocht in je logboek, dan in de eerder bewaarde plaatsen, dan op QRZ.com en HamQTH.
+
+%.0f km, %.0f miles, bearing %.0f degrees
+= %.0f km, %.0f mijl, richting %.0f graden
+
+Callsign
+= Roepnaam
+
+A callsign to find. Press Enter to look for it.
+= Een roepnaam om te zoeken. Druk op Enter om te zoeken.
+
+Find
+= Zoeken
+
+Look it up on QRZ.com, then HamQTH, even if it's in your log or kept already, and keep what's found
+= Opzoeken op QRZ.com, dan HamQTH, ook als het al in je logboek staat of bewaard is, en bewaren wat gevonden wordt
+
+Single
+= Enkel
+
+All
+= Alle
+
+Locator
+= Locator
+
+Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in.
+= Maidenhead-locatorvakken, in blauw. Enkel toont het vak van het station, zoals JO01en, en het grotere vak waarin het ligt, zoals JO01. Alle tekent het raster over de hele kaart, fijner naarmate je inzoomt.
+
+OS grid
+= OS-raster
+
+Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's 10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map.
+= Vakken van het Ordnance Survey National Grid, in magenta, alleen voor Groot-Brittannië. Enkel toont het vak van 10 km van het station, zoals TQ68, en het vak van 100 km waarin het ligt, zoals TQ. Alle tekent het raster over de hele kaart.
+
+Lat/Lon
+= Br./lengte
+
+Show lines of latitude and longitude in yellow, closer together as you zoom in
+= Breedte- en lengtelijnen in geel tonen, dichter bij elkaar naarmate je inzoomt
+
+Whole world
+= Hele wereld
+
+Street View
+= Street View
+
+Open Google Street View in your web browser at the middle of the map, to look around at street level
+= Google Street View openen in je webbrowser op het midden van de kaart, om op straatniveau rond te kijken
+
+Your station, %s
+= Je station, %s
+
+Some of the map couldn't be fetched: %s
+= Een deel van de kaart kon niet worden opgehaald: %s
+
+Loading the map...
+= Kaart laden...
+
+From %s
+= Via %s
+
+Click to choose it
+= Klik om het te kiezen
+
+Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.
+= Klik en draai, zoals aan een VFO-knop. Met de klok mee stemt omhoog.\nDraai langzaam om fijn af te stemmen. Draai snel om verder te gaan, en laat los om hem door te laten lopen.\nShift: tien keer zo snel. Het muiswiel verplaatst met de stap.
+
+1 turn = %s
+= 1 omwenteling = %s
+
+Or just type: %s
+= Of typ gewoon: %s
+
+ON %s
+= OP %s
+
+Between this band's blocks
+= Tussen de segmenten van deze band
+
+Outside the amateur bands
+= Buiten de amateurbanden
+
+in the %s plan
+= in het %s-plan
+
+Name
+= Naam
+
+Save
+= Opslaan
+
+Filter
+= Filter
+
+Mode
+= Mode
+
+Click to tune, double-click to edit
+= Klik om af te stemmen, dubbelklik om te bewerken
+
+Edit memory
+= Geheugen bewerken
+
+Frequency
+= Frequentie
+
+e.g. 14.074 or 7030k
+= bijv. 14.074 of 7030k
+
+Not a frequency the %s can tune
+= Geen frequentie die de %s kan afstemmen
+
+Data mode
+= Datamode
+
+Saved %s at %s
+= %s opgeslagen op %s
+
+Cancel
+= Annuleren
+
+All callsigns
+= Alle roepnamen
+
+No callsign set
+= Geen roepnaam
+
+New callsign
+= Nieuwe roepnaam
+
+Add
+= Toevoegen
+
+The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it.
+= De roepnaam waaronder je in de lucht bent. Nieuwe verbindingen komen eronder, en het tabblad Log en de al-gewerkt-markeringen tonen alleen de verbindingen daarvan. Alle roepnamen toont hier het hele logboek zonder het te wijzigen.
+
+Couldn't back up the log first, so nothing was imported
+= Kon eerst geen reservekopie van het logboek maken, dus er is niets geïmporteerd
+
+Imported %d new QSOs, updated %d, and %d were already up to date
+= %d nieuwe QSO's geïmporteerd, %d bijgewerkt, en %d waren al actueel
+
+Some are under other callsigns: choose them in the log book
+= Sommige staan onder andere roepnamen: kies die in het logboek
+
+Couldn't save the log to %s
+= Kon het logboek niet opslaan in %s
+
+The log is already in date order
+= Het logboek staat al op datum
+
+Couldn't back up the log first, so it wasn't sorted
+= Kon eerst geen reservekopie van het logboek maken, dus het is niet gesorteerd
+
+Sorted %d QSOs into date order. The log as it was is in %s.bak
+= %d QSO's op datum gesorteerd. Het oude logboek staat in %s.bak
+
+There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead
+= Dit systeem heeft geen bestandsvenster (daarvoor is zenity of kdialog nodig), dus sleep het ADIF-bestand naar het venster
+
+Changing a logged contact
+= Een gelogde verbinding wijzigen
+
+, last on %s
+= , laatst op %s
+
+Worked once%s: %s
+= Eén keer gewerkt%s: %s
+
+Worked %d times%s: %s
+= %d keer gewerkt%s: %s
+
+Already logged on this band and mode.
+= Al gelogd op deze band en mode.
+
+Not worked before
+= Nog niet eerder gewerkt
+
+RST sent
+= RST verz.
+
+RST rcvd
+= RST ontv.
+
+Power (W)
+= Vermogen (W)
+
+Left empty, it's what the rig's power is set to
+= Leeg gelaten wordt het ingestelde vermogen van de radio gebruikt
+
+Notes
+= Notities
+
+Contest
+= Contest
+
+Contest, such as CQ-WW-SSB
+= Contest, zoals CQ-WW-SSB
+
+Exchange sent
+= Exchange verz.
+
+Exchange rcvd
+= Exchange ontv.
+
+An exchange sent that's only a number goes up by one with each contact
+= Een verzonden exchange die alleen een getal is, gaat bij elke verbinding één omhoog
+
+Began
+= Begin
+
+Ended
+= Einde
+
+Your callsign for this contact
+= Je roepnaam voor deze verbinding
+
+Update
+= Bijwerken
+
+Really delete it?
+= Echt verwijderen?
+
+Couldn't back up the log first, so nothing was deleted
+= Kon eerst geen reservekopie van het logboek maken, dus er is niets verwijderd
+
+Keep it
+= Behouden
+
+Delete
+= Verwijderen
+
+%s  %s  %s UTC
+= %s  %s  %s UTC
+
+Log it
+= Loggen
+
+That frequency isn't a number of kHz
+= Die frequentie is geen aantal kHz
+
+Times need to look like 2026-10-31 19:05
+= Tijden moeten eruitzien als 2026-10-31 19:05
+
+Updated %s
+= %s bijgewerkt
+
+Couldn't save the log entry to %s
+= Kon de logregel niet opslaan in %s
+
+Log book...
+= Logboek...
+
+Call
+= Call
+
+%s  %s  %s/%s  %s %s\nDouble-click to change it
+= %s  %s  %s/%s  %s %s\nDubbelklik om te wijzigen
+
+%s km, %s miles
+= %s km, %s mijl
+
+%d contacts
+= %d verbindingen
+
+and %d earlier. Search the Contacts tab for %s to see them all.
+= en %d eerder. Zoek op het tabblad Verbindingen naar %s om ze allemaal te zien.
+
+to
+= tot
+
+Power
+= Vermogen
+
+Confirmed by
+= Bevestigd via
+
+Your callsign
+= Je roepnaam
+
+Exch sent
+= Exch verz.
+
+Exch rcvd
+= Exch ontv.
+
+Contacts: %d. Places: %d.
+= Verbindingen: %d. Plaatsen: %d.
+
+(%d with no locator aren't shown)
+= (%d zonder locator worden niet getoond)
+
+Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts
+= Scroll of dubbelklik om in te zoomen, sleep om te verschuiven, wijs een speld aan voor de verbindingen
+
+Log book
+= Logboek
+
+%d contacts, %d callsigns, %d countries, %d confirmed
+= %d verbindingen, %d roepnamen, %d landen, %d bevestigd
+
+Search
+= Zoeken
+
+Export ADIF
+= ADIF exporteren
+
+Exported %d QSOs to %s
+= %d QSO's geëxporteerd naar %s
+
+Couldn't write %s
+= Kon %s niet schrijven
+
+Import ADIF...
+= ADIF importeren...
+
+Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak.
+= Kies een ADIF-bestand, of sleep er een naar het venster. Een verbinding die al in het logboek staat, wordt niet opnieuw toegevoegd: de QSL-status wordt bijgewerkt en lege velden worden ingevuld. Het logboek wordt eerst gekopieerd naar log.csv.bak.
+
+Sort
+= Sorteren
+
+Finish changing the contact on the Log tab first.
+= Rond eerst het wijzigen van de verbinding op het tabblad Log af.
+
+Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.
+= Zet alle verbindingen in het logbestand op datum, oudste eerst, welke roepnaam er ook getoond wordt. Nieuwe verbindingen komen daarna achteraan. Het logboek wordt eerst gekopieerd naar log.csv.bak.
+
+Restore
+= Herstellen
+
+Maximise
+= Maximaliseren
+
+Contacts
+= Verbindingen
+
+World map
+= Wereldkaart
+
+Station
+= Station
+
+Band
+= Band
+
+Confirmed
+= Bevestigd
+
+Sent
+= Verz.
+
+Rcvd
+= Ontv.
+
+Distance (km)
+= Afstand (km)
+
+Country
+= Land
+
+Double-click to change it on the Log tab
+= Dubbelklik om te wijzigen op het tabblad Log
+
+%s miles
+= %s mijl
+
+The dial isn't on a band in the %s plan. Tune to one, or scan a range.
+= De afstemming staat niet op een band in het %s-plan. Stem af op een band, of scan een bereik.
+
+Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say
+= Scannen heeft twee frequenties nodig die deze radio kan afstemmen, geschreven zoals je ze zou typen: bijvoorbeeld 14.0 en 14.35
+
+That's more than %d channels. Choose a bigger step or a smaller range.
+= Dat zijn meer dan %d kanalen. Kies een grotere stap of een kleiner bereik.
+
+There's nothing to scan there that the %s can tune
+= Daar is niets te scannen dat de %s kan afstemmen
+
+Scan stopped: every channel has been locked out
+= Scan gestopt: alle kanalen worden overgeslagen
+
+Scan stopped: the rig isn't answering
+= Scan gestopt: de radio antwoordt niet
+
+Scan stopped: the rig is transmitting
+= Scan gestopt: de radio zendt
+
+Scan stopped: the rig refused every frequency in it
+= Scan gestopt: de radio weigerde elke frequentie
+
+Scan stopped: the dial was tuned
+= Scan gestopt: er werd afgestemd
+
+The band the dial is on
+= De band waarop afgestemd is
+
+A range of frequencies
+= Een frequentiebereik
+
+Memories
+= Geheugens
+
+Scan
+= Scannen
+
+From
+= Van
+
+To
+= Tot
+
+Names with
+= Naam bevat
+
+Empty for all of them
+= Leeg voor allemaal
+
+All those showing
+= Alle getoonde
+
+Service
+= Dienst
+
+Broadcasters go by the Stations menu's "Only what's scheduled now", as of when the scan starts.
+= Omroepstations volgen "Alleen wat nu gepland is" in het menu Stations, op het moment dat de scan begint.
+
+Each one for
+= Per kanaal
+
+How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal.
+= Hoe lang er naar elk kanaal geluisterd wordt. Een snelle AGC scant het best, want een trage kan na een sterk signaal nog vasthouden.
+
+Stop at
+= Stoppen bij
+
+The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere.
+= De S-meterstand die als signaal telt. Zet die boven de ruis van de band, anders stopt hij overal.
+
+Stay until I carry on
+= Blijven tot ik verder ga
+
+Carry on after 5 s
+= Verder na 5 s
+
+Carry on after 10 s
+= Verder na 10 s
+
+Carry on when it stops
+= Verder als het stopt
+
+On a signal
+= Bij signaal
+
+Next
+= Volgende
+
+Carry on to the next channel
+= Verder naar het volgende kanaal
+
+Lock out
+= Overslaan
+
+Leave this channel out until the scan is stopped, for a signal that's always there
+= Dit kanaal overslaan tot de scan stopt, voor een signaal dat er altijd is
+
+Signal at %s  %s
+= Signaal op %s  %s
+
+Listening at %s
+= Luistert op %s
+
+%s  %d of %d
+= %s  %d van %d
+
+%d locked out
+= %d overgeslagen
+
+S meter now: %s. Tuning stops a scan.
+= S-meter nu: %s. Afstemmen stopt de scan.
+
+HEARD
+= GEHOORD
+
+Where
+= Waar
+
+What
+= Wat
+
+Click to stop the scan and go back there
+= Klik om de scan te stoppen en daarheen terug te gaan
+
+A DX cluster logs you in by callsign. Put yours in Rig > Settings first.
+= Een DX-cluster logt je in met je roepnaam. Vul die eerst in bij Radio > Instellingen.
+
+Spotted by %s
+= Gespot door %s
+
+Spotted by %s at %sZ
+= Gespot door %s om %sZ
+
+DX SPOTS
+= DX-SPOTS
+
+Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign.
+= Live spots van het DX-cluster uit Radio > Instellingen. Er is alleen verbinding zolang dit aan staat, en er wordt ingelogd met je roepnaam.
+
+All bands
+= Alle banden
+
+This band
+= Deze band
+
+All modes
+= Alle modes
+
+Data
+= Data
+
+No spots here yet.
+= Nog geen spots hier.
+
+Age
+= Leeftijd
+
+Worked on this band
+= Gewerkt op deze band
+
+Worked, but not on this band
+= Gewerkt, maar niet op deze band
+
+Click to tune there and put the call in the log
+= Klik om daar af te stemmen en de call in het log te zetten
+
+Nothing to send
+= Niets te verzenden
+
+Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit.
+= Break-in staat uit, dus de radio geeft alleen de mithoortoon. Zet BK-IN aan om te zenden.
+
+CW KEYER
+= CW-KEYER
+
+Mode must be CW. Sends through the rig's keyer.
+= De mode moet CW zijn. Seint via de keyer van de radio.
+
+Type and press Enter to send
+= Typ en druk op Enter om te verzenden
+
+STOP SENDING
+= STOP SEINEN
+
+{CALL} is your callsign, from Settings.
+= {CALL} is je roepnaam, uit Instellingen.
+
+VOICE MEMORY
+= SPRAAKGEHEUGEN
+
+Plays what's recorded on the rig. Mode must be SSB, AM or FM.
+= Speelt af wat op de radio is opgenomen. De mode moet SSB, AM of FM zijn.
+
+STOP PLAYING
+= STOP AFSPELEN
+
+Couldn't save the net list to %s
+= Kon de rondelijst niet opslaan in %s
+
+Net
+= Ronde
+
+Started %s UTC
+= Begonnen %s UTC
+
+Net control %s
+= Rondeleider %s
+
+Checked in: %d. Still on at %s UTC: %d.
+= Ingemeld: %d. Nog aanwezig om %s UTC: %d.
+
+Joined (UTC)
+= Erbij (UTC)
+
+Left (UTC)
+= Weg (UTC)
+
+Sent the net list to %s
+= Rondelijst naar %s gestuurd
+
+Print the net list
+= De rondelijst afdrukken
+
+Printer
+= Printer
+
+No printers are set up on this computer
+= Er zijn geen printers ingesteld op deze computer
+
+Printing...
+= Afdrukken...
+
+Print
+= Afdrukken
+
+Net name, such as Sunday 80m net
+= Naam van de ronde, zoals Zondagochtendronde 80m
+
+Already on the net, since %s UTC
+= Al in de ronde, sinds %s UTC
+
+Check in
+= Inmelden
+
+Print list...
+= Lijst afdrukken...
+
+%d on the net, %d checked in
+= %d in de ronde, %d ingemeld
+
+Really clear it?
+= Echt wissen?
+
+New net
+= Nieuwe ronde
+
+Clears the list for the next net. Print it first to keep it.
+= Wist de lijst voor de volgende ronde. Druk hem eerst af om hem te bewaren.
+
+Type a callsign and press Enter as each station checks in.
+= Typ een roepnaam en druk op Enter telkens als een station zich inmeldt.
+
+In
+= In
+
+Out
+= Uit
+
+Back
+= Terug
+
+Find on the map
+= Zoeken op de kaart
+
+Remove from the list
+= Van de lijst halen
+
+Right-click to find them on the map, or to take them off if they went on by mistake.
+= Rechtsklik om ze op de kaart te zoeken, of om ze te verwijderen als ze er per ongeluk op staan.
+
+Left
+= Weg
+
+They're back: clears the time they left
+= Ze zijn terug: wist de vertrektijd
+
+They've left the net: greys them out and notes the time
+= Ze hebben de ronde verlaten: maakt ze grijs en noteert de tijd
+
+Keypad
+= Toetsenblok
+
+Log
+= Log
+
+CW / Voice
+= CW / Spraak
+
+DEMO: a simulated radio. Nothing is connected.
+= DEMO: een gesimuleerde radio. Er is niets verbonden.
+
+Audio only: leaving the serial port alone
+= Alleen audio: de seriële poort wordt niet gebruikt
+
+%s  %s  %d baud
+= %s  %s  %d baud
+
+. Close the other program: a port has one owner.
+= . Sluit het andere programma: een poort kan maar door één programma gebruikt worden.
+
+A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address.
+= Een radio antwoordde op %02Xh en meldde %02Xh. Het is geen IC-7300, IC-9700 of IC-R8600: vul om het te proberen %02X in als CI-V-adres in Instellingen.
+
+%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one.
+= %s open, maar geen antwoord: staat de radio aan, op %d baud? Een 9700 heeft twee poorten: gebruik de Enhanced-poort.
+
+Connecting...
+= Verbinden...
+
+. Is the SUB band on that band?
+= . Staat de SUB-band op die band?
+
+SCAN: signal. Next is on the Scan tab.
+= SCAN: signaal. Volgende staat op het tabblad Scannen.
+
+SCANNING. Tune to stop it.
+= SCANNEN. Stem af om te stoppen.
+
+New version available, built %s
+= Nieuwe versie beschikbaar, gebouwd %s
+
+Click to open the download page on GitHub. You're on the build from %s UTC.
+= Klik om de downloadpagina op GitHub te openen. Je gebruikt de versie van %s UTC.
+
+The radio's clock wasn't set.
+= De klok van de radio is niet gezet.
+
+The radio isn't connected, so its clock wasn't set.
+= De radio is niet verbonden, dus de klok is niet gezet.
+
+This program doesn't know how to set this radio's clock.
+= Dit programma weet niet hoe de klok van deze radio gezet moet worden.
+
+The radio's clock follows on the minute.
+= De klok van de radio volgt bij de volgende minuut.
+
+Conditions
+= Condities
+
+Put your locator in Settings to see HF conditions from your square.
+= Vul je locator in bij Instellingen om de HF-condities vanuit je vak te zien.
+
+Opens HF conditions from %s on hf.dxview.org in your browser.
+= Opent de HF-condities vanuit %s op hf.dxview.org in je browser.
+
+Wait
+= Wacht
+
+Sync
+= Sync
+
+Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it.
+= Vergelijkt de klok van deze computer met internettijd (NTP).\nIn de demo wordt hij niet gewijzigd.
+
+Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.
+= Zet de klok van deze computer op internettijd (NTP), voor FT8, FT4 en de andere getimede modes.\nWindows kan om toestemming vragen.
+
+Then sets the radio's date, time and UTC offset from it, as the next minute starts.
+= Zet daarna de datum, tijd en UTC-verschil van de radio daarnaar, bij het begin van de volgende minuut.
+
+Last time:
+= Vorige keer:
+
+The radio stopped answering, so its clock wasn't set.
+= De radio antwoordde niet meer, dus de klok is niet gezet.
+
+Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+= Naar de radio gestuurd: %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+
+Rig
+= Radio
+
+Settings...
+= Instellingen...
+
+Power on
+= Aanzetten
+
+Power off...
+= Uitzetten...
+
+Open data folder
+= Datamap openen
+
+Open received folder
+= Ontvangstmap openen
+
+Quit
+= Afsluiten
+
+View
+= Beeld
+
+Band scope
+= Bandscope
+
+Audio waterfall
+= Audiowaterval
+
+Band plan on the scope
+= Bandplan op de scope
+
+DX spots panel
+= DX-spotpaneel
+
+DX spots on the scope
+= DX-spots op de scope
+
+Help
+= Help
+
+Keys and rig set-up...
+= Toetsen en radio-instelling...
+
+Built %s UTC
+= Gebouwd %s UTC
+
+Settings
+= Instellingen
+
+THE RIG
+= DE RADIO
+
+Port
+= Poort
+
+(choose)
+= (kiezen)
+
+Baud
+= Baud
+
+Find out by asking it
+= Uitzoeken door te vragen
+
+Radio
+= Radio
+
+It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed.
+= Normaal wordt dit vanzelf bepaald. Kies er een als het misgaat, wat kan gebeuren als het CI-V-adres van de radio is gewijzigd.
+
+CI-V address (hex)
+= CI-V-adres (hex)
+
+Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address.
+= Wordt eerst geprobeerd. Als daar niets antwoordt, worden 94h, A2h, 96h en het broadcastadres geprobeerd.
+
+The scope stream needs 115200.
+= De scopestroom heeft 115200 nodig.
+
+SOUND
+= GELUID
+
+From the rig
+= Van de radio
+
+(find the USB Audio CODEC)
+= (de USB Audio CODEC zoeken)
+
+Listen on
+= Luisteren op
+
+(system default)
+= (systeemstandaard)
+
+YOU
+= JIJ
+
+Your locator
+= Je locator
+
+Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.
+= Je Maidenhead-locator, zoals IO91WM. Die komt in geëxporteerde logs, en het tabblad Log gebruikt hem om een afstand te geven.
+
+QRZ.com username
+= QRZ.com-gebruikersnaam
+
+For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position.
+= Om stations op de kaart te vinden die niet in je logboek staan. Er is een QRZ.com XML-abonnement nodig om hun locator of positie te krijgen.
+
+QRZ.com password
+= QRZ.com-wachtwoord
+
+Kept in settings.ini in the data folder, as plain text.
+= Bewaard in settings.ini in de datamap, als platte tekst.
+
+HamQTH username
+= HamQTH-gebruikersnaam
+
+For finding stations on the map, free: make an account at hamqth.com. Asked after QRZ.com, or alone if there's no QRZ.com login.
+= Om stations op de kaart te vinden, gratis: maak een account aan op hamqth.com. Wordt na QRZ.com gevraagd, of alleen als er geen QRZ.com-login is.
+
+HamQTH password
+= HamQTH-wachtwoord
+
+Log date format
+= Datumnotatie log
+
+How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed.
+= Hoe datums in het logboek getoond worden, in UTC. Het tabblad Log laat het jaar weg om ruimte te sparen. Geëxporteerde logs en het logbestand zelf worden niet gewijzigd.
+
+PTT time limit
+= PTT-tijdslimiet
+
+PTT from this program lets go by itself after this long
+= PTT vanuit dit programma laat na deze tijd vanzelf los
+
+DX CLUSTER
+= DX-CLUSTER
+
+Choose one
+= Kies er een
+
+Fill in from a list
+= Invullen uit een lijst
+
+Server
+= Server
+
+Commands after login
+= Commando's na inloggen
+
+Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty.
+= Verzonden na het inloggen, met een ; ertussen. Elk soort cluster heeft zijn eigen commando's: zie de help van de server. Meestal leeg.
+
+Keep spots for
+= Spots bewaren
+
+Show robot spots (Reverse Beacon Network)
+= Robotspots tonen (Reverse Beacon Network)
+
+Spots from automatic CW and data skimmers. There can be a great many.
+= Spots van automatische CW- en dataskimmers. Dat kunnen er heel veel zijn.
+
+BAND PLAN
+= BANDPLAN
+
+Country or region
+= Land of regio
+
+This program has a newer copy of this plan (%s). Reset uses it.
+= Dit programma heeft een nieuwere versie van dit plan (%s). Terugzetten gebruikt die.
+
+Open plans folder
+= Map met plannen openen
+
+Each plan is a JSON file you can edit. README.txt there explains the format.
+= Elk plan is een JSON-bestand dat je kunt bewerken. README.txt daar legt de opmaak uit.
+
+Reload
+= Herladen
+
+Reads the files again, after you've edited one
+= Leest de bestanden opnieuw in, nadat je er een hebt bewerkt
+
+Reset this plan
+= Plan terugzetten
+
+Can't write to %s
+= Kan niet schrijven naar %s
+
+Puts the built-in copy back. Your file is kept as .json.bak
+= Zet de ingebouwde versie terug. Je bestand wordt bewaard als .json.bak
+
+STATIONS
+= STATIONS
+
+Shown on the scope whichever band plan is chosen. See the Stations menu.
+= Getoond op de scope, welk bandplan er ook gekozen is. Zie het menu Stations.
+
+%s (%d stations, revision %s). %s
+= %s (%d stations, revisie %s). %s
+
+Open stations folder
+= Stationsmap openen
+
+Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.
+= Elke lijst is een JSON-bestand dat je kunt bewerken, en je kunt er zelf een toevoegen. README.txt daar legt de opmaak uit. Herladen hierboven leest ze opnieuw in.
+
+Reset station list
+= Stationslijst terugzetten
+
+Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak
+= Zet de ingebouwde wereldwijde en omroeplijsten terug. Je bestanden worden bewaard als .json.bak
+
+Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak
+= Zet de ingebouwde wereldwijde, omroep- en ontvangerlijsten terug. Je bestanden worden bewaard als .json.bak
+
+Automatic (%s)
+= Automatisch (%s)
+
+Language
+= Taal
+
+Automatic follows the language this computer is set to. Choose one to keep to it whatever the computer uses. It changes straight away.
+= Automatisch volgt de taal waarop deze computer is ingesteld. Kies een taal om die te houden, wat de computer ook gebruikt. Het verandert meteen.
+
+Check GitHub for a new version at start
+= Bij het starten op GitHub naar een nieuwe versie zoeken
+
+Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent.
+= Leest bij elke start van het programma één klein bestand van GitHub, en meldt op de onderste regel of er een nieuwere versie is. Er wordt niets over jou of je radio verzonden.
+
+Auto ON/OFF
+= Auto AAN/UIT
+
+Switches the rig on when the program starts, and off when it closes. The rig's USB must stay powered for it to wake.
+= Zet de radio aan als het programma start, en uit als het sluit. De USB van de radio moet gevoed blijven om hem te kunnen wekken.
+
+Apply and reconnect
+= Toepassen en opnieuw verbinden
+
+Close
+= Sluiten
+
+Keys and rig set-up
+= Toetsen en radio-instelling
+
+ON THE RIG  (MENU > SET > Connectors > CI-V)
+= OP DE RADIO  (MENU > SET > Connectors > CI-V)
+
+CI-V USB Port: Unlink from [REMOTE]
+= CI-V USB Port: Unlink from [REMOTE]
+
+CI-V USB Baud Rate: 115200
+= CI-V USB Baud Rate: 115200
+
+CI-V USB Echo Back: OFF  (ON works too)
+= CI-V USB Echo Back: OFF  (ON werkt ook)
+
+CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700
+= CI-V Address: laat op de standaardwaarde, 94h op een IC-7300 of A2h op een IC-9700
+
+USB AF Output Level (Connectors): raise it until the level bar sits below red
+= USB AF Output Level (Connectors): verhoog tot de niveaubalk net onder rood blijft
+
+USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF
+= USB SEND en USB Keying (Connectors > USB SEND/Keying): OFF
+
+KEYS
+= TOETSEN
+
+Digits
+= Cijfers
+
+Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels.
+= Begin een frequentie: 14.074, 14074, 7, 198k, +5. Enter gaat erheen, Esc annuleert.
+
+Left, Right
+= Links, Rechts
+
+Tune by the step. Hold Shift for ten times that.
+= Afstemmen met de stap. Houd Shift ingedrukt voor tien keer zoveel.
+
+Up, Down
+= Omhoog, Omlaag
+
+Change the step
+= De stap wijzigen
+
+Page Up, Page Down
+= Page Up, Page Down
+
+Next or previous band
+= Volgende of vorige band
+
+Find a station by name
+= Een station op naam zoeken
+
+F1 to F8
+= F1 tot F8
+
+Data mode, next filter
+= Datamode, volgend filter
+
+Split, swap VFOs
+= Split, VFO's wisselen
+
+PTT on or off, once armed
+= PTT aan of uit, na vrijgeven
+
+Tuning dial
+= Afstemknop
+
+Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on.
+= Klik en draai eraan. Eén omwenteling is tien stappen. Draai snel om verder te gaan; laat los en hij loopt door.
+
+Wheel
+= Muiswiel
+
+On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it.
+= Op een cijfer stemt dat cijfer af. Op een waterval of de afstemknop, met de stap. Op een schuif, verschuift die.
+
+Click a digit
+= Klik op cijfer
+
+Top half up, bottom half down
+= Bovenste helft omhoog, onderste helft omlaag
+
+Click the band scope
+= Klik op de bandscope
+
+Tune there. Right-click for split and memories.
+= Daar afstemmen. Rechtsklik voor split en geheugens.
+
+< and > above the band scope
+= < en > boven de bandscope
+
+Move the dial one whole page of the scope, in Centre mode.
+= De afstemming één hele scopebreedte verschuiven, in Midden-modus.
+
+Click the audio waterfall
+= Klik op de audiowaterval
+
+Moves that signal to the pitch (not in data modes)
+= Zet dat signaal op de toonhoogte (niet in datamodes)
+
+Right-click a band
+= Rechtsklik op een band
+
+CW, FT8, FT4, WSPR, SSB frequencies
+= CW-, FT8-, FT4-, WSPR-, SSB-frequenties
+
+Click a DX spot
+= Klik op een DX-spot
+
+Tune there, and put the call in the log. Red flags and green calls aren't worked yet.
+= Daar afstemmen en de call in het log zetten. Rode vlaggen en groene calls zijn nog niet gewerkt.
+
+Double-click a log entry
+= Dubbelklik op een logregel
+
+Bring it back to the Log tab, to change it and log it again
+= Terug naar het tabblad Log halen, om te wijzigen en opnieuw te loggen
+
+Power off the rig?
+= De radio uitzetten?
+
+The rig will switch off. Rig > Power on brings it back while its USB stays powered.
+= De radio gaat uit. Radio > Aanzetten zet hem weer aan zolang de USB gevoed blijft.
+
+Power off
+= Uitzetten
+
+This is an %s
+= Dit is een %s
+
+This is an %s, a receiver: it can't transmit
+= Dit is een %s, een ontvanger: hij kan niet zenden
+
+Only ADIF files can be dropped here, to import them into the log
+= Alleen ADIF-bestanden kunnen hier worden neergezet, om ze in het logboek te importeren
+
+The band plan is set to %s. Choose your country in Settings.
+= Het bandplan staat op %s. Kies je land in Instellingen.
+
+The audio system didn't start
+= Het audiosysteem is niet gestart
+
+Can't list the sound devices
+= Kan de geluidsapparaten niet opsommen
+
+"%s" isn't there (radio off or unplugged?)
+= "%s" is er niet (radio uit of losgekoppeld?)
+
+Can't open "%s"
+= Kan "%s" niet openen
+
+Can't start "%s"
+= Kan "%s" niet starten
+
+The rig's USB sound card is the system default output, and the monitor won't feed it. Choose your speakers in Settings.
+= De USB-geluidskaart van de radio is de standaarduitvoer van het systeem, en de monitor stuurt daar niets naartoe. Kies je luidsprekers in Instellingen.
+
+No default output device
+= Geen standaard uitvoerapparaat
+
+"%s" isn't there
+= "%s" is er niet
+
+Can't open the output device
+= Kan het uitvoerapparaat niet openen
+
+Can't start the output device
+= Kan het uitvoerapparaat niet starten
+
+Commercial
+= Commercieel
+
+Government
+= Overheid
+
+Naval and maritime
+= Marine en maritiem
+
+Military
+= Militair
+
+Broadcast
+= Omroep
+
+Amateur satellites and beacons
+= Amateursatellieten en bakens
+
+Aviation
+= Luchtvaart
+
+Satellites and navigation
+= Satellieten en navigatie
+
+Land mobile and licence-free
+= Landmobiel en vergunningsvrij
+
+Numbers and mystery stations
+= Nummer- en mysteriestations
+
+Beacons
+= Bakens
+
+Satellite
+= Satelliet
+
+Maritime
+= Maritiem
+
+Mobile
+= Mobiel
+
+Navigation
+= Navigatie
+
+Other
+= Overig
+
+Can't read the chart %s
+= Kan de kaart %s niet lezen
+
+There's no overlay to save
+= Er is geen overlay om op te slaan
+
+No time server answered. Is this computer online, and is UDP port 123 open?
+= Geen tijdserver antwoordde. Is deze computer online, en staat UDP-poort 123 open?
+
+The time servers disagree, so the clock was left alone. Try again in a minute.
+= De tijdservers zijn het oneens, dus de klok is niet aangepast. Probeer het over een minuut opnieuw.
+
+%.3f s slow
+= %.3f s achter
+
+%.3f s fast
+= %.3f s voor
+
+The clock is %s, too far out to trust. Check its date and time in your system settings.
+= De klok loopt %s, te ver af om te vertrouwen. Controleer de datum en tijd in je systeeminstellingen.
+
+The clock is right: %s, to within %s. Left it alone.
+= De klok klopt: %s, tot op %s. Niet aangepast.
+
+The clock is %s. Demo: left it alone.
+= De klok loopt %s. Demo: niet aangepast.
+
+The clock is still %s: Windows wasn't given permission to set it.
+= De klok loopt nog steeds %s: Windows kreeg geen toestemming om hem te zetten.
+
+The clock is %s. Setting it needs root: run this program once with sudo and --sync-clock.
+= De klok loopt %s. Zetten vraagt root: start dit programma eenmaal met sudo en --sync-clock.
+
+The clock is still %s: it couldn't be set.
+= De klok loopt nog steeds %s: hij kon niet worden gezet.
+
+The clock was %s and has been set, but the servers didn't answer to confirm it.
+= De klok liep %s en is gezet, maar de servers antwoordden niet om het te bevestigen.
+
+The clock was %s and was set, but is now %s.
+= De klok liep %s en is gezet, maar loopt nu %s.
+
+The clock was %s. It's now %s, to within %s.
+= De klok liep %s. Nu loopt hij %s, tot op %s.
+
+Connected to %s
+= Verbonden met %s
+
+Nothing heard for ten minutes
+= Tien minuten niets gehoord
+
+Connecting to %s
+= Verbinden met %s
+
+Couldn't reach %s. Trying again in a minute.
+= Kon %s niet bereiken. Over een minuut opnieuw.
+
+Lost %s. Trying again in a minute.
+= Verbinding met %s verbroken. Over een minuut opnieuw.
+
+Lost %s (it said: %s). Trying again in a minute.
+= Verbinding met %s verbroken (melding: %s). Over een minuut opnieuw.
+
+Made-up spots, as this is the demo. Nothing is connected.
+= Verzonnen spots, want dit is de demo. Er is niets verbonden.
+
+position set by the operator on QRZ
+= positie ingesteld door de operator op QRZ
+
+street address
+= straatadres
+
+post code
+= postcode
+
+state or county
+= provincie of regio
+
+country only
+= alleen land
+
+worked out from QRZ's bearing and distance, to about 100 m
+= berekend uit richting en afstand van QRZ, tot op ongeveer 100 m
+
+worked out from QRZ's bearing and distance from your locator, to a few km
+= berekend uit richting en afstand van QRZ vanaf je locator, tot op een paar km
+
+6-character locator, about 5 km by 4
+= locator van 6 tekens, ongeveer 5 bij 4 km
+
+4-character locator, about 150 km by 110
+= locator van 4 tekens, ongeveer 150 bij 110 km
+
+QRZ.com wouldn't log in.
+= Inloggen op QRZ.com lukte niet.
+
+QRZ.com wouldn't log in: %s
+= Inloggen op QRZ.com lukte niet: %s
+
+the session ended
+= de sessie is beëindigd
+
+QRZ.com has %s but gives no locator or position.
+= QRZ.com kent %s maar geeft geen locator of positie.
+
+QRZ.com has %s but gives no locator or position (%s)
+= QRZ.com kent %s maar geeft geen locator of positie (%s)
+
+QRZ.com's sign-in page: %s
+= Inlogpagina van QRZ.com: %s
+
+QRZ.com's sign-in page has changed, so this can't sign in any more
+= De inlogpagina van QRZ.com is veranderd, dus inloggen lukt niet meer
+
+Your QRZ.com account asks for a two-factor code to sign in, which this can't give
+= Je QRZ.com-account vraagt bij het inloggen om een tweestapscode, en die kan dit programma niet geven
+
+QRZ.com's page for %s: %s
+= Pagina van QRZ.com voor %s: %s
+
+QRZ.com's page for %s gives no locator.
+= De pagina van QRZ.com voor %s geeft geen locator.
+
+QRZ.com has no %s
+= QRZ.com kent geen %s
+
+QRZ.com's page for %s gives no locator. It's in qrz-page.html in the data folder.
+= De pagina van QRZ.com voor %s geeft geen locator. Hij staat in qrz-page.html in de datamap.
+
+Put your QRZ.com username and password in Settings to look callsigns up there
+= Vul je QRZ.com-gebruikersnaam en -wachtwoord in bij Instellingen om daar roepnamen op te zoeken
+
+HamQTH wouldn't log in.
+= Inloggen op HamQTH lukte niet.
+
+HamQTH wouldn't log in: %s
+= Inloggen op HamQTH lukte niet: %s
+
+HamQTH has no %s
+= HamQTH kent geen %s
+
+it gave an answer this can't read
+= het gaf een antwoord dat niet te lezen is
+
+HamQTH has %s but gives no locator or position.
+= HamQTH kent %s maar geeft geen locator of positie.
+
+Put your HamQTH username and password in Settings to look callsigns up there
+= Vul je HamQTH-gebruikersnaam en -wachtwoord in bij Instellingen om daar roepnamen op te zoeken
+
+your log
+= je logboek
+
+Not a web address: %s
+= Geen webadres: %s
+
+Windows couldn't start a web session
+= Windows kon geen websessie starten
+
+The answer was too long
+= Het antwoord was te lang
+
+The server answered %d
+= De server antwoordde %d
+
+Couldn't reach the server (error %lu)
+= Kon de server niet bereiken (fout %lu)
+
+Couldn't write a temporary file
+= Kon geen tijdelijk bestand schrijven
+
+Couldn't run curl
+= Kon curl niet starten
+
+Couldn't fetch it (is curl installed?)
+= Kon het niet ophalen (is curl geïnstalleerd?)
+
+Couldn't open the printer %s
+= Kon de printer %s niet openen
+
+Printing was cancelled
+= Afdrukken is geannuleerd
+
+The printer %s wouldn't take the job
+= De printer %s nam de opdracht niet aan
+
+The printer %s stopped part way through
+= De printer %s stopte halverwege
+
+The printer %s wouldn't start a page
+= De printer %s kon geen pagina beginnen
+
+Couldn't write the page to print
+= Kon de af te drukken pagina niet schrijven
+
+set that frequency
+= die frequentie in te stellen
+
+set the other VFO
+= de andere VFO in te stellen
+
+set that mode
+= die mode in te stellen
+
+set data mode
+= de datamode in te stellen
+
+set the other VFO's mode
+= de mode van de andere VFO in te stellen
+
+set that level
+= dat niveau in te stellen
+
+change that setting
+= die instelling te wijzigen
+
+set that EQ level
+= dat EQ-niveau in te stellen
+
+set its time
+= de tijd in te stellen
+
+set its date
+= de datum in te stellen
+
+set its UTC offset
+= het UTC-verschil in te stellen
+
+set the attenuator
+= de verzwakker in te stellen
+
+change antenna
+= van antenne te wisselen
+
+set IP+
+= IP+ in te stellen
+
+set split
+= split in te stellen
+
+set the filter width
+= de filterbreedte in te stellen
+
+set the RIT offset
+= de RIT-offset in te stellen
+
+set RIT
+= RIT in te stellen
+
+set XIT
+= XIT in te stellen
+
+copy the VFO
+= de VFO te kopiëren
+
+swap the VFOs
+= de VFO's te wisselen
+
+set the tuner
+= de tuner in te stellen
+
+power off
+= uit te schakelen
+
+power on
+= in te schakelen
+
+turn the scope on
+= de scope aan te zetten
+
+start the scope data
+= de scopedata te starten
+
+set the span
+= de span in te stellen
+
+set the scope mode
+= de scopemodus in te stellen
+
+set the scope reference
+= het scopereferentieniveau in te stellen
+
+set the sweep speed
+= de sweepsnelheid in te stellen
+
+transmit
+= te zenden
+
+start the tuner
+= de tuner te starten
+
+send CW
+= CW te seinen
+
+stop CW
+= het seinen te stoppen
+
+play that voice memory
+= dat spraakgeheugen af te spelen
+
+Writing to the port failed (unplugged?)
+= Schrijven naar de poort mislukt (losgekoppeld?)
+
+Transmit time limit reached: PTT released
+= Zendtijdlimiet bereikt: PTT losgelaten
+
+The port has gone (unplugged?)
+= De poort is weg (losgekoppeld?)
+
+No serial port chosen
+= Geen seriële poort gekozen
+
+The simulated port is unplugged
+= De gesimuleerde poort is losgekoppeld
+
+Couldn't open %s
+= Kon %s niet openen
+
+There are no ADIF records in %s
+= Er staan geen ADIF-records in %s
+
+Street
+= Straat
+
+Topo
+= Topo
+
+Hybrid
+= Hybride
+
+OpenStreetMap: streets, footpaths and buildings, for finding your way on foot
+= OpenStreetMap: straten, voetpaden en gebouwen, om te voet de weg te vinden
+
+Esri's topographic map: terrain, contours and trails
+= Topografische kaart van Esri: terrein, hoogtelijnen en paden
+
+Esri's satellite and aerial photographs
+= Satelliet- en luchtfoto's van Esri
+
+The photographs with roads and place names over them
+= De foto's met wegen en plaatsnamen erover
+
+a tile that wouldn't decode
+= een tegel die niet te decoderen was
+
+Classic
+= Klassiek
+
+Thermal
+= Thermisch
+
+Ice
+= IJs
+
+Grey
+= Grijs
+
+Amateur
+= Amateur
+
+Shortwave utility
+= Kortegolfdiensten
+
+Land mobile
+= Landmobiel
+
+Shortwave broadcast
+= Kortegolfomroep
+
+Mobile phones and data
+= Mobiele telefonie en data
+
+Long and medium wave
+= Lange en middengolf
+
+FM and TV broadcast
+= FM- en tv-omroep

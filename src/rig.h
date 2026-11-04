@@ -112,6 +112,7 @@ class Rig {
   void setAtu(bool on);
   void powerOn();
   void powerOff();
+  void setPowerOffAtStop(bool on) { powerOffAtStop_ = on; }  // stop() switches the rig off on its way out
 
   void setScope(bool output);  // turns the sweep stream on or off; survives reconnects
   void setScopeSpan(long long hz);
@@ -183,6 +184,7 @@ class Rig {
   uint8_t wantAddr_ = civ::kIc7300;
   const civ::Radio* forced_ = nullptr;
   std::atomic<bool> quit_{false};
+  std::atomic<bool> powerOffAtStop_{false};
   std::thread thread_;
 
   // the thread's own

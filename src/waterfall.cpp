@@ -1,5 +1,7 @@
 #include "waterfall.h"
 
+#include "i18n.h"
+
 #include <GLFW/glfw3.h>
 #include <math.h>
 #include <string.h>
@@ -10,7 +12,7 @@
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
 
-const char* const kPaletteNames[PAL_COUNT] = {"Classic", "Thermal", "Viridis", "Ice", "Grey"};
+const char* const kPaletteNames[PAL_COUNT] = {N_("Classic"), N_("Thermal"), "Viridis", N_("Ice"), N_("Grey")};
 
 namespace {
 struct Stop {

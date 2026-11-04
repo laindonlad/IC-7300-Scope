@@ -1,0 +1,2290 @@
+# Ελληνικά (el)
+
+%s is in use by another program
+= Η %s χρησιμοποιείται από άλλο πρόγραμμα
+
+%s isn't there (radio off or unplugged?)
+= Η %s δεν βρέθηκε (ο πομποδέκτης είναι κλειστός ή αποσυνδεδεμένος;)
+
+%s: permission denied (on Linux, join the dialout group)
+= %s: δεν επιτρέπεται η πρόσβαση (σε Linux, γίνετε μέλος της ομάδας dialout)
+
+%s can't be opened
+= Η %s δεν ανοίγει
+
+The rig wouldn't %s
+= Ο πομποδέκτης δεν δέχτηκε να %s
+
+A band plan has a problem: %s
+= Πρόβλημα σε ένα σχέδιο ζωνών: %s
+
+A station list has a problem: %s
+= Πρόβλημα σε μια λίστα σταθμών: %s
+
+Band plans and stations reloaded
+= Τα σχέδια ζωνών και οι σταθμοί φορτώθηκαν ξανά
+
+DEMO: simulated %s
+= DEMO: προσομοίωση %s
+
+The rig's USB audio isn't there (radio off?). Choose a device in Settings.
+= Ο ήχος USB του πομποδέκτη δεν βρέθηκε (είναι κλειστός;). Επιλέξτε συσκευή στις Ρυθμίσεις.
+
+Saved %s
+= Αποθηκεύτηκε: %s
+
+%s isn't on the %s, which tunes %s
+= Η %s δεν καλύπτεται από το %s, που συντονίζει %s
+
+"%s" isn't a frequency the %s can tune (%s)
+= Το «%s» δεν είναι συχνότητα που μπορεί να συντονίσει το %s (%s)
+
+The %s is a receiver: it can't transmit.
+= Το %s είναι δέκτης: δεν μπορεί να εκπέμψει.
+
+Transmit isn't armed. Press ARM TX first.
+= Η εκπομπή δεν είναι οπλισμένη. Πατήστε πρώτα ARM TX.
+
+Enter: %s MHz
+= Εισαγωγή: %s MHz
+
+keep typing, or Esc to cancel
+= συνεχίστε να πληκτρολογείτε, ή Esc για ακύρωση
+
+Other VFO
+= Άλλο VFO
+
+Listening on
+= Ακρόαση στο
+
+Click for the bar meter
+= Κάντε κλικ για όργανο με μπάρα
+
+Click for the needle meter
+= Κάντε κλικ για όργανο με βελόνα
+
+Squelch open
+= Squelch ανοιχτό
+
+Squelch closed
+= Squelch κλειστό
+
+OVERLOAD
+= ΥΠΕΡΦΟΡΤΩΣΗ
+
+No overload
+= Χωρίς υπερφόρτωση
+
+SIGNAL
+= ΣΗΜΑ
+
+Saved %s to memories
+= Το %s αποθηκεύτηκε στις μνήμες
+
+Type-N, 50 ohms: 10 kHz to 3 GHz
+= Type-N, 50 ohm: 10 kHz έως 3 GHz
+
+SO-239, 50 ohms: 10 kHz to 30 MHz
+= SO-239, 50 ohm: 10 kHz έως 30 MHz
+
+RCA, 500 ohms: 10 kHz to 30 MHz
+= RCA, 500 ohm: 10 kHz έως 30 MHz
+
+Save to memories
+= Στις μνήμες
+
+Save this frequency and mode to memories
+= Αποθήκευση αυτής της συχνότητας και του mode στις μνήμες
+
+Receive only. Hold the mouse over an antenna for its port.
+= Μόνο λήψη. Κρατήστε το ποντίκι πάνω από μια κεραία για να δείτε την υποδοχή της.
+
+Receive only. Above 30 MHz it can only use ANT1.
+= Μόνο λήψη. Πάνω από 30 MHz χρησιμοποιεί μόνο την ANT1.
+
+Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT.
+= Τίποτα εδώ δεν εκπέμπει μέχρι να ενεργοποιηθεί αυτό. Απενεργοποιείται σε κάθε εκκίνηση.\nΗ απενεργοποίηση ελευθερώνει και το PTT.
+
+The rig isn't connected
+= Ο πομποδέκτης δεν είναι συνδεδεμένος
+
+Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).
+= Κλικ για ενεργοποίηση, κλικ για απενεργοποίηση. Το ίδιο κάνει το Ctrl+Space.\nΕλευθερώνεται μόνο του μετά από %d s (Ρυθμίσεις).
+
+Starts the rig's antenna tuner. This transmits a carrier.
+= Ξεκινά τον συντονιστή κεραίας του πομποδέκτη. Εκπέμπει φέρον.
+
+The antenna tuner in or out of line
+= Ο συντονιστής κεραίας εντός ή εκτός γραμμής
+
+Receive on this VFO, transmit on the other. Right-click for a quick offset.
+= Λήψη σε αυτό το VFO, εκπομπή στο άλλο. Δεξί κλικ για γρήγορη μετατόπιση.
+
+Split %+d kHz
+= Split %+d kHz
+
+Swap the two VFOs
+= Εναλλαγή των δύο VFO
+
+Copy this VFO to the other
+= Αντιγραφή αυτού του VFO στο άλλο
+
+Mem
+= Μνήμη
+
+TRANSMITTING
+= ΕΚΠΟΜΠΗ
+
+%d s of %d s
+= %d s από %d s
+
+Armed: the buttons above will transmit
+= Οπλισμένο: τα παραπάνω κουμπιά θα εκπέμψουν
+
+Transmit locked
+= Εκπομπή κλειδωμένη
+
+Bands
+= Ζώνες
+
+The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order.
+= Η ζώνη όπου βρίσκεστε. Κάντε κλικ για όλες τις ζώνες που καλύπτει ο δέκτης.\nΤα Page Up και Page Down τις περνούν με τη σειρά.
+
+Go to the band
+= Μετάβαση στη ζώνη
+
+Wide FM, for FM broadcast and other wide signals
+= Ευρύ FM, για ραδιοφωνία FM και άλλα ευρυζωνικά σήματα
+
+Synchronous AM: both sidebands, or just the lower or upper one to dodge interference
+= Σύγχρονο AM: και οι δύο πλευρικές, ή μόνο η κάτω ή η πάνω για αποφυγή παρεμβολών
+
+Digital
+= Ψηφιακά
+
+D-STAR, P25, dPMR, NXDN and DCR digital voice
+= Ψηφιακή φωνή D-STAR, P25, dPMR, NXDN και DCR
+
+Transmit bass and treble
+= Μπάσα και πρίμα εκπομπής
+
+Receive bass and treble
+= Μπάσα και πρίμα λήψης
+
+The rig has no bass or treble setting for %s
+= Ο πομποδέκτης δεν έχει ρύθμιση μπάσων ή πρίμων για %s
+
+Not available: this radio hasn't said it's an IC-7300 (SSB only on an MK2)
+= Μη διαθέσιμο: ο πομποδέκτης δεν έχει δηλώσει ότι είναι IC-7300 (μόνο SSB σε MK2)
+
+Not available: this radio hasn't said it's an IC-7300
+= Μη διαθέσιμο: ο πομποδέκτης δεν έχει δηλώσει ότι είναι IC-7300
+
+Not available in %s
+= Μη διαθέσιμο σε %s
+
+Transmit audio
+= Ήχος εκπομπής
+
+Receive audio
+= Ήχος λήψης
+
+Bass
+= Μπάσα
+
+Treble
+= Πρίμα
+
+%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.
+= %s. Επιστρέφει εκεί όπου ήσασταν σε αυτή τη ζώνη.\nΔεξί κλικ: CW, FT8 κ.λπ.
+
+The %s plan has no bands for the %s
+= Το σχέδιο %s δεν έχει ζώνες για το %s
+
+D-STAR digital voice
+= Ψηφιακή φωνή D-STAR
+
+D-STAR high-speed data, on 23 cm only
+= Δεδομένα υψηλής ταχύτητας D-STAR, μόνο στα 23 cm
+
+Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)
+= Mode δεδομένων: ο πομποδέκτης παίρνει τον ήχο εκπομπής από την κάρτα ήχου USB (με DATA MOD ρυθμισμένο σε USB)
+
+Step
+= Βήμα
+
+Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too.
+= Τα βέλη Αριστερά και Δεξιά συντονίζουν με αυτό, τα Πάνω και Κάτω το αλλάζουν.\nΤο χρησιμοποιεί και η ροδέλα πάνω από τους καταρράκτες.
+
+RECEIVE
+= ΛΗΨΗ
+
+RF gain
+= Απολαβή RF
+
+Squelch
+= Squelch
+
+Preamp
+= Προενισχ.
+
+The internal preamp, and any external one the rig powers (set up in its menu)
+= Ο εσωτερικός προενισχυτής, και όποιος εξωτερικός τροφοδοτείται από τον πομποδέκτη (ρυθμίζεται στο μενού του)
+
+Improves how it copes with strong signals, at some cost in sensitivity
+= Βελτιώνει τη συμπεριφορά με ισχυρά σήματα, με κάποιο κόστος στην ευαισθησία
+
+Attenuator
+= Εξασθενητής
+
+Width
+= Εύρος
+
+fixed by the mode
+= ορίζεται από το mode
+
+Shape
+= Σχήμα
+
+PBT inner
+= PBT εσωτ.
+
+PBT outer
+= PBT εξωτ.
+
+Centre PBT
+= Κέντρο PBT
+
+Notch
+= Notch
+
+Notch width
+= Εύρος notch
+
+Auto notch
+= Αυτόμ. notch
+
+RIT / XIT
+= RIT / XIT
+
+Clear
+= Μηδενισμός
+
+CW pitch
+= Τόνος CW
+
+TRANSMIT
+= ΕΚΠΟΜΠΗ
+
+RF power
+= Ισχύς RF
+
+Mic gain
+= Απολαβή μικρ.
+
+Comp
+= Συμπιεστής
+
+SSB TX BW
+= SSB TX BW
+
+Monitor
+= Monitor
+
+Anti-VOX
+= Anti-VOX
+
+Break-in
+= Break-in
+
+Key speed
+= Ταχύτ. CW
+
+BK-IN delay
+= Καθυστ. BK-IN
+
+Not on a band in the %s plan
+= Εκτός ζώνης του σχεδίου %s
+
+In the %s band
+= Στη ζώνη %s
+
+%s: %s\n%s to %s MHz\nClick to tune here
+= %s: %s\n%s έως %s MHz\nΚάντε κλικ για συντονισμό εδώ
+
+Out of band under the %s plan
+= Εκτός ζώνης κατά το σχέδιο %s
+
+Out of band
+= Εκτός ζώνης
+
+%s begins %s
+= %s: αρχή στα %s
+
+%s ends %s
+= %s: τέλος στα %s
+
+Stations
+= Σταθμοί
+
+Find a station...
+= Εύρεση σταθμού...
+
+Show on the scope
+= Εμφάνιση στο scope
+
+Only what's scheduled now
+= Μόνο όσοι εκπέμπουν τώρα
+
+Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it.
+= Σημειώνει έναν ραδιοφωνικό σταθμό μόνο στις ώρες του προγράμματός του. Αυτό το μενού και η Εύρεση σταθμού τους δείχνουν όλους,\nμε ώρες σε UTC. Το ότι εκπέμπει δεν σημαίνει ότι θα τον ακούσετε.
+
+%s to %s
+= %s έως %s
+
+Find a station
+= Εύρεση σταθμού
+
+Name, type, place or frequency in kHz
+= Όνομα, είδος, τόπος ή συχνότητα σε kHz
+
+%d found. Click one to go there, or press Enter for the first.
+= Βρέθηκαν: %d. Κάντε κλικ σε έναν για να πάτε εκεί, ή πατήστε Enter για τον πρώτο.
+
+%d found. Connect the rig to go there.
+= Βρέθηκαν: %d. Συνδέστε τον πομποδέκτη για να πάτε εκεί.
+
+On
+= Ενεργό
+
+Off
+= Ανενεργό
+
+Streams the rig's own spectrum scope over CI-V
+= Μεταδίδει το ίδιο το scope φάσματος του πομποδέκτη μέσω CI-V
+
+Span, in Centre mode
+= Εύρος, σε λειτουργία Centre
+
+Centre
+= Κέντρο
+
+Fixed
+= Σταθερό
+
+Centre follows the dial. Fixed uses the band edges set on the rig.
+= Το Κέντρο ακολουθεί τον επιλογέα. Το Σταθερό χρησιμοποιεί τα όρια ζώνης που έχουν οριστεί στον πομποδέκτη.
+
+Ref
+= Αναφ.
+
+The rig's scope reference level
+= Η στάθμη αναφοράς του scope του πομποδέκτη
+
+Fast
+= Γρήγορα
+
+Mid
+= Μέτρια
+
+Slow
+= Αργά
+
+Speed
+= Ταχύτητα
+
+Sweep speed
+= Ταχύτητα σάρωσης
+
+Auto
+= Αυτόμ.
+
+Set the colours from the noise floor
+= Ρύθμιση των χρωμάτων από τη στάθμη θορύβου
+
+Display
+= Εμφάνιση
+
+Floor
+= Βάση
+
+Range
+= Εύρος
+
+Colours
+= Χρώματα
+
+Back one page of the scope. Centre mode only.
+= Μία σελίδα του scope πίσω. Μόνο σε λειτουργία Κέντρο.
+
+On one page of the scope. Centre mode only.
+= Μία σελίδα του scope μπροστά. Μόνο σε λειτουργία Κέντρο.
+
+Click to tune there
+= Κάντε κλικ για συντονισμό εκεί
+
+Click to tune %s at %s
+= Κάντε κλικ για συντονισμό στο %s, στα %s
+
+Click to go there in %s
+= Κάντε κλικ για μετάβαση εκεί σε %s
+
+Scope data is off
+= Τα δεδομένα scope είναι κλειστά
+
+No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+= Δεν έρχονται δεδομένα scope. Στον πομποδέκτη: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+
+Out of the scope's range
+= Εκτός εύρους του scope
+
+Tune here
+= Συντονισμός εδώ
+
+Transmit here (split)
+= Εκπομπή εδώ (split)
+
+Recording to %s
+= Εγγραφή στο %s
+
+Can't write %s
+= Δεν γράφεται το %s
+
+Clear this panel. What's in the file stays there.
+= Καθαρισμός αυτού του πλαισίου. Ό,τι υπάρχει στο αρχείο παραμένει.
+
+Hearing:
+= Ακούγεται:
+
+CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing
+= Το CW γράφεται μόλις ο αποκωδικοποιητής είναι σίγουρος, περίπου 16 χαρακτήρες πίσω από αυτό που ακούει
+
+Nothing decoded yet
+= Τίποτα αποκωδικοποιημένο ακόμη
+
+Saving to %s
+= Αποθήκευση στο %s
+
+Can't read the overlay %s
+= Δεν διαβάζεται η επικάλυψη %s
+
+Overlay
+= Επικάλυψη
+
+None
+= Καμία
+
+Open the overlays folder
+= Άνοιγμα φακέλου επικαλύψεων
+
+Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts
+= Τοποθετεί χάρτη πάνω στον μετεωρολογικό χάρτη. Οι επικαλύψεις είναι τα διάφανα PNG στον φάκελο overlays, το καθένα φτιαγμένο για τους χάρτες ενός σταθμού
+
+Save a copy
+= Αποθ. αντιγράφου
+
+Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type
+= Μετακινεί την επικάλυψη οριζόντια, σε pixel του χάρτη, για χάρτη που δεν ευθυγραμμίζεται. Σύρετε ή κάντε διπλό κλικ για πληκτρολόγηση
+
+Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type
+= Μετακινεί την επικάλυψη προς τα κάτω, σε pixel του χάρτη, για χάρτη που συντονίστηκε αργά. Σύρετε ή κάντε διπλό κλικ για πληκτρολόγηση
+
+Once the chart has finished
+= Όταν τελειώσει ο χάρτης
+
+Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was.
+= Αποθηκεύει τον χάρτη με αυτή την επικάλυψη ως νέα εικόνα στον φάκελο λήψεων. Ο ίδιος ο χάρτης μένει όπως ήταν.
+
+Receiving: %u lines, IOC %d, %+.0f ppm (measured)
+= Λήψη: γραμμές %u, IOC %d, %+.0f ppm (μετρημένο)
+
+Receiving: %u lines, IOC %d, %+.0f ppm
+= Λήψη: γραμμές %u, IOC %d, %+.0f ppm
+
+Phasing: %d lines
+= Συγχρ. φάσης: γραμμές %d
+
+Start tone heard
+= Ακούστηκε ο τόνος έναρξης
+
+Waiting for a chart to start
+= Αναμονή για έναρξη χάρτη
+
+Stop and save
+= Διακοπή και αποθ.
+
+Start now
+= Έναρξη τώρα
+
+Start a chart from here, for one that's already under way. Set the slant by hand if it leans.
+= Έναρξη χάρτη από εδώ, για έναν που έχει ήδη αρχίσει. Ρυθμίστε την κλίση με το χέρι αν γέρνει.
+
+Centre %.0f Hz
+= Κέντρο %.0f Hz
+
+Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz
+= Πού ακούγεται το κέντρο του σήματος: το μέσο ανάμεσα στο μαύρο στα -400 Hz και στο λευκό στα +400 Hz
+
+Slant %+.0f ppm
+= Κλίση %+.0f ppm
+
+Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself.
+= Διορθώνει το μήκος γραμμής, για να ισιώσει ένας χάρτης που γέρνει. Ένας χάρτης που αρχίζει με σήμα φάσης το μετρά μόνος του.
+
+No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard.
+= Δεν υπάρχει χάρτης ακόμη. Σε USB, ρυθμίστε 1.9 kHz κάτω από τη δημοσιευμένη συχνότητα του σταθμού. Ο χάρτης αρχίζει μόνος του όταν ακουστεί ο τόνος έναρξης ή το σήμα φάσης.
+
+%d lines/s
+= %d γραμμές/s
+
+FFT size
+= Μέγεθος FFT
+
+Larger shows finer detail but blurs fast changes
+= Μεγαλύτερο δείχνει λεπτότερη λεπτομέρεια αλλά θολώνει τις γρήγορες αλλαγές
+
+Rec
+= Εγγραφή
+
+Record the receiver to a WAV file in the received folder
+= Εγγραφή του δέκτη σε αρχείο WAV στον φάκελο λήψεων
+
+Listen
+= Ακρόαση
+
+Play the receiver through this computer's speakers. Muted while transmitting.
+= Αναπαραγωγή του δέκτη από τα ηχεία αυτού του υπολογιστή. Σίγαση κατά την εκπομπή.
+
+Clean
+= Καθαρισμός
+
+voice noise reduction
+= μείωση θορύβου φωνής
+
+spectral noise reduction
+= φασματική μείωση θορύβου
+
+Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is.
+= Μείωση θορύβου σε αυτόν τον υπολογιστή, για ό,τι ακούτε: τώρα %s. Ο καταρράκτης, οι αποκωδικοποιητές και οι εγγραφές κρατούν τον ήχο του πομποδέκτη όπως είναι.
+
+How the audio is cleaned up, and the equaliser (on)
+= Πώς καθαρίζεται ο ήχος, και ο ισοσταθμιστής (ενεργός)
+
+How the audio is cleaned up, and the equaliser
+= Πώς καθαρίζεται ο ήχος, και ο ισοσταθμιστής
+
+By mode
+= Ανά mode
+
+Voice
+= Φωνή
+
+Spectral
+= Φασματική
+
+Method
+= Μέθοδος
+
+Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\nSpectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data.
+= Η Φωνή είναι νευρωνικό δίκτυο εκπαιδευμένο σε ομιλία: η καλύτερη για SSB, AM και FM, αλλά αφαιρεί τους τόνους CW και δεδομένων.\nΗ Φασματική παρακολουθεί τη στάθμη θορύβου και δουλεύει με όλα.\nΤο Ανά mode χρησιμοποιεί Φωνή για τηλεφωνία και Φασματική για CW, RTTY και δεδομένα.
+
+Strength
+= Ένταση
+
+Higher takes out more noise, and more of the signal with it
+= Μεγαλύτερη τιμή αφαιρεί περισσότερο θόρυβο, και περισσότερο από το σήμα μαζί
+
+Leveller
+= Εξισωτής
+
+Evens out fading and quiet stations
+= Εξομαλύνει τα fading και τους αδύναμους σταθμούς
+
+Equaliser
+= Ισοσταθμιστής
+
+Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers.
+= Διαμορφώνει ό,τι ακούτε, είτε είναι ενεργός ο Καθαρισμός είτε όχι. Το RX EQ του πομποδέκτη δεν επηρεάζει τον ήχο USB, οπότε αυτός είναι για τα ηχεία.
+
+Low cut
+= Αποκοπή χαμ.
+
+Takes out the boom and rumble below this
+= Αφαιρεί τα βουητά και τα μπουμπουνητά κάτω από αυτό
+
+Below about 250 Hz
+= Κάτω από περίπου 250 Hz
+
+Middle
+= Μεσαία
+
+Around 1.2 kHz, where speech is easiest to follow
+= Γύρω στα 1.2 kHz, όπου η ομιλία γίνεται πιο εύκολα κατανοητή
+
+Above about 2.2 kHz: crisper consonants, but more hiss
+= Πάνω από περίπου 2.2 kHz: καθαρότερα σύμφωνα, αλλά περισσότερο σφύριγμα
+
+High cut
+= Αποκοπή υψ.
+
+Takes out the hiss above this
+= Αφαιρεί το σφύριγμα πάνω από αυτό
+
+Flat
+= Επίπεδο
+
+Speech
+= Ομιλία
+
+A starting point for SSB: less bass, more presence
+= Σημείο εκκίνησης για SSB: λιγότερα μπάσα, περισσότερη παρουσία
+
+Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level.
+= Στάθμη ήχου από τον πομποδέκτη: %.0f dBFS. Ρυθμίζεται από το USB AF Output Level του πομποδέκτη.
+
+Decode
+= Αποκωδ.
+
+Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder
+= Αποκωδικοποίηση του δέκτη σε πλαίσιο δίπλα στον καταρράκτη, και αποθήκευση όσων αποκωδικοποιούνται στον φάκελο λήψεων
+
+Data mode: the dial stays put, so your digital program keeps its place
+= Mode δεδομένων: ο επιλογέας μένει σταθερός, ώστε το ψηφιακό σας πρόγραμμα να κρατά τη θέση του
+
+kept since %s, from %s
+= φυλαγμένο από %s, από %s
+
+Audio
+= Ήχος
+
+The audio waterfall, recording and decoders
+= Ο καταρράκτης ήχου, η εγγραφή και οι αποκωδικοποιητές
+
+Map
+= Χάρτης
+
+Find a station by its callsign on a street or satellite map. The audio and decoders keep going.
+= Εύρεση σταθμού με το διακριτικό του σε οδικό ή δορυφορικό χάρτη. Ο ήχος και οι αποκωδικοποιητές συνεχίζουν.
+
+Type a callsign first
+= Πληκτρολογήστε πρώτα διακριτικό
+
+Couldn't save locations.csv in the data folder
+= Δεν ήταν δυνατή η αποθήκευση του locations.csv στον φάκελο δεδομένων
+
+from your log
+= από το ημερολόγιό σας
+
+Still looking up %s online
+= Συνεχίζεται η αναζήτηση του %s στο διαδίκτυο
+
+%s isn't in your log with a locator. Put a HamQTH or QRZ.com login in Settings to look it up there.
+= Το %s δεν υπάρχει στο ημερολόγιό σας με locator. Βάλτε στοιχεία σύνδεσης HamQTH ή QRZ.com στις Ρυθμίσεις για αναζήτηση εκεί.
+
+Looking up %s on QRZ.com and HamQTH...
+= Αναζήτηση του %s σε QRZ.com και HamQTH...
+
+Looking up %s on QRZ.com...
+= Αναζήτηση του %s στο QRZ.com...
+
+Looking up %s on HamQTH...
+= Αναζήτηση του %s στο HamQTH...
+
+from %s
+= από %s
+
+Found %s on %s, and kept it
+= Το %s βρέθηκε στο %s και φυλάχτηκε
+
+Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com and HamQTH.
+= Πληκτρολογήστε διακριτικό και πατήστε Enter: αναζητείται στο ημερολόγιό σας, μετά στις θέσεις που έχουν φυλαχτεί, μετά σε QRZ.com και HamQTH.
+
+%.0f km, %.0f miles, bearing %.0f degrees
+= %.0f km, %.0f μίλια, αζιμούθιο %.0f μοίρες
+
+Callsign
+= Διακριτικό
+
+A callsign to find. Press Enter to look for it.
+= Διακριτικό προς εύρεση. Πατήστε Enter για αναζήτηση.
+
+Find
+= Εύρεση
+
+Look it up on QRZ.com, then HamQTH, even if it's in your log or kept already, and keep what's found
+= Αναζήτηση σε QRZ.com, μετά HamQTH, ακόμη κι αν υπάρχει στο ημερολόγιο ή έχει ήδη φυλαχτεί, και φύλαξη του αποτελέσματος
+
+Single
+= Μόνο ένα
+
+All
+= Όλα
+
+Locator
+= Locator
+
+Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in.
+= Τετράγωνα locator Maidenhead, με μπλε. Το Μόνο ένα δείχνει το τετράγωνο του σταθμού, π.χ. JO01en, και το μεγαλύτερο που το περιέχει, π.χ. JO01. Το Όλα σχεδιάζει το πλέγμα σε όλο τον χάρτη, πυκνότερο όσο μεγεθύνετε.
+
+OS grid
+= Πλέγμα OS
+
+Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's 10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map.
+= Τετράγωνα του Ordnance Survey National Grid, με ματζέντα, μόνο για τη Μεγάλη Βρετανία. Το Μόνο ένα δείχνει το τετράγωνο 10 km του σταθμού, π.χ. TQ68, και το τετράγωνο 100 km που το περιέχει, π.χ. TQ. Το Όλα σχεδιάζει το πλέγμα σε όλο τον χάρτη.
+
+Lat/Lon
+= Πλάτ./Μήκ.
+
+Show lines of latitude and longitude in yellow, closer together as you zoom in
+= Εμφάνιση παραλλήλων και μεσημβρινών με κίτρινο, πυκνότερα όσο μεγεθύνετε
+
+Whole world
+= Όλος ο κόσμος
+
+Street View
+= Street View
+
+Open Google Street View in your web browser at the middle of the map, to look around at street level
+= Άνοιγμα του Google Street View στον φυλλομετρητή σας στο κέντρο του χάρτη, για να δείτε γύρω σε επίπεδο δρόμου
+
+Your station, %s
+= Ο σταθμός σας, %s
+
+Some of the map couldn't be fetched: %s
+= Μέρος του χάρτη δεν ήταν δυνατό να ληφθεί: %s
+
+Loading the map...
+= Φόρτωση χάρτη...
+
+From %s
+= Από %s
+
+Click to choose it
+= Κάντε κλικ για επιλογή
+
+Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.
+= Κάντε κλικ και περιστρέψτε, όπως τον επιλογέα VFO. Δεξιόστροφα ανεβαίνει η συχνότητα.\nΑργά για λεπτό συντονισμό. Γρήγορα για μεγαλύτερη μετακίνηση, αφήστε τον και συνεχίζει μόνος του.\nShift: δεκαπλάσιος ρυθμός. Η ροδέλα τον μετακινεί κατά το βήμα.
+
+1 turn = %s
+= 1 στροφή = %s
+
+Or just type: %s
+= Ή απλώς πληκτρολογήστε: %s
+
+ON %s
+= ΣΤΑ %s
+
+Between this band's blocks
+= Ανάμεσα στα τμήματα αυτής της ζώνης
+
+Outside the amateur bands
+= Εκτός ερασιτεχνικών ζωνών
+
+in the %s plan
+= στο σχέδιο %s
+
+Name
+= Όνομα
+
+Save
+= Αποθήκευση
+
+Filter
+= Φίλτρο
+
+Mode
+= Mode
+
+Click to tune, double-click to edit
+= Κλικ για συντονισμό, διπλό κλικ για επεξεργασία
+
+Edit memory
+= Επεξεργασία μνήμης
+
+Frequency
+= Συχνότητα
+
+e.g. 14.074 or 7030k
+= π.χ. 14.074 ή 7030k
+
+Not a frequency the %s can tune
+= Δεν είναι συχνότητα που μπορεί να συντονίσει το %s
+
+Data mode
+= Mode δεδομ.
+
+Saved %s at %s
+= Το %s αποθηκεύτηκε στα %s
+
+Cancel
+= Ακύρωση
+
+All callsigns
+= Όλα τα διακρ.
+
+No callsign set
+= Χωρίς διακριτικό
+
+New callsign
+= Νέο διακριτικό
+
+Add
+= Προσθήκη
+
+The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it.
+= Το διακριτικό με το οποίο εκπέμπετε. Οι νέες επαφές καταχωρούνται σε αυτό, και η καρτέλα Ημερολόγιο και οι ενδείξεις προηγούμενων επαφών δείχνουν μόνο τις δικές του επαφές. Το Όλα τα διακρ. δείχνει εδώ όλο το ημερολόγιο χωρίς να το αλλάζει.
+
+Couldn't back up the log first, so nothing was imported
+= Δεν ήταν δυνατό να γίνει πρώτα αντίγραφο ασφαλείας του ημερολογίου, οπότε δεν εισήχθη τίποτα
+
+Imported %d new QSOs, updated %d, and %d were already up to date
+= Νέα QSO που εισήχθησαν: %d, ενημερωμένα: %d, ήδη ενημερωμένα: %d
+
+Some are under other callsigns: choose them in the log book
+= Κάποια είναι σε άλλα διακριτικά: επιλέξτε τα στο ημερολόγιο
+
+Couldn't save the log to %s
+= Δεν ήταν δυνατή η αποθήκευση του ημερολογίου στο %s
+
+The log is already in date order
+= Το ημερολόγιο είναι ήδη ταξινομημένο κατά ημερομηνία
+
+Couldn't back up the log first, so it wasn't sorted
+= Δεν ήταν δυνατό να γίνει πρώτα αντίγραφο ασφαλείας του ημερολογίου, οπότε δεν ταξινομήθηκε
+
+Sorted %d QSOs into date order. The log as it was is in %s.bak
+= Ταξινομήθηκαν κατά ημερομηνία QSO: %d. Το ημερολόγιο όπως ήταν βρίσκεται στο %s.bak
+
+There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead
+= Δεν υπάρχει παράθυρο επιλογής αρχείων σε αυτό το σύστημα (χρειάζεται zenity ή kdialog), οπότε σύρετε το αρχείο ADIF πάνω στο παράθυρο
+
+Changing a logged contact
+= Αλλαγή καταχωρημένης επαφής
+
+, last on %s
+= , τελευταία στις %s
+
+Worked once%s: %s
+= Μία επαφή%s: %s
+
+Worked %d times%s: %s
+= Επαφές: %d%s: %s
+
+Already logged on this band and mode.
+= Ήδη καταχωρημένο σε αυτή τη ζώνη και mode.
+
+Not worked before
+= Καμία προηγούμενη επαφή
+
+RST sent
+= RST εστάλη
+
+RST rcvd
+= RST ελήφθη
+
+Power (W)
+= Ισχύς (W)
+
+Left empty, it's what the rig's power is set to
+= Αν μείνει κενό, είναι η ισχύς που έχει ρυθμιστεί στον πομποδέκτη
+
+Notes
+= Σημειώσεις
+
+Contest
+= Contest
+
+Contest, such as CQ-WW-SSB
+= Contest, π.χ. CQ-WW-SSB
+
+Exchange sent
+= Exchange εστάλη
+
+Exchange rcvd
+= Exchange ελήφθη
+
+An exchange sent that's only a number goes up by one with each contact
+= Ένα exchange που στέλνεται και είναι μόνο αριθμός αυξάνεται κατά ένα σε κάθε επαφή
+
+Began
+= Έναρξη
+
+Ended
+= Λήξη
+
+Your callsign for this contact
+= Το διακριτικό σας για αυτή την επαφή
+
+Update
+= Ενημέρωση
+
+Really delete it?
+= Σίγουρα διαγραφή;
+
+Couldn't back up the log first, so nothing was deleted
+= Δεν ήταν δυνατό να γίνει πρώτα αντίγραφο ασφαλείας του ημερολογίου, οπότε δεν διαγράφηκε τίποτα
+
+Keep it
+= Διατήρηση
+
+Delete
+= Διαγραφή
+
+%s  %s  %s UTC
+= %s  %s  %s UTC
+
+Log it
+= Καταχώρηση
+
+That frequency isn't a number of kHz
+= Αυτή η συχνότητα δεν είναι αριθμός σε kHz
+
+Times need to look like 2026-10-31 19:05
+= Οι ώρες πρέπει να έχουν τη μορφή 2026-10-31 19:05
+
+Updated %s
+= Ενημερώθηκε: %s
+
+Couldn't save the log entry to %s
+= Δεν ήταν δυνατή η αποθήκευση της καταχώρησης στο %s
+
+Log book...
+= Ημερολόγιο...
+
+Call
+= Διακριτικό
+
+%s  %s  %s/%s  %s %s\nDouble-click to change it
+= %s  %s  %s/%s  %s %s\nΔιπλό κλικ για αλλαγή
+
+%s km, %s miles
+= %s km, %s μίλια
+
+%d contacts
+= Επαφές: %d
+
+and %d earlier. Search the Contacts tab for %s to see them all.
+= και προηγούμενες: %d. Αναζητήστε στην καρτέλα Επαφές το %s για να τις δείτε όλες.
+
+to
+= έως
+
+Power
+= Ισχύς
+
+Confirmed by
+= Επιβεβαίωση από
+
+Your callsign
+= Το διακριτικό σας
+
+Exch sent
+= Exch εστάλη
+
+Exch rcvd
+= Exch ελήφθη
+
+Contacts: %d. Places: %d.
+= Επαφές: %d. Τοποθεσίες: %d.
+
+(%d with no locator aren't shown)
+= (δεν εμφανίζονται όσες δεν έχουν locator: %d)
+
+Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts
+= Κύλιση ή διπλό κλικ για μεγέθυνση, σύρσιμο για μετακίνηση, ποντίκι πάνω σε πινέζα για τις επαφές της
+
+Log book
+= Ημερολόγιο
+
+%d contacts, %d callsigns, %d countries, %d confirmed
+= Επαφές: %d, διακριτικά: %d, χώρες: %d, επιβεβαιωμένες: %d
+
+Search
+= Αναζήτηση
+
+Export ADIF
+= Εξαγωγή ADIF
+
+Exported %d QSOs to %s
+= Εξήχθησαν QSO: %d στο %s
+
+Couldn't write %s
+= Δεν ήταν δυνατή η εγγραφή του %s
+
+Import ADIF...
+= Εισαγωγή ADIF...
+
+Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak.
+= Επιλέξτε αρχείο ADIF, ή σύρετέ το πάνω στο παράθυρο. Μια επαφή που υπάρχει ήδη στο ημερολόγιο δεν προστίθεται ξανά: ενημερώνεται η κατάσταση QSL της και συμπληρώνονται τα κενά πεδία της. Το ημερολόγιο αντιγράφεται πρώτα στο log.csv.bak.
+
+Sort
+= Ταξινόμηση
+
+Finish changing the contact on the Log tab first.
+= Ολοκληρώστε πρώτα την αλλαγή της επαφής στην καρτέλα Ημερολόγιο.
+
+Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.
+= Ταξινομεί όλες τις επαφές του αρχείου ημερολογίου κατά ημερομηνία, από την παλαιότερη, όποιο διακριτικό κι αν εμφανίζεται. Οι νέες επαφές συνεχίζουν στο τέλος. Το ημερολόγιο αντιγράφεται πρώτα στο log.csv.bak.
+
+Restore
+= Επαναφορά
+
+Maximise
+= Μεγιστοποίηση
+
+Contacts
+= Επαφές
+
+World map
+= Παγκόσμιος χάρτης
+
+Station
+= Σταθμός
+
+Band
+= Ζώνη
+
+Confirmed
+= Επιβεβαιωμένη
+
+Sent
+= Εστάλη
+
+Rcvd
+= Ελήφθη
+
+Distance (km)
+= Απόσταση (km)
+
+Country
+= Χώρα
+
+Double-click to change it on the Log tab
+= Διπλό κλικ για αλλαγή στην καρτέλα Ημερολόγιο
+
+%s miles
+= %s μίλια
+
+The dial isn't on a band in the %s plan. Tune to one, or scan a range.
+= Ο επιλογέας δεν είναι σε ζώνη του σχεδίου %s. Συντονιστείτε σε μία, ή σαρώστε μια περιοχή.
+
+Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say
+= Η σάρωση χρειάζεται δύο συχνότητες που μπορεί να συντονίσει αυτός ο πομποδέκτης, γραμμένες όπως θα τις πληκτρολογούσατε: π.χ. 14.0 και 14.35
+
+That's more than %d channels. Choose a bigger step or a smaller range.
+= Είναι περισσότερα από %d κανάλια. Επιλέξτε μεγαλύτερο βήμα ή μικρότερη περιοχή.
+
+There's nothing to scan there that the %s can tune
+= Δεν υπάρχει εκεί τίποτα για σάρωση που να μπορεί να συντονίσει το %s
+
+Scan stopped: every channel has been locked out
+= Η σάρωση σταμάτησε: όλα τα κανάλια έχουν αποκλειστεί
+
+Scan stopped: the rig isn't answering
+= Η σάρωση σταμάτησε: ο πομποδέκτης δεν απαντά
+
+Scan stopped: the rig is transmitting
+= Η σάρωση σταμάτησε: ο πομποδέκτης εκπέμπει
+
+Scan stopped: the rig refused every frequency in it
+= Η σάρωση σταμάτησε: ο πομποδέκτης απέρριψε όλες τις συχνότητές της
+
+Scan stopped: the dial was tuned
+= Η σάρωση σταμάτησε: γύρισε ο επιλογέας
+
+The band the dial is on
+= Η ζώνη του επιλογέα
+
+A range of frequencies
+= Περιοχή συχνοτήτων
+
+Memories
+= Μνήμες
+
+Scan
+= Σάρωση
+
+From
+= Από
+
+To
+= Έως
+
+Names with
+= Ονόματα με
+
+Empty for all of them
+= Κενό για όλα
+
+All those showing
+= Όλα όσα φαίνονται
+
+Service
+= Υπηρεσία
+
+Broadcasters go by the Stations menu's "Only what's scheduled now", as of when the scan starts.
+= Οι ραδιοφωνικοί σταθμοί ακολουθούν το «Μόνο όσοι εκπέμπουν τώρα» του μενού Σταθμοί, όπως ήταν όταν ξεκίνησε η σάρωση.
+
+Each one for
+= Διάρκεια ανά
+
+How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal.
+= Πόσο ακούει κάθε κανάλι. Το γρήγορο AGC σαρώνει καλύτερα, γιατί το αργό μπορεί ακόμη να κρατά μετά από ισχυρό σήμα.
+
+Stop at
+= Στάση στο
+
+The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere.
+= Η ένδειξη του S meter που θεωρείται σήμα. Ρυθμίστε την πάνω από τον θόρυβο της ζώνης, αλλιώς θα σταματά παντού.
+
+Stay until I carry on
+= Παραμονή ώσπου να συνεχίσω
+
+Carry on after 5 s
+= Συνέχεια μετά από 5 s
+
+Carry on after 10 s
+= Συνέχεια μετά από 10 s
+
+Carry on when it stops
+= Συνέχεια όταν σταματήσει
+
+On a signal
+= Σε σήμα
+
+Next
+= Επόμενο
+
+Carry on to the next channel
+= Συνέχεια στο επόμενο κανάλι
+
+Lock out
+= Αποκλεισμός
+
+Leave this channel out until the scan is stopped, for a signal that's always there
+= Παράλειψη αυτού του καναλιού μέχρι να σταματήσει η σάρωση, για σήμα που υπάρχει πάντα
+
+Signal at %s  %s
+= Σήμα στα %s  %s
+
+Listening at %s
+= Ακρόαση στα %s
+
+%s  %d of %d
+= %s  %d από %d
+
+%d locked out
+= Αποκλεισμένα: %d
+
+S meter now: %s. Tuning stops a scan.
+= S meter τώρα: %s. Ο συντονισμός σταματά τη σάρωση.
+
+HEARD
+= ΑΚΟΥΣΤΗΚΑΝ
+
+Where
+= Πού
+
+What
+= Τι
+
+Click to stop the scan and go back there
+= Κάντε κλικ για διακοπή της σάρωσης και επιστροφή εκεί
+
+A DX cluster logs you in by callsign. Put yours in Rig > Settings first.
+= Το DX cluster σας συνδέει με το διακριτικό σας. Βάλτε το πρώτα στο Πομποδέκτης > Ρυθμίσεις.
+
+Spotted by %s
+= Spot από %s
+
+Spotted by %s at %sZ
+= Spot από %s στις %sZ
+
+DX SPOTS
+= DX SPOTS
+
+Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign.
+= Ζωντανά spots από το DX cluster του Πομποδέκτης > Ρυθμίσεις. Συνδέεται μόνο όσο αυτό είναι ενεργό, και με το διακριτικό σας.
+
+All bands
+= Όλες οι ζώνες
+
+This band
+= Αυτή η ζώνη
+
+All modes
+= Όλα τα mode
+
+Data
+= Δεδομένα
+
+No spots here yet.
+= Κανένα spot εδώ ακόμη.
+
+Age
+= Ηλικία
+
+Worked on this band
+= Επαφή σε αυτή τη ζώνη
+
+Worked, but not on this band
+= Επαφή, αλλά όχι σε αυτή τη ζώνη
+
+Click to tune there and put the call in the log
+= Κάντε κλικ για συντονισμό εκεί και καταχώρηση του διακριτικού στο ημερολόγιο
+
+Nothing to send
+= Τίποτα για αποστολή
+
+Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit.
+= Το break-in είναι κλειστό, οπότε ο πομποδέκτης θα δώσει μόνο τον τόνο παρακολούθησης. Ανοίξτε το BK-IN για εκπομπή.
+
+CW KEYER
+= CW KEYER
+
+Mode must be CW. Sends through the rig's keyer.
+= Το mode πρέπει να είναι CW. Στέλνει μέσω του keyer του πομποδέκτη.
+
+Type and press Enter to send
+= Πληκτρολογήστε και πατήστε Enter για αποστολή
+
+STOP SENDING
+= ΔΙΑΚΟΠΗ ΑΠΟΣΤΟΛΗΣ
+
+{CALL} is your callsign, from Settings.
+= Το {CALL} είναι το διακριτικό σας, από τις Ρυθμίσεις.
+
+VOICE MEMORY
+= ΜΝΗΜΗ ΦΩΝΗΣ
+
+Plays what's recorded on the rig. Mode must be SSB, AM or FM.
+= Παίζει ό,τι έχει εγγραφεί στον πομποδέκτη. Το mode πρέπει να είναι SSB, AM ή FM.
+
+STOP PLAYING
+= ΔΙΑΚΟΠΗ
+
+Couldn't save the net list to %s
+= Δεν ήταν δυνατή η αποθήκευση της λίστας net στο %s
+
+Net
+= Net
+
+Started %s UTC
+= Έναρξη %s UTC
+
+Net control %s
+= Net control %s
+
+Checked in: %d. Still on at %s UTC: %d.
+= Δηλώθηκαν: %d. Ακόμη παρόντες στις %s UTC: %d.
+
+Joined (UTC)
+= Ήρθε (UTC)
+
+Left (UTC)
+= Έφυγε (UTC)
+
+Sent the net list to %s
+= Η λίστα net στάλθηκε στο %s
+
+Print the net list
+= Εκτύπωση λίστας net
+
+Printer
+= Εκτυπωτής
+
+No printers are set up on this computer
+= Δεν υπάρχουν εκτυπωτές σε αυτόν τον υπολογιστή
+
+Printing...
+= Εκτύπωση...
+
+Print
+= Εκτύπωση
+
+Net name, such as Sunday 80m net
+= Όνομα net, π.χ. Κυριακάτικο net 80m
+
+Already on the net, since %s UTC
+= Ήδη στο net, από τις %s UTC
+
+Check in
+= Δήλωση
+
+Print list...
+= Εκτύπωση...
+
+%d on the net, %d checked in
+= Στο net: %d, δηλώθηκαν: %d
+
+Really clear it?
+= Σίγουρα καθαρισμός;
+
+New net
+= Νέο net
+
+Clears the list for the next net. Print it first to keep it.
+= Καθαρίζει τη λίστα για το επόμενο net. Εκτυπώστε την πρώτα για να την κρατήσετε.
+
+Type a callsign and press Enter as each station checks in.
+= Πληκτρολογήστε διακριτικό και πατήστε Enter καθώς δηλώνεται κάθε σταθμός.
+
+In
+= Ήρθε
+
+Out
+= Έφυγε
+
+Back
+= Επέστρεψε
+
+Find on the map
+= Εύρεση στον χάρτη
+
+Remove from the list
+= Αφαίρεση από τη λίστα
+
+Right-click to find them on the map, or to take them off if they went on by mistake.
+= Δεξί κλικ για εύρεση στον χάρτη, ή για αφαίρεση αν μπήκαν κατά λάθος.
+
+Left
+= Έφυγε
+
+They're back: clears the time they left
+= Επέστρεψαν: σβήνει την ώρα αποχώρησης
+
+They've left the net: greys them out and notes the time
+= Έφυγαν από το net: τους γκριζάρει και σημειώνει την ώρα
+
+Keypad
+= Πληκτρολόγιο
+
+Log
+= Ημερολόγιο
+
+CW / Voice
+= CW / Φωνή
+
+DEMO: a simulated radio. Nothing is connected.
+= DEMO: προσομοιωμένος πομποδέκτης. Τίποτα δεν είναι συνδεδεμένο.
+
+Audio only: leaving the serial port alone
+= Μόνο ήχος: η σειριακή θύρα δεν χρησιμοποιείται
+
+%s  %s  %d baud
+= %s  %s  %d baud
+
+. Close the other program: a port has one owner.
+= . Κλείστε το άλλο πρόγραμμα: μια θύρα έχει έναν μόνο χρήστη.
+
+A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address.
+= Ένας πομποδέκτης απάντησε στη %02Xh, δηλώνοντας %02Xh. Δεν είναι IC-7300, IC-9700 ή IC-R8600: για να τον δοκιμάσετε, βάλτε %02X στις Ρυθμίσεις ως διεύθυνση CI-V.
+
+%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one.
+= Η %s άνοιξε, αλλά δεν υπάρχει απάντηση: είναι ανοιχτός ο πομποδέκτης, στα %d baud; Το 9700 έχει δύο θύρες: χρησιμοποιήστε την Enhanced.
+
+Connecting...
+= Σύνδεση...
+
+. Is the SUB band on that band?
+= . Είναι η ζώνη SUB σε αυτή τη ζώνη;
+
+SCAN: signal. Next is on the Scan tab.
+= ΣΑΡΩΣΗ: σήμα. Το Επόμενο είναι στην καρτέλα Σάρωση.
+
+SCANNING. Tune to stop it.
+= ΣΑΡΩΣΗ. Συντονίστε για διακοπή.
+
+New version available, built %s
+= Νέα έκδοση διαθέσιμη, έκδοση %s
+
+Click to open the download page on GitHub. You're on the build from %s UTC.
+= Κάντε κλικ για τη σελίδα λήψης στο GitHub. Έχετε την έκδοση της %s UTC.
+
+The radio's clock wasn't set.
+= Το ρολόι του πομποδέκτη δεν ρυθμίστηκε.
+
+The radio isn't connected, so its clock wasn't set.
+= Ο πομποδέκτης δεν είναι συνδεδεμένος, οπότε το ρολόι του δεν ρυθμίστηκε.
+
+This program doesn't know how to set this radio's clock.
+= Αυτό το πρόγραμμα δεν ξέρει να ρυθμίζει το ρολόι αυτού του πομποδέκτη.
+
+The radio's clock follows on the minute.
+= Το ρολόι του πομποδέκτη ακολουθεί στην αλλαγή του λεπτού.
+
+Conditions
+= Συνθήκες
+
+Put your locator in Settings to see HF conditions from your square.
+= Βάλτε το locator σας στις Ρυθμίσεις για να δείτε τις συνθήκες HF από το τετράγωνό σας.
+
+Opens HF conditions from %s on hf.dxview.org in your browser.
+= Ανοίγει τις συνθήκες HF από %s στο hf.dxview.org στον φυλλομετρητή σας.
+
+Wait
+= Αναμονή
+
+Sync
+= Συγχρ.
+
+Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it.
+= Ελέγχει το ρολόι αυτού του υπολογιστή με την ώρα διαδικτύου (NTP).\nΣτο demo δεν το αλλάζει.
+
+Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.
+= Ρυθμίζει το ρολόι αυτού του υπολογιστή από την ώρα διαδικτύου (NTP), για FT8, FT4 και τα άλλα χρονισμένα mode.\nΤα Windows μπορεί να ζητήσουν άδεια.
+
+Then sets the radio's date, time and UTC offset from it, as the next minute starts.
+= Μετά ρυθμίζει από αυτό την ημερομηνία, την ώρα και τη διαφορά UTC του πομποδέκτη, μόλις αρχίσει το επόμενο λεπτό.
+
+Last time:
+= Τελευταία φορά:
+
+The radio stopped answering, so its clock wasn't set.
+= Ο πομποδέκτης σταμάτησε να απαντά, οπότε το ρολόι του δεν ρυθμίστηκε.
+
+Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+= Στάλθηκε στον πομποδέκτη %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+
+Rig
+= Πομποδέκτης
+
+Settings...
+= Ρυθμίσεις...
+
+Power on
+= Ενεργοποίηση
+
+Power off...
+= Απενεργοποίηση...
+
+Open data folder
+= Φάκελος δεδομένων
+
+Open received folder
+= Φάκελος λήψεων
+
+Quit
+= Έξοδος
+
+View
+= Προβολή
+
+Band scope
+= Band scope
+
+Audio waterfall
+= Καταρράκτης ήχου
+
+Band plan on the scope
+= Σχέδιο ζωνών στο scope
+
+DX spots panel
+= Πλαίσιο DX spots
+
+DX spots on the scope
+= DX spots στο scope
+
+Help
+= Βοήθεια
+
+Keys and rig set-up...
+= Πλήκτρα και ρύθμιση πομποδέκτη...
+
+Built %s UTC
+= Έκδοση %s UTC
+
+Settings
+= Ρυθμίσεις
+
+THE RIG
+= Ο ΠΟΜΠΟΔΕΚΤΗΣ
+
+Port
+= Θύρα
+
+(choose)
+= (επιλέξτε)
+
+Baud
+= Baud
+
+Find out by asking it
+= Ανίχνευση με ερώτηση
+
+Radio
+= Μοντέλο
+
+It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed.
+= Κανονικά το βρίσκει μόνο του. Επιλέξτε ένα αν κάνει λάθος, όπως μπορεί να συμβεί αν έχει αλλάξει η διεύθυνση CI-V του πομποδέκτη.
+
+CI-V address (hex)
+= Διεύθυνση CI-V (hex)
+
+Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address.
+= Δοκιμάζεται πρώτη. Αν δεν απαντήσει τίποτα εκεί, δοκιμάζει 94h, A2h, 96h και τη διεύθυνση εκπομπής προς όλους.
+
+The scope stream needs 115200.
+= Η ροή του scope χρειάζεται 115200.
+
+SOUND
+= ΗΧΟΣ
+
+From the rig
+= Από πομποδέκτη
+
+(find the USB Audio CODEC)
+= (εύρεση του USB Audio CODEC)
+
+Listen on
+= Ακρόαση σε
+
+(system default)
+= (προεπιλογή συστήματος)
+
+YOU
+= ΕΣΕΙΣ
+
+Your locator
+= Το locator σας
+
+Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.
+= Το locator Maidenhead σας, π.χ. IO91WM. Μπαίνει στα ημερολόγια που εξάγονται, και η καρτέλα Ημερολόγιο το χρησιμοποιεί για να δίνει απόσταση.
+
+QRZ.com username
+= Όνομα χρήστη QRZ.com
+
+For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position.
+= Για εύρεση στον χάρτη σταθμών που δεν είναι στο ημερολόγιό σας. Χρειάζεται συνδρομή QRZ.com XML για να δίνει το locator ή τη θέση τους.
+
+QRZ.com password
+= Κωδικός QRZ.com
+
+Kept in settings.ini in the data folder, as plain text.
+= Φυλάσσεται στο settings.ini στον φάκελο δεδομένων, ως απλό κείμενο.
+
+HamQTH username
+= Όνομα χρήστη HamQTH
+
+For finding stations on the map, free: make an account at hamqth.com. Asked after QRZ.com, or alone if there's no QRZ.com login.
+= Για εύρεση σταθμών στον χάρτη, δωρεάν: φτιάξτε λογαριασμό στο hamqth.com. Ερωτάται μετά το QRZ.com, ή μόνο του αν δεν υπάρχει σύνδεση QRZ.com.
+
+HamQTH password
+= Κωδικός HamQTH
+
+Log date format
+= Μορφή ημερομηνίας
+
+How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed.
+= Πώς εμφανίζονται οι ημερομηνίες στο ημερολόγιο, σε UTC. Η καρτέλα Ημερολόγιο παραλείπει το έτος για εξοικονόμηση χώρου. Τα ημερολόγια που εξάγονται, και το ίδιο το αρχείο ημερολογίου, δεν αλλάζουν.
+
+PTT time limit
+= Όριο χρόνου PTT
+
+PTT from this program lets go by itself after this long
+= Το PTT από αυτό το πρόγραμμα ελευθερώνεται μόνο του μετά από αυτό το διάστημα
+
+DX CLUSTER
+= DX CLUSTER
+
+Choose one
+= Επιλέξτε
+
+Fill in from a list
+= Από λίστα
+
+Server
+= Διακομιστής
+
+Commands after login
+= Εντολές μετά τη σύνδεση
+
+Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty.
+= Στέλνονται μετά τη σύνδεση, με ; ανάμεσά τους. Κάθε είδος cluster έχει τις δικές του: δείτε τη βοήθεια του διακομιστή. Συνήθως κενό.
+
+Keep spots for
+= Διατήρηση spots
+
+Show robot spots (Reverse Beacon Network)
+= Εμφάνιση αυτόματων spots (Reverse Beacon Network)
+
+Spots from automatic CW and data skimmers. There can be a great many.
+= Spots από αυτόματους skimmers CW και δεδομένων. Μπορεί να είναι πάρα πολλά.
+
+BAND PLAN
+= ΣΧΕΔΙΟ ΖΩΝΩΝ
+
+Country or region
+= Χώρα ή περιοχή
+
+This program has a newer copy of this plan (%s). Reset uses it.
+= Αυτό το πρόγραμμα έχει νεότερο αντίγραφο αυτού του σχεδίου (%s). Η Επαναφορά το χρησιμοποιεί.
+
+Open plans folder
+= Φάκελος σχεδίων
+
+Each plan is a JSON file you can edit. README.txt there explains the format.
+= Κάθε σχέδιο είναι αρχείο JSON που μπορείτε να επεξεργαστείτε. Το README.txt εκεί εξηγεί τη μορφή.
+
+Reload
+= Επαναφόρτωση
+
+Reads the files again, after you've edited one
+= Διαβάζει ξανά τα αρχεία, αφού επεξεργαστείτε κάποιο
+
+Reset this plan
+= Επαναφορά σχεδίου
+
+Can't write to %s
+= Δεν είναι δυνατή η εγγραφή στο %s
+
+Puts the built-in copy back. Your file is kept as .json.bak
+= Επαναφέρει το ενσωματωμένο αντίγραφο. Το αρχείο σας φυλάσσεται ως .json.bak
+
+STATIONS
+= ΣΤΑΘΜΟΙ
+
+Shown on the scope whichever band plan is chosen. See the Stations menu.
+= Εμφανίζονται στο scope όποιο σχέδιο ζωνών κι αν έχει επιλεγεί. Δείτε το μενού Σταθμοί.
+
+%s (%d stations, revision %s). %s
+= %s (σταθμοί: %d, αναθεώρηση %s). %s
+
+Open stations folder
+= Φάκελος σταθμών
+
+Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.
+= Κάθε λίστα είναι αρχείο JSON που μπορείτε να επεξεργαστείτε, και μπορείτε να προσθέσετε δικές σας. Το README.txt εκεί εξηγεί τη μορφή. Η Επαναφόρτωση παραπάνω τις διαβάζει ξανά.
+
+Reset station list
+= Επαναφορά λίστας
+
+Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak
+= Επαναφέρει τις ενσωματωμένες παγκόσμιες λίστες και τις λίστες ραδιοφωνικών σταθμών. Τα αρχεία σας φυλάσσονται ως .json.bak
+
+Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak
+= Επαναφέρει τις ενσωματωμένες παγκόσμιες λίστες, τις λίστες ραδιοφωνικών σταθμών και τις λίστες για δέκτες. Τα αρχεία σας φυλάσσονται ως .json.bak
+
+Automatic (%s)
+= Αυτόματα (%s)
+
+Language
+= Γλώσσα
+
+Automatic follows the language this computer is set to. Choose one to keep to it whatever the computer uses. It changes straight away.
+= Το Αυτόματα ακολουθεί τη γλώσσα του υπολογιστή. Επιλέξτε μία για να τη διατηρείτε ό,τι κι αν χρησιμοποιεί ο υπολογιστής. Αλλάζει αμέσως.
+
+Check GitHub for a new version at start
+= Έλεγχος για νέα έκδοση στο GitHub κατά την εκκίνηση
+
+Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent.
+= Διαβάζει ένα μικρό αρχείο από το GitHub σε κάθε εκκίνηση του προγράμματος, και δείχνει στην κάτω γραμμή αν υπάρχει νεότερη έκδοση. Δεν στέλνεται τίποτα για εσάς ή τον πομποδέκτη σας.
+
+Auto ON/OFF
+= Αυτόμ. ON/OFF
+
+Switches the rig on when the program starts, and off when it closes. The rig's USB must stay powered for it to wake.
+= Ανοίγει τον πομποδέκτη όταν ξεκινά το πρόγραμμα, και τον κλείνει όταν τερματίζει. Το USB του πομποδέκτη πρέπει να μένει τροφοδοτούμενο για να ξυπνήσει.
+
+Apply and reconnect
+= Εφαρμογή και επανασύνδεση
+
+Close
+= Κλείσιμο
+
+Keys and rig set-up
+= Πλήκτρα και ρύθμιση πομποδέκτη
+
+ON THE RIG  (MENU > SET > Connectors > CI-V)
+= ΣΤΟΝ ΠΟΜΠΟΔΕΚΤΗ  (MENU > SET > Connectors > CI-V)
+
+CI-V USB Port: Unlink from [REMOTE]
+= CI-V USB Port: Unlink from [REMOTE]
+
+CI-V USB Baud Rate: 115200
+= CI-V USB Baud Rate: 115200
+
+CI-V USB Echo Back: OFF  (ON works too)
+= CI-V USB Echo Back: OFF  (δουλεύει και με ON)
+
+CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700
+= CI-V Address: αφήστε την προεπιλογή, 94h στο IC-7300 ή A2h στο IC-9700
+
+USB AF Output Level (Connectors): raise it until the level bar sits below red
+= USB AF Output Level (Connectors): αυξήστε το ώσπου η μπάρα στάθμης να μένει λίγο κάτω από το κόκκινο
+
+USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF
+= USB SEND και USB Keying (Connectors > USB SEND/Keying): OFF
+
+KEYS
+= ΠΛΗΚΤΡΑ
+
+Digits
+= Ψηφία
+
+Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels.
+= Έναρξη εισαγωγής συχνότητας: 14.074, 14074, 7, 198k, +5. Το Enter πηγαίνει εκεί, το Esc ακυρώνει.
+
+Left, Right
+= Αριστερά, Δεξιά
+
+Tune by the step. Hold Shift for ten times that.
+= Συντονισμός κατά το βήμα. Κρατήστε το Shift για δεκαπλάσιο.
+
+Up, Down
+= Πάνω, Κάτω
+
+Change the step
+= Αλλαγή βήματος
+
+Page Up, Page Down
+= Page Up, Page Down
+
+Next or previous band
+= Επόμενη ή προηγούμενη ζώνη
+
+Find a station by name
+= Εύρεση σταθμού με όνομα
+
+F1 to F8
+= F1 έως F8
+
+Data mode, next filter
+= Mode δεδομένων, επόμενο φίλτρο
+
+Split, swap VFOs
+= Split, εναλλαγή VFO
+
+PTT on or off, once armed
+= PTT ναι ή όχι, αφού οπλιστεί
+
+Tuning dial
+= Επιλογέας συντονισμού
+
+Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on.
+= Κάντε κλικ και περιστρέψτε τον. Μία στροφή είναι δέκα βήματα. Γρήγορα για μεγαλύτερη μετακίνηση, αφήστε τον και συνεχίζει μόνος του.
+
+Wheel
+= Ροδέλα
+
+On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it.
+= Σε ψηφίο αλλάζει αυτό το ψηφίο. Σε καταρράκτη ή στον επιλογέα, κατά το βήμα. Σε ρυθμιστικό, το μετακινεί.
+
+Click a digit
+= Κλικ σε ψηφίο
+
+Top half up, bottom half down
+= Πάνω μισό αυξάνει, κάτω μισό μειώνει
+
+Click the band scope
+= Κλικ στο band scope
+
+Tune there. Right-click for split and memories.
+= Συντονισμός εκεί. Δεξί κλικ για split και μνήμες.
+
+< and > above the band scope
+= < και > πάνω από το band scope
+
+Move the dial one whole page of the scope, in Centre mode.
+= Μετακίνηση του επιλογέα κατά μία ολόκληρη σελίδα του scope, σε λειτουργία Κέντρο.
+
+Click the audio waterfall
+= Κλικ στον καταρράκτη ήχου
+
+Moves that signal to the pitch (not in data modes)
+= Μεταφέρει αυτό το σήμα στον τόνο (όχι στα mode δεδομένων)
+
+Right-click a band
+= Δεξί κλικ σε ζώνη
+
+CW, FT8, FT4, WSPR, SSB frequencies
+= Συχνότητες CW, FT8, FT4, WSPR, SSB
+
+Click a DX spot
+= Κλικ σε DX spot
+
+Tune there, and put the call in the log. Red flags and green calls aren't worked yet.
+= Συντονισμός εκεί και καταχώρηση του διακριτικού στο ημερολόγιο. Οι κόκκινες σημαίες και τα πράσινα διακριτικά δεν έχουν γίνει ακόμη επαφή.
+
+Double-click a log entry
+= Διπλό κλικ σε καταχώρηση
+
+Bring it back to the Log tab, to change it and log it again
+= Επιστροφή της στην καρτέλα Ημερολόγιο, για αλλαγή και νέα καταχώρηση
+
+Power off the rig?
+= Απενεργοποίηση του πομποδέκτη;
+
+The rig will switch off. Rig > Power on brings it back while its USB stays powered.
+= Ο πομποδέκτης θα κλείσει. Το Πομποδέκτης > Ενεργοποίηση τον επαναφέρει όσο το USB του μένει τροφοδοτούμενο.
+
+Power off
+= Απενεργοποίηση
+
+This is an %s
+= Αυτό είναι %s
+
+This is an %s, a receiver: it can't transmit
+= Αυτό είναι %s, δέκτης: δεν μπορεί να εκπέμψει
+
+Only ADIF files can be dropped here, to import them into the log
+= Εδώ μπορούν να αφεθούν μόνο αρχεία ADIF, για εισαγωγή στο ημερολόγιο
+
+The band plan is set to %s. Choose your country in Settings.
+= Το σχέδιο ζωνών είναι %s. Επιλέξτε τη χώρα σας στις Ρυθμίσεις.
+
+The audio system didn't start
+= Το σύστημα ήχου δεν ξεκίνησε
+
+Can't list the sound devices
+= Δεν είναι δυνατή η λίστα συσκευών ήχου
+
+"%s" isn't there (radio off or unplugged?)
+= Το «%s» δεν βρέθηκε (ο πομποδέκτης είναι κλειστός ή αποσυνδεδεμένος;)
+
+Can't open "%s"
+= Δεν ανοίγει το «%s»
+
+Can't start "%s"
+= Δεν ξεκινά το «%s»
+
+The rig's USB sound card is the system default output, and the monitor won't feed it. Choose your speakers in Settings.
+= Η κάρτα ήχου USB του πομποδέκτη είναι η προεπιλεγμένη έξοδος του συστήματος, και η ακρόαση δεν θα στείλει ήχο σε αυτήν. Επιλέξτε τα ηχεία σας στις Ρυθμίσεις.
+
+No default output device
+= Δεν υπάρχει προεπιλεγμένη συσκευή εξόδου
+
+"%s" isn't there
+= Το «%s» δεν βρέθηκε
+
+Can't open the output device
+= Δεν ανοίγει η συσκευή εξόδου
+
+Can't start the output device
+= Δεν ξεκινά η συσκευή εξόδου
+
+Commercial
+= Εμπορικοί
+
+Government
+= Κυβερνητικοί
+
+Naval and maritime
+= Ναυτικοί
+
+Military
+= Στρατιωτικοί
+
+Broadcast
+= Ραδιοφωνία
+
+Amateur satellites and beacons
+= Ερασιτεχνικοί δορυφόροι και φάροι
+
+Aviation
+= Αεροναυτιλία
+
+Satellites and navigation
+= Δορυφόροι και ναυσιπλοΐα
+
+Land mobile and licence-free
+= Κινητή ξηράς και ελεύθερης χρήσης
+
+Numbers and mystery stations
+= Σταθμοί αριθμών και μυστήριου
+
+Beacons
+= Φάροι
+
+Satellite
+= Δορυφόρος
+
+Maritime
+= Ναυτικός
+
+Mobile
+= Κινητός
+
+Navigation
+= Ναυσιπλοΐα
+
+Other
+= Άλλο
+
+Can't read the chart %s
+= Δεν διαβάζεται ο χάρτης %s
+
+There's no overlay to save
+= Δεν υπάρχει επικάλυψη για αποθήκευση
+
+No time server answered. Is this computer online, and is UDP port 123 open?
+= Κανένας διακομιστής ώρας δεν απάντησε. Είναι συνδεδεμένος αυτός ο υπολογιστής, και είναι ανοιχτή η θύρα UDP 123;
+
+The time servers disagree, so the clock was left alone. Try again in a minute.
+= Οι διακομιστές ώρας διαφωνούν, οπότε το ρολόι δεν πειράχτηκε. Δοκιμάστε ξανά σε ένα λεπτό.
+
+%.3f s slow
+= %.3f s πίσω
+
+%.3f s fast
+= %.3f s μπροστά
+
+The clock is %s, too far out to trust. Check its date and time in your system settings.
+= Το ρολόι είναι %s, πολύ μακριά για να είναι αξιόπιστο. Ελέγξτε την ημερομηνία και την ώρα στις ρυθμίσεις συστήματος.
+
+The clock is right: %s, to within %s. Left it alone.
+= Το ρολόι είναι σωστό: %s, με ακρίβεια %s. Δεν πειράχτηκε.
+
+The clock is %s. Demo: left it alone.
+= Το ρολόι είναι %s. Demo: δεν πειράχτηκε.
+
+The clock is still %s: Windows wasn't given permission to set it.
+= Το ρολόι είναι ακόμη %s: δεν δόθηκε άδεια στα Windows να το ρυθμίσουν.
+
+The clock is %s. Setting it needs root: run this program once with sudo and --sync-clock.
+= Το ρολόι είναι %s. Η ρύθμιση χρειάζεται root: εκτελέστε μία φορά το πρόγραμμα με sudo και --sync-clock.
+
+The clock is still %s: it couldn't be set.
+= Το ρολόι είναι ακόμη %s: δεν ήταν δυνατό να ρυθμιστεί.
+
+The clock was %s and has been set, but the servers didn't answer to confirm it.
+= Το ρολόι ήταν %s και ρυθμίστηκε, αλλά οι διακομιστές δεν απάντησαν για επιβεβαίωση.
+
+The clock was %s and was set, but is now %s.
+= Το ρολόι ήταν %s και ρυθμίστηκε, αλλά τώρα είναι %s.
+
+The clock was %s. It's now %s, to within %s.
+= Το ρολόι ήταν %s. Τώρα είναι %s, με ακρίβεια %s.
+
+Connected to %s
+= Συνδέθηκε στο %s
+
+Nothing heard for ten minutes
+= Τίποτα για δέκα λεπτά
+
+Connecting to %s
+= Σύνδεση στο %s
+
+Couldn't reach %s. Trying again in a minute.
+= Δεν ήταν δυνατή η σύνδεση στο %s. Νέα προσπάθεια σε ένα λεπτό.
+
+Lost %s. Trying again in a minute.
+= Χάθηκε η σύνδεση με το %s. Νέα προσπάθεια σε ένα λεπτό.
+
+Lost %s (it said: %s). Trying again in a minute.
+= Χάθηκε η σύνδεση με το %s (μήνυμα: %s). Νέα προσπάθεια σε ένα λεπτό.
+
+Made-up spots, as this is the demo. Nothing is connected.
+= Φανταστικά spots, αφού είναι demo. Τίποτα δεν είναι συνδεδεμένο.
+
+position set by the operator on QRZ
+= θέση που όρισε ο χειριστής στο QRZ
+
+street address
+= διεύθυνση οδού
+
+post code
+= ταχυδρομικός κώδικας
+
+state or county
+= πολιτεία ή νομός
+
+country only
+= μόνο χώρα
+
+worked out from QRZ's bearing and distance, to about 100 m
+= υπολογισμένη από το αζιμούθιο και την απόσταση του QRZ, με ακρίβεια περίπου 100 m
+
+worked out from QRZ's bearing and distance from your locator, to a few km
+= υπολογισμένη από το αζιμούθιο και την απόσταση του QRZ από το locator σας, με ακρίβεια λίγων km
+
+6-character locator, about 5 km by 4
+= locator 6 χαρακτήρων, περίπου 5 επί 4 km
+
+4-character locator, about 150 km by 110
+= locator 4 χαρακτήρων, περίπου 150 επί 110 km
+
+QRZ.com wouldn't log in.
+= Η σύνδεση στο QRZ.com απέτυχε.
+
+QRZ.com wouldn't log in: %s
+= Η σύνδεση στο QRZ.com απέτυχε: %s
+
+the session ended
+= η συνεδρία έληξε
+
+QRZ.com has %s but gives no locator or position.
+= Το QRZ.com έχει το %s αλλά δεν δίνει locator ή θέση.
+
+QRZ.com has %s but gives no locator or position (%s)
+= Το QRZ.com έχει το %s αλλά δεν δίνει locator ή θέση (%s)
+
+QRZ.com's sign-in page: %s
+= Σελίδα σύνδεσης του QRZ.com: %s
+
+QRZ.com's sign-in page has changed, so this can't sign in any more
+= Η σελίδα σύνδεσης του QRZ.com άλλαξε, οπότε η σύνδεση δεν είναι πλέον δυνατή
+
+Your QRZ.com account asks for a two-factor code to sign in, which this can't give
+= Ο λογαριασμός σας στο QRZ.com ζητά κωδικό δύο παραγόντων για σύνδεση, που αυτό το πρόγραμμα δεν μπορεί να δώσει
+
+QRZ.com's page for %s: %s
+= Σελίδα του QRZ.com για το %s: %s
+
+QRZ.com's page for %s gives no locator.
+= Η σελίδα του QRZ.com για το %s δεν δίνει locator.
+
+QRZ.com has no %s
+= Το QRZ.com δεν έχει το %s
+
+QRZ.com's page for %s gives no locator. It's in qrz-page.html in the data folder.
+= Η σελίδα του QRZ.com για το %s δεν δίνει locator. Βρίσκεται στο qrz-page.html στον φάκελο δεδομένων.
+
+Put your QRZ.com username and password in Settings to look callsigns up there
+= Βάλτε όνομα χρήστη και κωδικό QRZ.com στις Ρυθμίσεις για αναζήτηση διακριτικών εκεί
+
+HamQTH wouldn't log in.
+= Η σύνδεση στο HamQTH απέτυχε.
+
+HamQTH wouldn't log in: %s
+= Η σύνδεση στο HamQTH απέτυχε: %s
+
+HamQTH has no %s
+= Το HamQTH δεν έχει το %s
+
+it gave an answer this can't read
+= έδωσε απάντηση που δεν μπορεί να διαβαστεί
+
+HamQTH has %s but gives no locator or position.
+= Το HamQTH έχει το %s αλλά δεν δίνει locator ή θέση.
+
+Put your HamQTH username and password in Settings to look callsigns up there
+= Βάλτε όνομα χρήστη και κωδικό HamQTH στις Ρυθμίσεις για αναζήτηση διακριτικών εκεί
+
+your log
+= το ημερολόγιό σας
+
+Not a web address: %s
+= Δεν είναι διεύθυνση web: %s
+
+Windows couldn't start a web session
+= Τα Windows δεν μπόρεσαν να ξεκινήσουν σύνδεση web
+
+The answer was too long
+= Η απάντηση ήταν πολύ μεγάλη
+
+The server answered %d
+= Ο διακομιστής απάντησε %d
+
+Couldn't reach the server (error %lu)
+= Δεν ήταν δυνατή η σύνδεση με τον διακομιστή (σφάλμα %lu)
+
+Couldn't write a temporary file
+= Δεν ήταν δυνατή η εγγραφή προσωρινού αρχείου
+
+Couldn't run curl
+= Δεν ήταν δυνατή η εκτέλεση του curl
+
+Couldn't fetch it (is curl installed?)
+= Δεν ήταν δυνατή η λήψη (είναι εγκατεστημένο το curl;)
+
+Couldn't open the printer %s
+= Δεν ήταν δυνατό το άνοιγμα του εκτυπωτή %s
+
+Printing was cancelled
+= Η εκτύπωση ακυρώθηκε
+
+The printer %s wouldn't take the job
+= Ο εκτυπωτής %s δεν δέχτηκε την εργασία
+
+The printer %s stopped part way through
+= Ο εκτυπωτής %s σταμάτησε στη μέση
+
+The printer %s wouldn't start a page
+= Ο εκτυπωτής %s δεν ξεκίνησε σελίδα
+
+Couldn't write the page to print
+= Δεν ήταν δυνατή η εγγραφή της σελίδας για εκτύπωση
+
+set that frequency
+= ορίσει αυτή τη συχνότητα
+
+set the other VFO
+= ορίσει το άλλο VFO
+
+set that mode
+= ορίσει αυτό το mode
+
+set data mode
+= ορίσει mode δεδομένων
+
+set the other VFO's mode
+= ορίσει το mode του άλλου VFO
+
+set that level
+= ορίσει αυτή τη στάθμη
+
+change that setting
+= αλλάξει αυτή τη ρύθμιση
+
+set that EQ level
+= ορίσει αυτή τη στάθμη EQ
+
+set its time
+= ορίσει την ώρα του
+
+set its date
+= ορίσει την ημερομηνία του
+
+set its UTC offset
+= ορίσει τη διαφορά UTC του
+
+set the attenuator
+= ρυθμίσει τον εξασθενητή
+
+change antenna
+= αλλάξει κεραία
+
+set IP+
+= ρυθμίσει το IP+
+
+set split
+= ρυθμίσει το split
+
+set the filter width
+= ορίσει το εύρος φίλτρου
+
+set the RIT offset
+= ορίσει τη μετατόπιση RIT
+
+set RIT
+= ρυθμίσει το RIT
+
+set XIT
+= ρυθμίσει το XIT
+
+copy the VFO
+= αντιγράψει το VFO
+
+swap the VFOs
+= εναλλάξει τα VFO
+
+set the tuner
+= ρυθμίσει τον συντονιστή
+
+power off
+= απενεργοποιηθεί
+
+power on
+= ενεργοποιηθεί
+
+turn the scope on
+= ανοίξει το scope
+
+start the scope data
+= ξεκινήσει τα δεδομένα scope
+
+set the span
+= ορίσει το εύρος
+
+set the scope mode
+= ορίσει τη λειτουργία scope
+
+set the scope reference
+= ορίσει την αναφορά του scope
+
+set the sweep speed
+= ορίσει την ταχύτητα σάρωσης
+
+transmit
+= εκπέμψει
+
+start the tuner
+= ξεκινήσει τον συντονιστή
+
+send CW
+= στείλει CW
+
+stop CW
+= σταματήσει το CW
+
+play that voice memory
+= παίξει αυτή τη μνήμη φωνής
+
+Writing to the port failed (unplugged?)
+= Η εγγραφή στη θύρα απέτυχε (αποσυνδέθηκε;)
+
+Transmit time limit reached: PTT released
+= Συμπληρώθηκε το όριο χρόνου εκπομπής: το PTT ελευθερώθηκε
+
+The port has gone (unplugged?)
+= Η θύρα χάθηκε (αποσυνδέθηκε;)
+
+No serial port chosen
+= Δεν έχει επιλεγεί σειριακή θύρα
+
+The simulated port is unplugged
+= Η προσομοιωμένη θύρα είναι αποσυνδεδεμένη
+
+Couldn't open %s
+= Δεν ήταν δυνατό το άνοιγμα του %s
+
+There are no ADIF records in %s
+= Δεν υπάρχουν εγγραφές ADIF στο %s
+
+Street
+= Οδικός
+
+Topo
+= Τοπογρ.
+
+Hybrid
+= Υβριδικός
+
+OpenStreetMap: streets, footpaths and buildings, for finding your way on foot
+= OpenStreetMap: δρόμοι, μονοπάτια και κτίρια, για να βρίσκετε τον δρόμο σας με τα πόδια
+
+Esri's topographic map: terrain, contours and trails
+= Τοπογραφικός χάρτης της Esri: ανάγλυφο, ισοϋψείς και μονοπάτια
+
+Esri's satellite and aerial photographs
+= Δορυφορικές και αεροφωτογραφίες της Esri
+
+The photographs with roads and place names over them
+= Οι φωτογραφίες με δρόμους και τοπωνύμια από πάνω
+
+a tile that wouldn't decode
+= ένα πλακίδιο που δεν αποκωδικοποιήθηκε
+
+Classic
+= Κλασικό
+
+Thermal
+= Θερμικό
+
+Ice
+= Πάγος
+
+Grey
+= Γκρι
+
+Amateur
+= Ραδιοερασιτεχνικές
+
+Shortwave utility
+= Υπηρεσίες βραχέων
+
+Land mobile
+= Χερσαίες κινητές
+
+Shortwave broadcast
+= Εκπομπές βραχέων
+
+Mobile phones and data
+= Κινητή τηλεφωνία και δεδομένα
+
+Long and medium wave
+= Μακρά και μεσαία κύματα
+
+FM and TV broadcast
+= Εκπομπές FM και TV

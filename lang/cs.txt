@@ -1,0 +1,2290 @@
+# Čeština (cs)
+
+%s is in use by another program
+= %s používá jiný program
+
+%s isn't there (radio off or unplugged?)
+= %s není k dispozici (rádio vypnuté nebo odpojené?)
+
+%s: permission denied (on Linux, join the dialout group)
+= %s: přístup odepřen (v Linuxu se přidejte do skupiny dialout)
+
+%s can't be opened
+= %s nelze otevřít
+
+The rig wouldn't %s
+= Rádio odmítlo %s
+
+A band plan has a problem: %s
+= Chyba v pásmovém plánu: %s
+
+A station list has a problem: %s
+= Chyba v seznamu stanic: %s
+
+Band plans and stations reloaded
+= Pásmové plány a stanice znovu načteny
+
+DEMO: simulated %s
+= DEMO: simulované %s
+
+The rig's USB audio isn't there (radio off?). Choose a device in Settings.
+= Zvuk USB z rádia není k dispozici (rádio vypnuté?). Zvolte zařízení v Nastavení.
+
+Saved %s
+= Uloženo: %s
+
+%s isn't on the %s, which tunes %s
+= %s není v rozsahu rádia %s, které ladí %s
+
+"%s" isn't a frequency the %s can tune (%s)
+= „%s“ není kmitočet, který %s umí naladit (%s)
+
+The %s is a receiver: it can't transmit.
+= %s je přijímač: nemůže vysílat.
+
+Transmit isn't armed. Press ARM TX first.
+= Vysílání není odjištěno. Nejprve stiskněte ARM TX.
+
+Enter: %s MHz
+= Zadání: %s MHz
+
+keep typing, or Esc to cancel
+= pište dál, nebo Esc pro zrušení
+
+Other VFO
+= Druhé VFO
+
+Listening on
+= Poslech na
+
+Click for the bar meter
+= Kliknutím přepnete na sloupcový měřák
+
+Click for the needle meter
+= Kliknutím přepnete na ručkový měřák
+
+Squelch open
+= Squelch otevřen
+
+Squelch closed
+= Squelch zavřen
+
+OVERLOAD
+= PŘEBUZENÍ
+
+No overload
+= Bez přebuzení
+
+SIGNAL
+= SIGNÁL
+
+Saved %s to memories
+= %s uloženo do pamětí
+
+Type-N, 50 ohms: 10 kHz to 3 GHz
+= Konektor N, 50 ohmů: 10 kHz až 3 GHz
+
+SO-239, 50 ohms: 10 kHz to 30 MHz
+= SO-239, 50 ohmů: 10 kHz až 30 MHz
+
+RCA, 500 ohms: 10 kHz to 30 MHz
+= RCA, 500 ohmů: 10 kHz až 30 MHz
+
+Save to memories
+= Uložit do pamětí
+
+Save this frequency and mode to memories
+= Uložit tento kmitočet a druh provozu do pamětí
+
+Receive only. Hold the mouse over an antenna for its port.
+= Jen příjem. Najeďte myší na anténu a uvidíte její konektor.
+
+Receive only. Above 30 MHz it can only use ANT1.
+= Jen příjem. Nad 30 MHz lze použít jen ANT1.
+
+Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT.
+= Dokud není zapnuto, nic zde nemůže vysílat. Při každém spuštění vypnuto.\nVypnutím se uvolní i PTT.
+
+The rig isn't connected
+= Rádio není připojeno
+
+Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).
+= Kliknutím zapnete, dalším vypnete. Totéž dělá Ctrl+mezerník.\nSamo se uvolní po %d s (Nastavení).
+
+Starts the rig's antenna tuner. This transmits a carrier.
+= Spustí anténní tuner rádia. Přitom se vysílá nosná.
+
+The antenna tuner in or out of line
+= Zapojení nebo vyřazení anténního tuneru
+
+Receive on this VFO, transmit on the other. Right-click for a quick offset.
+= Příjem na tomto VFO, vysílání na druhém. Pravým tlačítkem rychlý posun.
+
+Split %+d kHz
+= Split %+d kHz
+
+Swap the two VFOs
+= Prohodit obě VFO
+
+Copy this VFO to the other
+= Zkopírovat toto VFO do druhého
+
+Mem
+= Pam
+
+TRANSMITTING
+= VYSÍLÁNÍ
+
+%d s of %d s
+= %d s z %d s
+
+Armed: the buttons above will transmit
+= Odjištěno: tlačítka nahoře budou vysílat
+
+Transmit locked
+= Vysílání zamčeno
+
+Bands
+= Pásma
+
+The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order.
+= Pásmo, ve kterém jste. Kliknutím zobrazíte všechna pásma přijímače.\nPage Up a Page Down jimi procházejí popořadě.
+
+Go to the band
+= Přejít na pásmo
+
+Wide FM, for FM broadcast and other wide signals
+= Široké FM, pro rozhlas FM a jiné široké signály
+
+Synchronous AM: both sidebands, or just the lower or upper one to dodge interference
+= Synchronní AM: obě postranní pásma, nebo jen dolní či horní, kvůli rušení
+
+Digital
+= Digitální
+
+D-STAR, P25, dPMR, NXDN and DCR digital voice
+= Digitální hlas D-STAR, P25, dPMR, NXDN a DCR
+
+Transmit bass and treble
+= Basy a výšky při vysílání
+
+Receive bass and treble
+= Basy a výšky při příjmu
+
+The rig has no bass or treble setting for %s
+= Rádio nemá nastavení basů a výšek pro %s
+
+Not available: this radio hasn't said it's an IC-7300 (SSB only on an MK2)
+= Nedostupné: rádio se neohlásilo jako IC-7300 (na MK2 jen SSB)
+
+Not available: this radio hasn't said it's an IC-7300
+= Nedostupné: rádio se neohlásilo jako IC-7300
+
+Not available in %s
+= Nedostupné v %s
+
+Transmit audio
+= Zvuk vysílání
+
+Receive audio
+= Zvuk příjmu
+
+Bass
+= Basy
+
+Treble
+= Výšky
+
+%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.
+= %s. Vrátí se tam, kde jste na tomto pásmu byli.\nPravé tlačítko: CW, FT8 a další.
+
+The %s plan has no bands for the %s
+= Plán %s nemá žádná pásma pro %s
+
+D-STAR digital voice
+= Digitální hlas D-STAR
+
+D-STAR high-speed data, on 23 cm only
+= Rychlá data D-STAR, jen v pásmu 23 cm
+
+Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)
+= Datový režim: rádio bere zvuk pro vysílání z USB zvukové karty (při DATA MOD nastaveném na USB)
+
+Step
+= Krok
+
+Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too.
+= Šipky vlevo a vpravo ladí o tento krok, nahoru a dolů ho mění.\nPoužívá ho i kolečko nad vodopády.
+
+RECEIVE
+= PŘÍJEM
+
+RF gain
+= Zisk VF
+
+Squelch
+= Squelch
+
+Preamp
+= Předzesil.
+
+The internal preamp, and any external one the rig powers (set up in its menu)
+= Vnitřní předzesilovač a případný vnější napájený z rádia (nastavuje se v jeho menu)
+
+Improves how it copes with strong signals, at some cost in sensitivity
+= Zlepšuje odolnost vůči silným signálům za cenu menší citlivosti
+
+Attenuator
+= Atenuátor
+
+Width
+= Šířka
+
+fixed by the mode
+= dáno druhem provozu
+
+Shape
+= Tvar
+
+PBT inner
+= PBT vnitřní
+
+PBT outer
+= PBT vnější
+
+Centre PBT
+= Vystředit PBT
+
+Notch
+= Notch
+
+Notch width
+= Šířka notche
+
+Auto notch
+= Auto notch
+
+RIT / XIT
+= RIT / XIT
+
+Clear
+= Vymazat
+
+CW pitch
+= Tón CW
+
+TRANSMIT
+= VYSÍLÁNÍ
+
+RF power
+= Výkon VF
+
+Mic gain
+= Zisk mikr.
+
+Comp
+= Komp.
+
+SSB TX BW
+= Šířka TX SSB
+
+Monitor
+= Příposlech
+
+Anti-VOX
+= Anti-VOX
+
+Break-in
+= Break-in
+
+Key speed
+= Rychlost CW
+
+BK-IN delay
+= Zpoždění BK-IN
+
+Not on a band in the %s plan
+= Mimo pásma plánu %s
+
+In the %s band
+= V pásmu %s
+
+%s: %s\n%s to %s MHz\nClick to tune here
+= %s: %s\n%s až %s MHz\nKliknutím sem naladíte
+
+Out of band under the %s plan
+= Mimo pásmo podle plánu %s
+
+Out of band
+= Mimo pásmo
+
+%s begins %s
+= %s začíná na %s
+
+%s ends %s
+= %s končí na %s
+
+Stations
+= Stanice
+
+Find a station...
+= Najít stanici...
+
+Show on the scope
+= Zobrazit na spektru
+
+Only what's scheduled now
+= Jen co právě vysílá podle rozvrhu
+
+Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it.
+= Rozhlasovou stanici označí jen v době jejího vysílání podle rozvrhu. Toto menu a Najít stanici je uvádějí všechny,\ns časy v UTC. Vysílání podle rozvrhu neznamená, že ji uslyšíte.
+
+%s to %s
+= %s až %s
+
+Find a station
+= Najít stanici
+
+Name, type, place or frequency in kHz
+= Název, typ, místo nebo kmitočet v kHz
+
+%d found. Click one to go there, or press Enter for the first.
+= Nalezeno: %d. Kliknutím na stanici na ni přejdete, Enter přejde na první.
+
+%d found. Connect the rig to go there.
+= Nalezeno: %d. Pro přeladění připojte rádio.
+
+On
+= Zap
+
+Off
+= Vyp
+
+Streams the rig's own spectrum scope over CI-V
+= Přenáší spektrum z rádia přes CI-V
+
+Span, in Centre mode
+= Rozsah v režimu Střed
+
+Centre
+= Střed
+
+Fixed
+= Pevný
+
+Centre follows the dial. Fixed uses the band edges set on the rig.
+= Střed sleduje ladění. Pevný používá okraje pásma nastavené v rádiu.
+
+Ref
+= Ref
+
+The rig's scope reference level
+= Referenční úroveň spektra v rádiu
+
+Fast
+= Rychlá
+
+Mid
+= Střední
+
+Slow
+= Pomalá
+
+Speed
+= Rychlost
+
+Sweep speed
+= Rychlost rozmítání
+
+Auto
+= Auto
+
+Set the colours from the noise floor
+= Nastavit barvy podle úrovně šumu
+
+Display
+= Zobrazení
+
+Floor
+= Dno
+
+Range
+= Rozsah
+
+Colours
+= Barvy
+
+Back one page of the scope. Centre mode only.
+= O stránku spektra zpět. Jen v režimu Střed.
+
+On one page of the scope. Centre mode only.
+= O stránku spektra dál. Jen v režimu Střed.
+
+Click to tune there
+= Kliknutím tam naladíte
+
+Click to tune %s at %s
+= Kliknutím naladíte %s na %s
+
+Click to go there in %s
+= Kliknutím tam přejdete v režimu %s
+
+Scope data is off
+= Data spektra jsou vypnutá
+
+No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+= Žádná data spektra. V rádiu nastavte: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+
+Out of the scope's range
+= Mimo rozsah spektra
+
+Tune here
+= Naladit sem
+
+Transmit here (split)
+= Vysílat zde (split)
+
+Recording to %s
+= Nahrávání do %s
+
+Can't write %s
+= Nelze zapsat %s
+
+Clear this panel. What's in the file stays there.
+= Vymazat tento panel. Obsah souboru zůstane zachován.
+
+Hearing:
+= Slyším:
+
+CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing
+= CW se vypisuje, až si je dekodér jistý, asi 16 znaků za tím, co právě slyší
+
+Nothing decoded yet
+= Zatím nic nedekódováno
+
+Saving to %s
+= Ukládání do %s
+
+Can't read the overlay %s
+= Nelze načíst překryv %s
+
+Overlay
+= Překryv
+
+None
+= Žádný
+
+Open the overlays folder
+= Otevřít složku překryvů
+
+Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts
+= Položí přes mapu počasí obrysovou mapu. Překryvy jsou průhledné PNG ve složce překryvů, každý pro mapy jedné stanice
+
+Save a copy
+= Uložit kopii
+
+Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type
+= Posune překryv vodorovně, v pixelech mapy, pokud mapa nesedí. Táhněte, nebo dvojklikem zadejte hodnotu
+
+Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type
+= Posune překryv dolů, v pixelech mapy, pokud byla mapa naladěna pozdě. Táhněte, nebo dvojklikem zadejte hodnotu
+
+Once the chart has finished
+= Až bude mapa hotová
+
+Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was.
+= Uloží mapu s tímto překryvem jako nový obrázek do složky přijatých. Samotná mapa zůstane beze změny.
+
+Receiving: %u lines, IOC %d, %+.0f ppm (measured)
+= Příjem: řádky %u, IOC %d, %+.0f ppm (změřeno)
+
+Receiving: %u lines, IOC %d, %+.0f ppm
+= Příjem: řádky %u, IOC %d, %+.0f ppm
+
+Phasing: %d lines
+= Fázování: řádky %d
+
+Start tone heard
+= Zachycen startovací tón
+
+Waiting for a chart to start
+= Čekání na začátek mapy
+
+Stop and save
+= Zastavit a uložit
+
+Start now
+= Začít hned
+
+Start a chart from here, for one that's already under way. Set the slant by hand if it leans.
+= Začít mapu odsud, pokud už probíhá. Pokud je nakloněná, nastavte sklon ručně.
+
+Centre %.0f Hz
+= Střed %.0f Hz
+
+Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz
+= Kde je slyšet střed signálu: uprostřed mezi černou na -400 Hz a bílou na +400 Hz
+
+Slant %+.0f ppm
+= Sklon %+.0f ppm
+
+Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself.
+= Doladí délku řádku, aby se nakloněná mapa narovnala. Mapa začínající fázováním si to změří sama.
+
+No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard.
+= Zatím žádná mapa. V USB nalaďte 1.9 kHz pod uvedený kmitočet stanice. Mapa začne sama, jakmile zazní startovací tón nebo fázování.
+
+%d lines/s
+= %d ř./s
+
+FFT size
+= Velikost FFT
+
+Larger shows finer detail but blurs fast changes
+= Větší ukáže jemnější detaily, ale rozmaže rychlé změny
+
+Rec
+= Nahr.
+
+Record the receiver to a WAV file in the received folder
+= Nahrávat přijímač do souboru WAV ve složce přijatých
+
+Listen
+= Poslech
+
+Play the receiver through this computer's speakers. Muted while transmitting.
+= Přehrávat přijímač z reproduktorů tohoto počítače. Při vysílání ztlumeno.
+
+Clean
+= Čištění
+
+voice noise reduction
+= hlasové potlačení šumu
+
+spectral noise reduction
+= spektrální potlačení šumu
+
+Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is.
+= Potlačení šumu v tomto počítači pro to, co slyšíte: nyní %s. Vodopád, dekodéry a nahrávky dostávají zvuk z rádia beze změny.
+
+How the audio is cleaned up, and the equaliser (on)
+= Jak se zvuk čistí, a ekvalizér (zapnutý)
+
+How the audio is cleaned up, and the equaliser
+= Jak se zvuk čistí, a ekvalizér
+
+By mode
+= Dle provozu
+
+Voice
+= Hlas
+
+Spectral
+= Spektrální
+
+Method
+= Metoda
+
+Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\nSpectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data.
+= Hlas je neuronová síť naučená na řeči: nejlepší pro SSB, AM a FM, ale odstraní CW a datové tóny.\nSpektrální sleduje úroveň šumu a funguje na cokoli.\nDle provozu použije Hlas pro fone a Spektrální pro CW, RTTY a data.
+
+Strength
+= Síla
+
+Higher takes out more noise, and more of the signal with it
+= Vyšší odstraní víc šumu, ale i víc signálu
+
+Leveller
+= Vyrovnávač
+
+Evens out fading and quiet stations
+= Vyrovnává úniky a slabé stanice
+
+Equaliser
+= Ekvalizér
+
+Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers.
+= Upravuje, co slyšíte, ať je Čištění zapnuté nebo ne. RX EQ rádia na zvuk USB nepůsobí, proto je tento pro reproduktory.
+
+Low cut
+= Dolní řez
+
+Takes out the boom and rumble below this
+= Odstraní hučení a dunění pod touto hodnotou
+
+Below about 250 Hz
+= Pod asi 250 Hz
+
+Middle
+= Středy
+
+Around 1.2 kHz, where speech is easiest to follow
+= Kolem 1.2 kHz, kde je řeč nejsrozumitelnější
+
+Above about 2.2 kHz: crisper consonants, but more hiss
+= Nad asi 2.2 kHz: ostřejší souhlásky, ale víc syčení
+
+High cut
+= Horní řez
+
+Takes out the hiss above this
+= Odstraní syčení nad touto hodnotou
+
+Flat
+= Lineární
+
+Speech
+= Řeč
+
+A starting point for SSB: less bass, more presence
+= Výchozí bod pro SSB: méně basů, víc prezence
+
+Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level.
+= Úroveň zvuku z rádia: %.0f dBFS. Nastavuje se v rádiu položkou USB AF Output Level.
+
+Decode
+= Dekódovat
+
+Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder
+= Dekódovat přijímač v panelu vedle vodopádu a ukládat výsledek do složky přijatých
+
+Data mode: the dial stays put, so your digital program keeps its place
+= Datový režim: ladění zůstává na místě, takže váš digitální program nepřijde o polohu
+
+kept since %s, from %s
+= uloženo od %s, z %s
+
+Audio
+= Zvuk
+
+The audio waterfall, recording and decoders
+= Vodopád NF, nahrávání a dekodéry
+
+Map
+= Mapa
+
+Find a station by its callsign on a street or satellite map. The audio and decoders keep going.
+= Najít stanici podle značky na uliční nebo satelitní mapě. Zvuk a dekodéry běží dál.
+
+Type a callsign first
+= Nejprve zadejte značku
+
+Couldn't save locations.csv in the data folder
+= Nelze uložit locations.csv do datové složky
+
+from your log
+= z vašeho deníku
+
+Still looking up %s online
+= Stále se vyhledává %s online
+
+%s isn't in your log with a locator. Put a HamQTH or QRZ.com login in Settings to look it up there.
+= %s není ve vašem deníku s lokátorem. Pro vyhledání zadejte v Nastavení přihlášení k HamQTH nebo QRZ.com.
+
+Looking up %s on QRZ.com and HamQTH...
+= Vyhledávání %s na QRZ.com a HamQTH...
+
+Looking up %s on QRZ.com...
+= Vyhledávání %s na QRZ.com...
+
+Looking up %s on HamQTH...
+= Vyhledávání %s na HamQTH...
+
+from %s
+= z %s
+
+Found %s on %s, and kept it
+= %s nalezeno na %s a uloženo
+
+Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com and HamQTH.
+= Zadejte značku a stiskněte Enter: hledá se ve vašem deníku, pak v dříve uložených místech, pak na QRZ.com a HamQTH.
+
+%.0f km, %.0f miles, bearing %.0f degrees
+= %.0f km, %.0f mil, azimut %.0f°
+
+Callsign
+= Značka
+
+A callsign to find. Press Enter to look for it.
+= Značka k vyhledání. Stiskněte Enter.
+
+Find
+= Najít
+
+Look it up on QRZ.com, then HamQTH, even if it's in your log or kept already, and keep what's found
+= Vyhledat na QRZ.com, pak na HamQTH, i když už je v deníku nebo uložená, a výsledek uložit
+
+Single
+= Jeden
+
+All
+= Vše
+
+Locator
+= Lokátor
+
+Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in.
+= Čtverce lokátoru Maidenhead, modře. Jeden ukáže čtverec stanice, např. JO01en, a větší čtverec, ve kterém leží, např. JO01. Vše nakreslí síť přes celou mapu, při přiblížení jemnější.
+
+OS grid
+= Síť OS
+
+Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's 10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map.
+= Čtverce sítě Ordnance Survey National Grid, purpurově, jen pro Velkou Británii. Jeden ukáže 10km čtverec stanice, např. TQ68, a 100km čtverec, ve kterém leží, např. TQ. Vše nakreslí síť přes celou mapu.
+
+Lat/Lon
+= Šířka/délka
+
+Show lines of latitude and longitude in yellow, closer together as you zoom in
+= Zobrazit rovnoběžky a poledníky žlutě, při přiblížení hustší
+
+Whole world
+= Celý svět
+
+Street View
+= Street View
+
+Open Google Street View in your web browser at the middle of the map, to look around at street level
+= Otevřít Google Street View ve webovém prohlížeči ve středu mapy a rozhlédnout se z ulice
+
+Your station, %s
+= Vaše stanice, %s
+
+Some of the map couldn't be fetched: %s
+= Část mapy se nepodařilo stáhnout: %s
+
+Loading the map...
+= Načítání mapy...
+
+From %s
+= Z %s
+
+Click to choose it
+= Kliknutím vyberete
+
+Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.
+= Klikněte a točte jako knoflíkem VFO. Po směru hodinových ručiček ladí nahoru.\nPomalým otáčením jemně dolaďte. Rychlým roztočením se posunete dál, po puštění dobíhá.\nShift: desetinásobná rychlost. Kolečko posouvá o krok.
+
+1 turn = %s
+= 1 otáčka = %s
+
+Or just type: %s
+= Nebo prostě pište: %s
+
+ON %s
+= NA %s
+
+Between this band's blocks
+= Mezi úseky tohoto pásma
+
+Outside the amateur bands
+= Mimo radioamatérská pásma
+
+in the %s plan
+= v plánu %s
+
+Name
+= Jméno
+
+Save
+= Uložit
+
+Filter
+= Filtr
+
+Mode
+= Provoz
+
+Click to tune, double-click to edit
+= Kliknutím naladíte, dvojklikem upravíte
+
+Edit memory
+= Upravit paměť
+
+Frequency
+= Kmitočet
+
+e.g. 14.074 or 7030k
+= např. 14.074 nebo 7030k
+
+Not a frequency the %s can tune
+= Tento kmitočet %s nenaladí
+
+Data mode
+= Datový režim
+
+Saved %s at %s
+= Uloženo %s na %s
+
+Cancel
+= Zrušit
+
+All callsigns
+= Všechny značky
+
+No callsign set
+= Značka nenastavena
+
+New callsign
+= Nová značka
+
+Add
+= Přidat
+
+The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it.
+= Značka, pod kterou vysíláte. Nová spojení se zapisují pod ni a karta Deník i značky dřívějších spojení ukazují jen její spojení. Všechny značky zde zobrazí celý deník beze změny.
+
+Couldn't back up the log first, so nothing was imported
+= Deník se nepodařilo nejprve zálohovat, proto se nic neimportovalo
+
+Imported %d new QSOs, updated %d, and %d were already up to date
+= Importováno nových QSO: %d, aktualizováno: %d, již aktuálních: %d
+
+Some are under other callsigns: choose them in the log book
+= Některá jsou pod jinými značkami: zvolte je ve staničním deníku
+
+Couldn't save the log to %s
+= Deník nelze uložit do %s
+
+The log is already in date order
+= Deník už je seřazený podle data
+
+Couldn't back up the log first, so it wasn't sorted
+= Deník se nepodařilo nejprve zálohovat, proto nebyl seřazen
+
+Sorted %d QSOs into date order. The log as it was is in %s.bak
+= Seřazeno QSO podle data: %d. Původní deník je v %s.bak
+
+There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead
+= Tento systém nemá dialog pro výběr souboru (potřebuje zenity nebo kdialog), přetáhněte proto soubor ADIF do okna
+
+Changing a logged contact
+= Úprava zapsaného spojení
+
+, last on %s
+= , naposledy %s
+
+Worked once%s: %s
+= Spojení jednou%s: %s
+
+Worked %d times%s: %s
+= Spojení %d×%s: %s
+
+Already logged on this band and mode.
+= Už je v deníku na tomto pásmu a druhu provozu.
+
+Not worked before
+= Dosud bez spojení
+
+RST sent
+= RST odesl.
+
+RST rcvd
+= RST přij.
+
+Power (W)
+= Výkon (W)
+
+Left empty, it's what the rig's power is set to
+= Když zůstane prázdné, použije se výkon nastavený v rádiu
+
+Notes
+= Poznámky
+
+Contest
+= Závod
+
+Contest, such as CQ-WW-SSB
+= Závod, např. CQ-WW-SSB
+
+Exchange sent
+= Kód odeslaný
+
+Exchange rcvd
+= Kód přijatý
+
+An exchange sent that's only a number goes up by one with each contact
+= Odeslaný kód, který je jen číslo, se s každým spojením zvýší o jedna
+
+Began
+= Začátek
+
+Ended
+= Konec
+
+Your callsign for this contact
+= Vaše značka pro toto spojení
+
+Update
+= Aktualizovat
+
+Really delete it?
+= Opravdu smazat?
+
+Couldn't back up the log first, so nothing was deleted
+= Deník se nepodařilo nejprve zálohovat, proto se nic nesmazalo
+
+Keep it
+= Ponechat
+
+Delete
+= Smazat
+
+%s  %s  %s UTC
+= %s  %s  %s UTC
+
+Log it
+= Zapsat
+
+That frequency isn't a number of kHz
+= Kmitočet není číslo v kHz
+
+Times need to look like 2026-10-31 19:05
+= Časy musí mít tvar 2026-10-31 19:05
+
+Updated %s
+= Aktualizováno: %s
+
+Couldn't save the log entry to %s
+= Záznam deníku nelze uložit do %s
+
+Log book...
+= Staniční deník...
+
+Call
+= Značka
+
+%s  %s  %s/%s  %s %s\nDouble-click to change it
+= %s  %s  %s/%s  %s %s\nDvojklikem upravíte
+
+%s km, %s miles
+= %s km, %s mil
+
+%d contacts
+= Spojení: %d
+
+and %d earlier. Search the Contacts tab for %s to see them all.
+= a dřívějších: %d. Všechna uvidíte, když na kartě Spojení vyhledáte %s.
+
+to
+= do
+
+Power
+= Výkon
+
+Confirmed by
+= Potvrzeno přes
+
+Your callsign
+= Vaše značka
+
+Exch sent
+= Kód odesl.
+
+Exch rcvd
+= Kód přij.
+
+Contacts: %d. Places: %d.
+= Spojení: %d. Míst: %d.
+
+(%d with no locator aren't shown)
+= (nezobrazeno bez lokátoru: %d)
+
+Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts
+= Kolečkem nebo dvojklikem přiblížíte, tažením posunete, najetím na špendlík uvidíte spojení
+
+Log book
+= Staniční deník
+
+%d contacts, %d callsigns, %d countries, %d confirmed
+= Spojení: %d, značek: %d, zemí: %d, potvrzeno: %d
+
+Search
+= Hledat
+
+Export ADIF
+= Export ADIF
+
+Exported %d QSOs to %s
+= Exportováno QSO: %d, do %s
+
+Couldn't write %s
+= Nelze zapsat %s
+
+Import ADIF...
+= Import ADIF...
+
+Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak.
+= Zvolte soubor ADIF, nebo ho přetáhněte do okna. Spojení, které už v deníku je, se znovu nepřidá: aktualizuje se jeho stav QSL a doplní prázdná pole. Deník se nejprve zkopíruje do log.csv.bak.
+
+Sort
+= Seřadit
+
+Finish changing the contact on the Log tab first.
+= Nejprve dokončete úpravu spojení na kartě Deník.
+
+Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.
+= Seřadí všechna spojení v souboru deníku podle data, od nejstaršího, bez ohledu na zobrazenou značku. Nová spojení pak pokračují na konci. Deník se nejprve zkopíruje do log.csv.bak.
+
+Restore
+= Obnovit
+
+Maximise
+= Maximalizovat
+
+Contacts
+= Spojení
+
+World map
+= Mapa světa
+
+Station
+= Stanice
+
+Band
+= Pásmo
+
+Confirmed
+= Potvrzeno
+
+Sent
+= Odesl.
+
+Rcvd
+= Přij.
+
+Distance (km)
+= Vzdál. (km)
+
+Country
+= Země
+
+Double-click to change it on the Log tab
+= Dvojklikem upravíte na kartě Deník
+
+%s miles
+= %s mil
+
+The dial isn't on a band in the %s plan. Tune to one, or scan a range.
+= Ladění není na žádném pásmu plánu %s. Nalaďte některé, nebo skenujte rozsah.
+
+Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say
+= Skenování potřebuje dva kmitočty, které toto rádio naladí, zapsané jako při zadávání: třeba 14.0 a 14.35
+
+That's more than %d channels. Choose a bigger step or a smaller range.
+= To je víc kanálů než %d. Zvolte větší krok nebo menší rozsah.
+
+There's nothing to scan there that the %s can tune
+= Není tam nic, co by %s mohlo naladit a skenovat
+
+Scan stopped: every channel has been locked out
+= Skenování zastaveno: všechny kanály jsou vyřazené
+
+Scan stopped: the rig isn't answering
+= Skenování zastaveno: rádio neodpovídá
+
+Scan stopped: the rig is transmitting
+= Skenování zastaveno: rádio vysílá
+
+Scan stopped: the rig refused every frequency in it
+= Skenování zastaveno: rádio odmítlo všechny kmitočty
+
+Scan stopped: the dial was tuned
+= Skenování zastaveno: bylo přeladěno
+
+The band the dial is on
+= Pásmo, na kterém je ladění
+
+A range of frequencies
+= Rozsah kmitočtů
+
+Memories
+= Paměti
+
+Scan
+= Sken
+
+From
+= Od
+
+To
+= Do
+
+Names with
+= Názvy s
+
+Empty for all of them
+= Prázdné pro všechny
+
+All those showing
+= Všechny zobrazené
+
+Service
+= Služba
+
+Broadcasters go by the Stations menu's "Only what's scheduled now", as of when the scan starts.
+= Rozhlasové stanice se řídí volbou „Jen co právě vysílá podle rozvrhu“ v menu Stanice, v okamžiku spuštění skenování.
+
+Each one for
+= Každý po
+
+How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal.
+= Jak dlouho poslouchá každý kanál. Nejlépe se skenuje s rychlým AGC, pomalé může po silném signálu ještě držet.
+
+Stop at
+= Zastavit při
+
+The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere.
+= Údaj S metru, který se počítá jako signál. Nastavte ho nad šum pásma, jinak se zastaví všude.
+
+Stay until I carry on
+= Zůstat, dokud nepokračuji
+
+Carry on after 5 s
+= Pokračovat po 5 s
+
+Carry on after 10 s
+= Pokračovat po 10 s
+
+Carry on when it stops
+= Pokračovat, až signál zmizí
+
+On a signal
+= Při signálu
+
+Next
+= Další
+
+Carry on to the next channel
+= Pokračovat na další kanál
+
+Lock out
+= Vyřadit
+
+Leave this channel out until the scan is stopped, for a signal that's always there
+= Vynechávat tento kanál až do zastavení skenování, pro signál, který je tam stále
+
+Signal at %s  %s
+= Signál na %s  %s
+
+Listening at %s
+= Poslech na %s
+
+%s  %d of %d
+= %s  %d z %d
+
+%d locked out
+= Vyřazeno: %d
+
+S meter now: %s. Tuning stops a scan.
+= S metr nyní: %s. Přeladěním se skenování zastaví.
+
+HEARD
+= SLYŠENO
+
+Where
+= Kde
+
+What
+= Co
+
+Click to stop the scan and go back there
+= Kliknutím zastavíte skenování a vrátíte se tam
+
+A DX cluster logs you in by callsign. Put yours in Rig > Settings first.
+= DX cluster vás přihlásí podle značky. Nejprve ji zadejte v Rádio > Nastavení.
+
+Spotted by %s
+= Hlásil %s
+
+Spotted by %s at %sZ
+= Hlásil %s v %sZ
+
+DX SPOTS
+= DX SPOTY
+
+Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign.
+= Aktuální spoty z DX clusteru zadaného v Rádio > Nastavení. Připojuje se jen, když je toto zapnuto, a přihlašuje se vaší značkou.
+
+All bands
+= Všechna pásma
+
+This band
+= Toto pásmo
+
+All modes
+= Všechny druhy
+
+Data
+= Data
+
+No spots here yet.
+= Zatím žádné spoty.
+
+Age
+= Stáří
+
+Worked on this band
+= Spojení na tomto pásmu
+
+Worked, but not on this band
+= Spojení, ale ne na tomto pásmu
+
+Click to tune there and put the call in the log
+= Kliknutím tam naladíte a vložíte značku do deníku
+
+Nothing to send
+= Není co vysílat
+
+Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit.
+= Break-in je vypnutý, rádio bude klíčovat jen příposlech. Pro vysílání zapněte BK-IN.
+
+CW KEYER
+= CW KLÍČ
+
+Mode must be CW. Sends through the rig's keyer.
+= Provoz musí být CW. Vysílá se přes elektronický klíč rádia.
+
+Type and press Enter to send
+= Napište text a stiskněte Enter pro odeslání
+
+STOP SENDING
+= ZASTAVIT VYSÍLÁNÍ
+
+{CALL} is your callsign, from Settings.
+= {CALL} je vaše značka z Nastavení.
+
+VOICE MEMORY
+= HLASOVÁ PAMĚŤ
+
+Plays what's recorded on the rig. Mode must be SSB, AM or FM.
+= Přehraje záznam uložený v rádiu. Provoz musí být SSB, AM nebo FM.
+
+STOP PLAYING
+= ZASTAVIT PŘEHRÁVÁNÍ
+
+Couldn't save the net list to %s
+= Seznam kroužku nelze uložit do %s
+
+Net
+= Kroužek
+
+Started %s UTC
+= Začátek %s UTC
+
+Net control %s
+= Řídicí stanice %s
+
+Checked in: %d. Still on at %s UTC: %d.
+= Přihlášeno: %d. Stále přítomno v %s UTC: %d.
+
+Joined (UTC)
+= Příchod (UTC)
+
+Left (UTC)
+= Odchod (UTC)
+
+Sent the net list to %s
+= Seznam kroužku odeslán na %s
+
+Print the net list
+= Vytisknout seznam kroužku
+
+Printer
+= Tiskárna
+
+No printers are set up on this computer
+= Na tomto počítači není nastavena žádná tiskárna
+
+Printing...
+= Tisk...
+
+Print
+= Tisk
+
+Net name, such as Sunday 80m net
+= Název kroužku, např. Nedělní kroužek 80 m
+
+Already on the net, since %s UTC
+= Už je v kroužku, od %s UTC
+
+Check in
+= Přihlásit
+
+Print list...
+= Tisk seznamu...
+
+%d on the net, %d checked in
+= V kroužku: %d, přihlášeno: %d
+
+Really clear it?
+= Opravdu vymazat?
+
+New net
+= Nový kroužek
+
+Clears the list for the next net. Print it first to keep it.
+= Vymaže seznam pro další kroužek. Chcete-li ho zachovat, nejprve ho vytiskněte.
+
+Type a callsign and press Enter as each station checks in.
+= Při přihlášení každé stanice zadejte značku a stiskněte Enter.
+
+In
+= Příchod
+
+Out
+= Odchod
+
+Back
+= Zpět
+
+Find on the map
+= Najít na mapě
+
+Remove from the list
+= Odebrat ze seznamu
+
+Right-click to find them on the map, or to take them off if they went on by mistake.
+= Pravým tlačítkem stanici najdete na mapě nebo ji odeberete, pokud byla přidána omylem.
+
+Left
+= Odešel
+
+They're back: clears the time they left
+= Stanice je zpět: smaže čas odchodu
+
+They've left the net: greys them out and notes the time
+= Stanice opustila kroužek: zešedne a zapíše se čas
+
+Keypad
+= Klávesnice
+
+Log
+= Deník
+
+CW / Voice
+= CW / Hlas
+
+DEMO: a simulated radio. Nothing is connected.
+= DEMO: simulované rádio. Nic není připojeno.
+
+Audio only: leaving the serial port alone
+= Jen zvuk: sériový port se nepoužívá
+
+%s  %s  %d baud
+= %s  %s  %d Bd
+
+. Close the other program: a port has one owner.
+= . Zavřete druhý program: port může mít jen jednoho vlastníka.
+
+A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address.
+= Na %02Xh odpovědělo rádio, které hlásí %02Xh. Není to IC-7300, IC-9700 ani IC-R8600: chcete-li ho zkusit, zadejte v Nastavení adresu CI-V %02X.
+
+%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one.
+= %s otevřen, ale bez odpovědi: je rádio zapnuté a nastavené na %d Bd? IC-9700 má dva porty: použijte ten Enhanced.
+
+Connecting...
+= Připojování...
+
+. Is the SUB band on that band?
+= . Je pásmo SUB na tomto pásmu?
+
+SCAN: signal. Next is on the Scan tab.
+= SKEN: signál. Další je na kartě Sken.
+
+SCANNING. Tune to stop it.
+= SKENOVÁNÍ. Přeladěním zastavíte.
+
+New version available, built %s
+= K dispozici je nová verze ze dne %s
+
+Click to open the download page on GitHub. You're on the build from %s UTC.
+= Kliknutím otevřete stránku ke stažení na GitHub. Používáte sestavení z %s UTC.
+
+The radio's clock wasn't set.
+= Hodiny rádia nebyly nastaveny.
+
+The radio isn't connected, so its clock wasn't set.
+= Rádio není připojeno, jeho hodiny proto nebyly nastaveny.
+
+This program doesn't know how to set this radio's clock.
+= Tento program neumí nastavit hodiny tohoto rádia.
+
+The radio's clock follows on the minute.
+= Hodiny rádia se nastaví na začátku minuty.
+
+Conditions
+= Podmínky
+
+Put your locator in Settings to see HF conditions from your square.
+= Zadejte v Nastavení svůj lokátor a uvidíte podmínky na KV z vašeho čtverce.
+
+Opens HF conditions from %s on hf.dxview.org in your browser.
+= Otevře v prohlížeči podmínky na KV z %s na hf.dxview.org.
+
+Wait
+= Čekejte
+
+Sync
+= Synchr.
+
+Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it.
+= Porovná hodiny tohoto počítače s internetovým časem (NTP).\nV demu je nezmění.
+
+Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.
+= Nastaví hodiny tohoto počítače podle internetového času (NTP), pro FT8, FT4 a další časované druhy provozu.\nWindows si může vyžádat oprávnění.
+
+Then sets the radio's date, time and UTC offset from it, as the next minute starts.
+= Pak podle nich nastaví datum, čas a posun UTC rádia, na začátku další minuty.
+
+Last time:
+= Naposledy:
+
+The radio stopped answering, so its clock wasn't set.
+= Rádio přestalo odpovídat, jeho hodiny proto nebyly nastaveny.
+
+Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+= Do rádia odesláno %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+
+Rig
+= Rádio
+
+Settings...
+= Nastavení...
+
+Power on
+= Zapnout
+
+Power off...
+= Vypnout...
+
+Open data folder
+= Otevřít datovou složku
+
+Open received folder
+= Otevřít složku přijatých
+
+Quit
+= Konec
+
+View
+= Zobrazit
+
+Band scope
+= Spektrum pásma
+
+Audio waterfall
+= Vodopád NF
+
+Band plan on the scope
+= Pásmový plán na spektru
+
+DX spots panel
+= Panel DX spotů
+
+DX spots on the scope
+= DX spoty na spektru
+
+Help
+= Nápověda
+
+Keys and rig set-up...
+= Klávesy a nastavení rádia...
+
+Built %s UTC
+= Sestaveno %s UTC
+
+Settings
+= Nastavení
+
+THE RIG
+= RÁDIO
+
+Port
+= Port
+
+(choose)
+= (zvolte)
+
+Baud
+= Rychlost
+
+Find out by asking it
+= Zjistit dotazem
+
+Radio
+= Rádio
+
+It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed.
+= Obvykle se zjistí samo. Zvolte ručně, pokud se to nepovede, např. když byla změněna adresa CI-V rádia.
+
+CI-V address (hex)
+= Adresa CI-V (hex)
+
+Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address.
+= Zkouší se jako první. Když tam nic neodpoví, zkouší se 94h, A2h, 96h a všeobecná adresa.
+
+The scope stream needs 115200.
+= Přenos spektra potřebuje 115200.
+
+SOUND
+= ZVUK
+
+From the rig
+= Z rádia
+
+(find the USB Audio CODEC)
+= (najít USB Audio CODEC)
+
+Listen on
+= Poslech na
+
+(system default)
+= (výchozí systémové)
+
+YOU
+= VY
+
+Your locator
+= Váš lokátor
+
+Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.
+= Váš lokátor Maidenhead, např. IO91WM. Zapisuje se do exportovaných deníků a karta Deník podle něj počítá vzdálenost.
+
+QRZ.com username
+= Uživatel QRZ.com
+
+For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position.
+= Pro hledání stanic na mapě, které nejsou ve vašem deníku. K získání lokátoru nebo polohy je potřeba předplatné QRZ.com XML.
+
+QRZ.com password
+= Heslo QRZ.com
+
+Kept in settings.ini in the data folder, as plain text.
+= Uloženo v settings.ini v datové složce jako prostý text.
+
+HamQTH username
+= Uživatel HamQTH
+
+For finding stations on the map, free: make an account at hamqth.com. Asked after QRZ.com, or alone if there's no QRZ.com login.
+= Pro hledání stanic na mapě, zdarma: založte si účet na hamqth.com. Dotazuje se po QRZ.com, nebo samostatně, když přihlášení k QRZ.com chybí.
+
+HamQTH password
+= Heslo HamQTH
+
+Log date format
+= Formát data v deníku
+
+How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed.
+= Jak se v deníku zobrazují data, v UTC. Karta Deník kvůli místu vynechává rok. Exportované deníky ani samotný soubor deníku se nemění.
+
+PTT time limit
+= Limit PTT
+
+PTT from this program lets go by itself after this long
+= PTT z tohoto programu se po této době samo uvolní
+
+DX CLUSTER
+= DX CLUSTER
+
+Choose one
+= Zvolte
+
+Fill in from a list
+= Vyplnit ze seznamu
+
+Server
+= Server
+
+Commands after login
+= Příkazy po přihlášení
+
+Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty.
+= Odešlou se po přihlášení, oddělené znakem ;. Každý druh clusteru má vlastní: viz nápověda serveru. Obvykle prázdné.
+
+Keep spots for
+= Uchovat spoty
+
+Show robot spots (Reverse Beacon Network)
+= Zobrazit spoty robotů (Reverse Beacon Network)
+
+Spots from automatic CW and data skimmers. There can be a great many.
+= Spoty z automatických CW a datových skimmerů. Může jich být velmi mnoho.
+
+BAND PLAN
+= PÁSMOVÝ PLÁN
+
+Country or region
+= Země nebo oblast
+
+This program has a newer copy of this plan (%s). Reset uses it.
+= Tento program má novější verzi tohoto plánu (%s). Obnovení ji použije.
+
+Open plans folder
+= Otevřít složku plánů
+
+Each plan is a JSON file you can edit. README.txt there explains the format.
+= Každý plán je upravitelný soubor JSON. Formát popisuje README.txt v téže složce.
+
+Reload
+= Znovu načíst
+
+Reads the files again, after you've edited one
+= Znovu načte soubory po jejich úpravě
+
+Reset this plan
+= Obnovit plán
+
+Can't write to %s
+= Nelze zapisovat do %s
+
+Puts the built-in copy back. Your file is kept as .json.bak
+= Vrátí vestavěnou verzi. Váš soubor se uchová jako .json.bak
+
+STATIONS
+= STANICE
+
+Shown on the scope whichever band plan is chosen. See the Stations menu.
+= Zobrazují se na spektru bez ohledu na zvolený pásmový plán. Viz menu Stanice.
+
+%s (%d stations, revision %s). %s
+= %s (stanic: %d, revize %s). %s
+
+Open stations folder
+= Otevřít složku stanic
+
+Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.
+= Každý seznam je upravitelný soubor JSON a můžete přidat i vlastní. Formát popisuje README.txt v téže složce. Znovu načíst výše je načte znovu.
+
+Reset station list
+= Obnovit stanice
+
+Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak
+= Vrátí vestavěné celosvětové a rozhlasové seznamy. Vaše soubory se uchovají jako .json.bak
+
+Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak
+= Vrátí vestavěné celosvětové, rozhlasové a přijímačové seznamy. Vaše soubory se uchovají jako .json.bak
+
+Automatic (%s)
+= Automaticky (%s)
+
+Language
+= Jazyk
+
+Automatic follows the language this computer is set to. Choose one to keep to it whatever the computer uses. It changes straight away.
+= Automaticky se řídí jazykem nastaveným v počítači. Zvolte jazyk, chcete-li ho používat bez ohledu na počítač. Změna platí okamžitě.
+
+Check GitHub for a new version at start
+= Při spuštění hledat novou verzi na GitHub
+
+Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent.
+= Při každém spuštění programu načte z GitHub jeden malý soubor a na spodním řádku oznámí, je-li k dispozici novější sestavení. Nic o vás ani vašem rádiu se neodesílá.
+
+Auto ON/OFF
+= Auto ZAP/VYP
+
+Switches the rig on when the program starts, and off when it closes. The rig's USB must stay powered for it to wake.
+= Zapne rádio při spuštění programu a vypne ho při jeho ukončení. Aby se rádio probudilo, musí jeho USB zůstat napájené.
+
+Apply and reconnect
+= Použít a znovu připojit
+
+Close
+= Zavřít
+
+Keys and rig set-up
+= Klávesy a nastavení rádia
+
+ON THE RIG  (MENU > SET > Connectors > CI-V)
+= V RÁDIU  (MENU > SET > Connectors > CI-V)
+
+CI-V USB Port: Unlink from [REMOTE]
+= CI-V USB Port: Unlink from [REMOTE]
+
+CI-V USB Baud Rate: 115200
+= CI-V USB Baud Rate: 115200
+
+CI-V USB Echo Back: OFF  (ON works too)
+= CI-V USB Echo Back: OFF  (funguje i ON)
+
+CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700
+= CI-V Address: ponechte výchozí, 94h u IC-7300 nebo A2h u IC-9700
+
+USB AF Output Level (Connectors): raise it until the level bar sits below red
+= USB AF Output Level (Connectors): zvyšujte, dokud ukazatel úrovně nebude těsně pod červenou
+
+USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF
+= USB SEND a USB Keying (Connectors > USB SEND/Keying): OFF
+
+KEYS
+= KLÁVESY
+
+Digits
+= Číslice
+
+Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels.
+= Začnou zadání kmitočtu: 14.074, 14074, 7, 198k, +5. Enter naladí, Esc zruší.
+
+Left, Right
+= Vlevo, vpravo
+
+Tune by the step. Hold Shift for ten times that.
+= Ladění o krok. S klávesou Shift desetkrát víc.
+
+Up, Down
+= Nahoru, dolů
+
+Change the step
+= Změna kroku
+
+Page Up, Page Down
+= Page Up, Page Down
+
+Next or previous band
+= Další nebo předchozí pásmo
+
+Find a station by name
+= Najít stanici podle názvu
+
+F1 to F8
+= F1 až F8
+
+Data mode, next filter
+= Datový režim, další filtr
+
+Split, swap VFOs
+= Split, prohození VFO
+
+PTT on or off, once armed
+= PTT zap/vyp, po odjištění
+
+Tuning dial
+= Ladicí knoflík
+
+Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on.
+= Klikněte a točte. Jedna otáčka je deset kroků. Rychlým roztočením se posunete dál; po puštění dobíhá.
+
+Wheel
+= Kolečko
+
+On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it.
+= Na číslici ladí danou číslici. Na vodopádu nebo knoflíku o krok. Na posuvníku jím posouvá.
+
+Click a digit
+= Klik na číslici
+
+Top half up, bottom half down
+= Horní polovina nahoru, dolní dolů
+
+Click the band scope
+= Klik na spektrum
+
+Tune there. Right-click for split and memories.
+= Naladí tam. Pravým tlačítkem split a paměti.
+
+< and > above the band scope
+= < a > nad spektrem
+
+Move the dial one whole page of the scope, in Centre mode.
+= Přeladí o celou stránku spektra, v režimu Střed.
+
+Click the audio waterfall
+= Klik na vodopád NF
+
+Moves that signal to the pitch (not in data modes)
+= Posune signál na nastavený tón (ne v datových režimech)
+
+Right-click a band
+= Pravý klik na pásmo
+
+CW, FT8, FT4, WSPR, SSB frequencies
+= Kmitočty CW, FT8, FT4, WSPR, SSB
+
+Click a DX spot
+= Klik na DX spot
+
+Tune there, and put the call in the log. Red flags and green calls aren't worked yet.
+= Naladí tam a vloží značku do deníku. Červené vlajky a zelené značky ještě nemáte udělané.
+
+Double-click a log entry
+= Dvojklik na záznam deníku
+
+Bring it back to the Log tab, to change it and log it again
+= Vrátí ho na kartu Deník k úpravě a novému zápisu
+
+Power off the rig?
+= Vypnout rádio?
+
+The rig will switch off. Rig > Power on brings it back while its USB stays powered.
+= Rádio se vypne. Rádio > Zapnout ho znovu zapne, dokud zůstane USB napájené.
+
+Power off
+= Vypnout
+
+This is an %s
+= Toto je %s
+
+This is an %s, a receiver: it can't transmit
+= Toto je %s, přijímač: nemůže vysílat
+
+Only ADIF files can be dropped here, to import them into the log
+= Sem lze přetáhnout jen soubory ADIF, pro import do deníku
+
+The band plan is set to %s. Choose your country in Settings.
+= Pásmový plán je nastaven na %s. Zvolte svou zemi v Nastavení.
+
+The audio system didn't start
+= Zvukový systém se nespustil
+
+Can't list the sound devices
+= Nelze vypsat zvuková zařízení
+
+"%s" isn't there (radio off or unplugged?)
+= „%s“ není k dispozici (rádio vypnuté nebo odpojené?)
+
+Can't open "%s"
+= Nelze otevřít „%s“
+
+Can't start "%s"
+= Nelze spustit „%s“
+
+The rig's USB sound card is the system default output, and the monitor won't feed it. Choose your speakers in Settings.
+= USB zvuková karta rádia je výchozím výstupem systému a poslech do ní nepůjde. Zvolte své reproduktory v Nastavení.
+
+No default output device
+= Žádné výchozí výstupní zařízení
+
+"%s" isn't there
+= „%s“ není k dispozici
+
+Can't open the output device
+= Nelze otevřít výstupní zařízení
+
+Can't start the output device
+= Nelze spustit výstupní zařízení
+
+Commercial
+= Komerční
+
+Government
+= Vládní
+
+Naval and maritime
+= Námořní
+
+Military
+= Vojenské
+
+Broadcast
+= Rozhlas
+
+Amateur satellites and beacons
+= Amatérské družice a majáky
+
+Aviation
+= Letecké
+
+Satellites and navigation
+= Družice a navigace
+
+Land mobile and licence-free
+= Pozemní pohyblivé a bezlicenční
+
+Numbers and mystery stations
+= Číselné a záhadné stanice
+
+Beacons
+= Majáky
+
+Satellite
+= Družice
+
+Maritime
+= Námořní
+
+Mobile
+= Pohyblivé
+
+Navigation
+= Navigace
+
+Other
+= Ostatní
+
+Can't read the chart %s
+= Nelze načíst mapu %s
+
+There's no overlay to save
+= Není žádný překryv k uložení
+
+No time server answered. Is this computer online, and is UDP port 123 open?
+= Žádný časový server neodpověděl. Je počítač připojen k internetu a je otevřený port UDP 123?
+
+The time servers disagree, so the clock was left alone. Try again in a minute.
+= Časové servery se neshodují, hodiny proto zůstaly beze změny. Zkuste to znovu za minutu.
+
+%.3f s slow
+= o %.3f s pozadu
+
+%.3f s fast
+= o %.3f s napřed
+
+The clock is %s, too far out to trust. Check its date and time in your system settings.
+= Hodiny jdou %s, což je příliš na to, aby se dalo věřit. Zkontrolujte datum a čas v nastavení systému.
+
+The clock is right: %s, to within %s. Left it alone.
+= Hodiny jdou správně: %s, s přesností %s. Ponechány beze změny.
+
+The clock is %s. Demo: left it alone.
+= Hodiny jdou %s. Demo: ponechány beze změny.
+
+The clock is still %s: Windows wasn't given permission to set it.
+= Hodiny jdou stále %s: Windows nedostal oprávnění je nastavit.
+
+The clock is %s. Setting it needs root: run this program once with sudo and --sync-clock.
+= Hodiny jdou %s. Nastavení vyžaduje root: spusťte program jednou přes sudo s --sync-clock.
+
+The clock is still %s: it couldn't be set.
+= Hodiny jdou stále %s: nepodařilo se je nastavit.
+
+The clock was %s and has been set, but the servers didn't answer to confirm it.
+= Hodiny šly %s a byly nastaveny, ale servery neodpověděly, aby to potvrdily.
+
+The clock was %s and was set, but is now %s.
+= Hodiny šly %s a byly nastaveny, ale nyní jdou %s.
+
+The clock was %s. It's now %s, to within %s.
+= Hodiny šly %s. Nyní jdou %s, s přesností %s.
+
+Connected to %s
+= Připojeno k %s
+
+Nothing heard for ten minutes
+= Deset minut nic nepřišlo
+
+Connecting to %s
+= Připojování k %s
+
+Couldn't reach %s. Trying again in a minute.
+= %s je nedostupný. Nový pokus za minutu.
+
+Lost %s. Trying again in a minute.
+= Spojení s %s ztraceno. Nový pokus za minutu.
+
+Lost %s (it said: %s). Trying again in a minute.
+= Spojení s %s ztraceno (hlášení: %s). Nový pokus za minutu.
+
+Made-up spots, as this is the demo. Nothing is connected.
+= Smyšlené spoty, protože jde o demo. Nic není připojeno.
+
+position set by the operator on QRZ
+= poloha zadaná operátorem na QRZ
+
+street address
+= adresa
+
+post code
+= PSČ
+
+state or county
+= stát nebo kraj
+
+country only
+= jen země
+
+worked out from QRZ's bearing and distance, to about 100 m
+= vypočteno z azimutu a vzdálenosti z QRZ, s přesností asi 100 m
+
+worked out from QRZ's bearing and distance from your locator, to a few km
+= vypočteno z azimutu a vzdálenosti z QRZ od vašeho lokátoru, s přesností několika km
+
+6-character locator, about 5 km by 4
+= 6znakový lokátor, asi 5 × 4 km
+
+4-character locator, about 150 km by 110
+= 4znakový lokátor, asi 150 × 110 km
+
+QRZ.com wouldn't log in.
+= Přihlášení k QRZ.com se nezdařilo.
+
+QRZ.com wouldn't log in: %s
+= Přihlášení k QRZ.com se nezdařilo: %s
+
+the session ended
+= relace skončila
+
+QRZ.com has %s but gives no locator or position.
+= QRZ.com zná %s, ale neuvádí lokátor ani polohu.
+
+QRZ.com has %s but gives no locator or position (%s)
+= QRZ.com zná %s, ale neuvádí lokátor ani polohu (%s)
+
+QRZ.com's sign-in page: %s
+= Přihlašovací stránka QRZ.com: %s
+
+QRZ.com's sign-in page has changed, so this can't sign in any more
+= Přihlašovací stránka QRZ.com se změnila, přihlášení už nefunguje
+
+Your QRZ.com account asks for a two-factor code to sign in, which this can't give
+= Váš účet QRZ.com vyžaduje dvoufázový kód, který tento program zadat neumí
+
+QRZ.com's page for %s: %s
+= Stránka QRZ.com pro %s: %s
+
+QRZ.com's page for %s gives no locator.
+= Stránka QRZ.com pro %s neuvádí lokátor.
+
+QRZ.com has no %s
+= QRZ.com nezná %s
+
+QRZ.com's page for %s gives no locator. It's in qrz-page.html in the data folder.
+= Stránka QRZ.com pro %s neuvádí lokátor. Je uložena v qrz-page.html v datové složce.
+
+Put your QRZ.com username and password in Settings to look callsigns up there
+= Pro vyhledávání značek na QRZ.com zadejte v Nastavení uživatelské jméno a heslo
+
+HamQTH wouldn't log in.
+= Přihlášení k HamQTH se nezdařilo.
+
+HamQTH wouldn't log in: %s
+= Přihlášení k HamQTH se nezdařilo: %s
+
+HamQTH has no %s
+= HamQTH nezná %s
+
+it gave an answer this can't read
+= odpověď nelze přečíst
+
+HamQTH has %s but gives no locator or position.
+= HamQTH zná %s, ale neuvádí lokátor ani polohu.
+
+Put your HamQTH username and password in Settings to look callsigns up there
+= Pro vyhledávání značek na HamQTH zadejte v Nastavení uživatelské jméno a heslo
+
+your log
+= vašeho deníku
+
+Not a web address: %s
+= Není webová adresa: %s
+
+Windows couldn't start a web session
+= Windows nedokázal zahájit webovou relaci
+
+The answer was too long
+= Odpověď byla příliš dlouhá
+
+The server answered %d
+= Server odpověděl %d
+
+Couldn't reach the server (error %lu)
+= Server je nedostupný (chyba %lu)
+
+Couldn't write a temporary file
+= Nelze zapsat dočasný soubor
+
+Couldn't run curl
+= Nelze spustit curl
+
+Couldn't fetch it (is curl installed?)
+= Nelze stáhnout (je nainstalován curl?)
+
+Couldn't open the printer %s
+= Nelze otevřít tiskárnu %s
+
+Printing was cancelled
+= Tisk byl zrušen
+
+The printer %s wouldn't take the job
+= Tiskárna %s nepřijala úlohu
+
+The printer %s stopped part way through
+= Tiskárna %s se v průběhu zastavila
+
+The printer %s wouldn't start a page
+= Tiskárna %s nezačala stránku
+
+Couldn't write the page to print
+= Nelze zapsat stránku k tisku
+
+set that frequency
+= nastavit tento kmitočet
+
+set the other VFO
+= nastavit druhé VFO
+
+set that mode
+= nastavit tento druh provozu
+
+set data mode
+= nastavit datový režim
+
+set the other VFO's mode
+= nastavit druh provozu druhého VFO
+
+set that level
+= nastavit tuto úroveň
+
+change that setting
+= změnit toto nastavení
+
+set that EQ level
+= nastavit tuto úroveň EQ
+
+set its time
+= nastavit čas
+
+set its date
+= nastavit datum
+
+set its UTC offset
+= nastavit posun UTC
+
+set the attenuator
+= nastavit atenuátor
+
+change antenna
+= přepnout anténu
+
+set IP+
+= nastavit IP+
+
+set split
+= nastavit split
+
+set the filter width
+= nastavit šířku filtru
+
+set the RIT offset
+= nastavit posun RIT
+
+set RIT
+= nastavit RIT
+
+set XIT
+= nastavit XIT
+
+copy the VFO
+= zkopírovat VFO
+
+swap the VFOs
+= prohodit VFO
+
+set the tuner
+= nastavit tuner
+
+power off
+= vypnout se
+
+power on
+= zapnout se
+
+turn the scope on
+= zapnout spektrum
+
+start the scope data
+= spustit data spektra
+
+set the span
+= nastavit rozsah
+
+set the scope mode
+= nastavit režim spektra
+
+set the scope reference
+= nastavit referenci spektra
+
+set the sweep speed
+= nastavit rychlost rozmítání
+
+transmit
+= vysílat
+
+start the tuner
+= spustit tuner
+
+send CW
+= vyslat CW
+
+stop CW
+= zastavit CW
+
+play that voice memory
+= přehrát tuto hlasovou paměť
+
+Writing to the port failed (unplugged?)
+= Zápis do portu selhal (odpojeno?)
+
+Transmit time limit reached: PTT released
+= Dosažen časový limit vysílání: PTT uvolněno
+
+The port has gone (unplugged?)
+= Port zmizel (odpojeno?)
+
+No serial port chosen
+= Není zvolen sériový port
+
+The simulated port is unplugged
+= Simulovaný port je odpojen
+
+Couldn't open %s
+= Nelze otevřít %s
+
+There are no ADIF records in %s
+= V %s nejsou žádné záznamy ADIF
+
+Street
+= Ulice
+
+Topo
+= Topo
+
+Hybrid
+= Hybrid
+
+OpenStreetMap: streets, footpaths and buildings, for finding your way on foot
+= OpenStreetMap: ulice, stezky a budovy, pro orientaci pěšky
+
+Esri's topographic map: terrain, contours and trails
+= Topografická mapa Esri: terén, vrstevnice a stezky
+
+Esri's satellite and aerial photographs
+= Satelitní a letecké snímky Esri
+
+The photographs with roads and place names over them
+= Snímky s vyznačenými silnicemi a názvy míst
+
+a tile that wouldn't decode
+= dlaždice, kterou nelze dekódovat
+
+Classic
+= Klasická
+
+Thermal
+= Termální
+
+Ice
+= Led
+
+Grey
+= Šedá
+
+Amateur
+= Radioamatérské
+
+Shortwave utility
+= Krátkovlnné služby
+
+Land mobile
+= Pozemní pohyblivá služba
+
+Shortwave broadcast
+= Krátkovlnné rozhlasové vysílání
+
+Mobile phones and data
+= Mobilní telefony a data
+
+Long and medium wave
+= Dlouhé a střední vlny
+
+FM and TV broadcast
+= Rozhlas FM a televize

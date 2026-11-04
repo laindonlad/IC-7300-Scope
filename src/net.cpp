@@ -1,5 +1,7 @@
 #include "net.h"
 
+#include "i18n.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -51,11 +53,11 @@ static bool request(HINTERNET s, const char* method, const std::string& url, con
   parts.lpszUrlPath = path, parts.dwUrlPathLength = 2048;
   parts.lpszExtraInfo = extra, parts.dwExtraInfoLength = 2048;
   if (!WinHttpCrackUrl(wurl.c_str(), 0, 0, &parts)) {
-    error = "Not a web address: " + url;
+    error = trf("Not a web address: %s", url.c_str());
     return false;
   }
   if (!s) {
-    error = "Windows couldn't start a web session";
+    error = tr("Windows couldn't start a web session");
     return false;
   }
   const std::wstring target = std::wstring(path) + extra;
@@ -80,15 +82,15 @@ static bool request(HINTERNET s, const char* method, const std::string& url, con
         body.append(buf, got);
         if (body.size() > maxBytes) {
           ok = false;
-          error = "The answer was too long";
+          error = tr("The answer was too long");
           break;
         }
       }
     } else {
-      error = "The server answered " + std::to_string(status);
+      error = trf("The server answered %d", (int)status);
     }
   } else {
-    error = "Couldn't reach the server (error " + std::to_string(GetLastError()) + ")";
+    error = trf("Couldn't reach the server (error %lu)", (unsigned long)GetLastError());
   }
   if (req) WinHttpCloseHandle(req);
   if (connection) WinHttpCloseHandle(connection);
@@ -103,7 +105,11 @@ bool httpGet(const std::string& url, std::string& body, std::string& error, size
   return request(shared, "GET", url, "", "", body, error, maxBytes);
 }
 
-Session::Session() { handle_ = openSession(kBrowserAgent); }
+Session::Session() {
+  handle_ = openSession(kBrowserAgent);
+  // A website can be slow to answer a page, more so when signing in: half a minute rather than 15 seconds.
+  if (handle_) WinHttpSetTimeouts((HINTERNET)handle_, 15000, 15000, 30000, 30000);
+}
 Session::~Session() {
   if (handle_) WinHttpCloseHandle((HINTERNET)handle_);
 }
@@ -127,7 +133,7 @@ static bool runCurl(const std::string& args, const std::string& form, std::strin
     char name[] = "/tmp/ic7300formXXXXXX";
     int fd = mkstemp(name);
     if (fd < 0) {
-      error = "Couldn't write a temporary file";
+      error = tr("Couldn't write a temporary file");
       return false;
     }
     bool wrote = write(fd, form.data(), form.size()) == (ssize_t)form.size();
@@ -135,7 +141,7 @@ static bool runCurl(const std::string& args, const std::string& form, std::strin
     formFile = name;
     if (!wrote) {
       unlink(name);
-      error = "Couldn't write a temporary file";
+      error = tr("Couldn't write a temporary file");
       return false;
     }
     cmd += " --data-binary @" + shellQuote(formFile);
@@ -144,7 +150,7 @@ static bool runCurl(const std::string& args, const std::string& form, std::strin
   FILE* p = popen(cmd.c_str(), "r");
   if (!p) {
     if (!formFile.empty()) unlink(formFile.c_str());
-    error = "Couldn't run curl";
+    error = tr("Couldn't run curl");
     return false;
   }
   char buf[16384];
@@ -160,7 +166,7 @@ static bool runCurl(const std::string& args, const std::string& form, std::strin
   int rc = pclose(p);
   if (!formFile.empty()) unlink(formFile.c_str());
   if (tooLong || rc != 0) {
-    error = tooLong ? "The answer was too long" : "Couldn't fetch it (is curl installed?)";
+    error = tooLong ? tr("The answer was too long") : tr("Couldn't fetch it (is curl installed?)");
     body.clear();
     return false;
   }

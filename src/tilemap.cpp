@@ -1,5 +1,7 @@
 #include "tilemap.h"
 
+#include "i18n.h"
+
 #include <GLFW/glfw3.h>
 #include <math.h>
 #include <stdio.h>
@@ -29,12 +31,12 @@
 
 namespace tilemap {
 
-const char* const kLayerNames[LAYER_COUNT] = {"Street", "Topo", "Satellite", "Hybrid"};
+const char* const kLayerNames[LAYER_COUNT] = {N_("Street"), N_("Topo"), N_("Satellite"), N_("Hybrid")};
 const char* const kLayerTips[LAYER_COUNT] = {
-    "OpenStreetMap: streets, footpaths and buildings, for finding your way on foot",
-    "Esri's topographic map: terrain, contours and trails",
-    "Esri's satellite and aerial photographs",
-    "The photographs with roads and place names over them",
+    N_("OpenStreetMap: streets, footpaths and buildings, for finding your way on foot"),
+    N_("Esri's topographic map: terrain, contours and trails"),
+    N_("Esri's satellite and aerial photographs"),
+    N_("The photographs with roads and place names over them"),
 };
 
 namespace {
@@ -180,7 +182,7 @@ static void work(std::shared_ptr<Map::Shared> sh) {
         stbi_image_free(px);
         ok = true;
       } else {
-        error = "a tile that wouldn't decode";
+        error = tr("a tile that wouldn't decode");
         remove(path.c_str());
       }
     }

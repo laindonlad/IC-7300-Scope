@@ -1,0 +1,2292 @@
+# Every string in the interface. Copy this to xx.txt and put the translation after each "= ".
+# Keep %s, %d and the like, in the same order. \n is a new line.
+
+%s is in use by another program
+= 
+
+%s isn't there (radio off or unplugged?)
+= 
+
+%s: permission denied (on Linux, join the dialout group)
+= 
+
+%s can't be opened
+= 
+
+The rig wouldn't %s
+= 
+
+A band plan has a problem: %s
+= 
+
+A station list has a problem: %s
+= 
+
+Band plans and stations reloaded
+= 
+
+DEMO: simulated %s
+= 
+
+The rig's USB audio isn't there (radio off?). Choose a device in Settings.
+= 
+
+Saved %s
+= 
+
+%s isn't on the %s, which tunes %s
+= 
+
+"%s" isn't a frequency the %s can tune (%s)
+= 
+
+The %s is a receiver: it can't transmit.
+= 
+
+Transmit isn't armed. Press ARM TX first.
+= 
+
+Enter: %s MHz
+= 
+
+keep typing, or Esc to cancel
+= 
+
+Other VFO
+= 
+
+Listening on
+= 
+
+Click for the bar meter
+= 
+
+Click for the needle meter
+= 
+
+Squelch open
+= 
+
+Squelch closed
+= 
+
+OVERLOAD
+= 
+
+No overload
+= 
+
+SIGNAL
+= 
+
+Saved %s to memories
+= 
+
+Type-N, 50 ohms: 10 kHz to 3 GHz
+= 
+
+SO-239, 50 ohms: 10 kHz to 30 MHz
+= 
+
+RCA, 500 ohms: 10 kHz to 30 MHz
+= 
+
+Save to memories
+= 
+
+Save this frequency and mode to memories
+= 
+
+Receive only. Hold the mouse over an antenna for its port.
+= 
+
+Receive only. Above 30 MHz it can only use ANT1.
+= 
+
+Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT.
+= 
+
+The rig isn't connected
+= 
+
+Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).
+= 
+
+Starts the rig's antenna tuner. This transmits a carrier.
+= 
+
+The antenna tuner in or out of line
+= 
+
+Receive on this VFO, transmit on the other. Right-click for a quick offset.
+= 
+
+Split %+d kHz
+= 
+
+Swap the two VFOs
+= 
+
+Copy this VFO to the other
+= 
+
+Mem
+= 
+
+TRANSMITTING
+= 
+
+%d s of %d s
+= 
+
+Armed: the buttons above will transmit
+= 
+
+Transmit locked
+= 
+
+Bands
+= 
+
+The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order.
+= 
+
+Amateur
+= 
+
+Shortwave utility
+= 
+
+Land mobile
+= 
+
+Shortwave broadcast
+= 
+
+Mobile phones and data
+= 
+
+Long and medium wave
+= 
+
+FM and TV broadcast
+= 
+
+Go to the band
+= 
+
+Wide FM, for FM broadcast and other wide signals
+= 
+
+Synchronous AM: both sidebands, or just the lower or upper one to dodge interference
+= 
+
+Digital
+= 
+
+D-STAR, P25, dPMR, NXDN and DCR digital voice
+= 
+
+Transmit bass and treble
+= 
+
+Receive bass and treble
+= 
+
+The rig has no bass or treble setting for %s
+= 
+
+Not available: this radio hasn't said it's an IC-7300 (SSB only on an MK2)
+= 
+
+Not available: this radio hasn't said it's an IC-7300
+= 
+
+Not available in %s
+= 
+
+Transmit audio
+= 
+
+Receive audio
+= 
+
+Bass
+= 
+
+Treble
+= 
+
+%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.
+= 
+
+The %s plan has no bands for the %s
+= 
+
+D-STAR digital voice
+= 
+
+D-STAR high-speed data, on 23 cm only
+= 
+
+Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)
+= 
+
+Step
+= 
+
+Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too.
+= 
+
+RECEIVE
+= 
+
+RF gain
+= 
+
+Squelch
+= 
+
+Preamp
+= 
+
+The internal preamp, and any external one the rig powers (set up in its menu)
+= 
+
+Improves how it copes with strong signals, at some cost in sensitivity
+= 
+
+Attenuator
+= 
+
+Width
+= 
+
+fixed by the mode
+= 
+
+Shape
+= 
+
+PBT inner
+= 
+
+PBT outer
+= 
+
+Centre PBT
+= 
+
+Notch
+= 
+
+Notch width
+= 
+
+Auto notch
+= 
+
+RIT / XIT
+= 
+
+Clear
+= 
+
+CW pitch
+= 
+
+TRANSMIT
+= 
+
+RF power
+= 
+
+Mic gain
+= 
+
+Comp
+= 
+
+SSB TX BW
+= 
+
+Monitor
+= 
+
+Anti-VOX
+= 
+
+Break-in
+= 
+
+Key speed
+= 
+
+BK-IN delay
+= 
+
+Not on a band in the %s plan
+= 
+
+In the %s band
+= 
+
+%s: %s\n%s to %s MHz\nClick to tune here
+= 
+
+Out of band under the %s plan
+= 
+
+Out of band
+= 
+
+%s begins %s
+= 
+
+%s ends %s
+= 
+
+Stations
+= 
+
+Find a station...
+= 
+
+Show on the scope
+= 
+
+Only what's scheduled now
+= 
+
+Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it.
+= 
+
+%s to %s
+= 
+
+Find a station
+= 
+
+Name, type, place or frequency in kHz
+= 
+
+%d found. Click one to go there, or press Enter for the first.
+= 
+
+%d found. Connect the rig to go there.
+= 
+
+On
+= 
+
+Off
+= 
+
+Streams the rig's own spectrum scope over CI-V
+= 
+
+Span, in Centre mode
+= 
+
+Centre
+= 
+
+Fixed
+= 
+
+Centre follows the dial. Fixed uses the band edges set on the rig.
+= 
+
+Ref
+= 
+
+The rig's scope reference level
+= 
+
+Fast
+= 
+
+Mid
+= 
+
+Slow
+= 
+
+Speed
+= 
+
+Sweep speed
+= 
+
+Auto
+= 
+
+Set the colours from the noise floor
+= 
+
+Display
+= 
+
+Floor
+= 
+
+Range
+= 
+
+Colours
+= 
+
+Back one page of the scope. Centre mode only.
+= 
+
+On one page of the scope. Centre mode only.
+= 
+
+Click to tune there
+= 
+
+Click to tune %s at %s
+= 
+
+Click to go there in %s
+= 
+
+Scope data is off
+= 
+
+No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+= 
+
+Out of the scope's range
+= 
+
+Tune here
+= 
+
+Transmit here (split)
+= 
+
+Recording to %s
+= 
+
+Can't write %s
+= 
+
+Clear this panel. What's in the file stays there.
+= 
+
+Hearing:
+= 
+
+CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing
+= 
+
+Nothing decoded yet
+= 
+
+Saving to %s
+= 
+
+Can't read the overlay %s
+= 
+
+Overlay
+= 
+
+None
+= 
+
+Open the overlays folder
+= 
+
+Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts
+= 
+
+Save a copy
+= 
+
+Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type
+= 
+
+Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type
+= 
+
+Once the chart has finished
+= 
+
+Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was.
+= 
+
+Receiving: %u lines, IOC %d, %+.0f ppm (measured)
+= 
+
+Receiving: %u lines, IOC %d, %+.0f ppm
+= 
+
+Phasing: %d lines
+= 
+
+Start tone heard
+= 
+
+Waiting for a chart to start
+= 
+
+Stop and save
+= 
+
+Start now
+= 
+
+Start a chart from here, for one that's already under way. Set the slant by hand if it leans.
+= 
+
+Centre %.0f Hz
+= 
+
+Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz
+= 
+
+Slant %+.0f ppm
+= 
+
+Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself.
+= 
+
+No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard.
+= 
+
+%d lines/s
+= 
+
+FFT size
+= 
+
+Larger shows finer detail but blurs fast changes
+= 
+
+Rec
+= 
+
+Record the receiver to a WAV file in the received folder
+= 
+
+Listen
+= 
+
+Play the receiver through this computer's speakers. Muted while transmitting.
+= 
+
+Clean
+= 
+
+voice noise reduction
+= 
+
+spectral noise reduction
+= 
+
+Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is.
+= 
+
+How the audio is cleaned up, and the equaliser (on)
+= 
+
+How the audio is cleaned up, and the equaliser
+= 
+
+By mode
+= 
+
+Voice
+= 
+
+Spectral
+= 
+
+Method
+= 
+
+Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\nSpectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data.
+= 
+
+Strength
+= 
+
+Higher takes out more noise, and more of the signal with it
+= 
+
+Leveller
+= 
+
+Evens out fading and quiet stations
+= 
+
+Equaliser
+= 
+
+Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers.
+= 
+
+Low cut
+= 
+
+Takes out the boom and rumble below this
+= 
+
+Below about 250 Hz
+= 
+
+Middle
+= 
+
+Around 1.2 kHz, where speech is easiest to follow
+= 
+
+Above about 2.2 kHz: crisper consonants, but more hiss
+= 
+
+High cut
+= 
+
+Takes out the hiss above this
+= 
+
+Flat
+= 
+
+Speech
+= 
+
+A starting point for SSB: less bass, more presence
+= 
+
+Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level.
+= 
+
+Decode
+= 
+
+Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder
+= 
+
+Data mode: the dial stays put, so your digital program keeps its place
+= 
+
+kept since %s, from %s
+= 
+
+Audio
+= 
+
+The audio waterfall, recording and decoders
+= 
+
+Map
+= 
+
+Find a station by its callsign on a street or satellite map. The audio and decoders keep going.
+= 
+
+Type a callsign first
+= 
+
+Couldn't save locations.csv in the data folder
+= 
+
+from your log
+= 
+
+Still looking up %s online
+= 
+
+%s isn't in your log with a locator. Put a HamQTH or QRZ.com login in Settings to look it up there.
+= 
+
+Looking up %s on QRZ.com and HamQTH...
+= 
+
+Looking up %s on QRZ.com...
+= 
+
+Looking up %s on HamQTH...
+= 
+
+from %s
+= 
+
+Found %s on %s, and kept it
+= 
+
+Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com and HamQTH.
+= 
+
+%.0f km, %.0f miles, bearing %.0f degrees
+= 
+
+Callsign
+= 
+
+A callsign to find. Press Enter to look for it.
+= 
+
+Find
+= 
+
+Look it up on QRZ.com, then HamQTH, even if it's in your log or kept already, and keep what's found
+= 
+
+Single
+= 
+
+All
+= 
+
+Locator
+= 
+
+Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in.
+= 
+
+OS grid
+= 
+
+Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's 10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map.
+= 
+
+Lat/Lon
+= 
+
+Show lines of latitude and longitude in yellow, closer together as you zoom in
+= 
+
+Whole world
+= 
+
+Street View
+= 
+
+Open Google Street View in your web browser at the middle of the map, to look around at street level
+= 
+
+Your station, %s
+= 
+
+Some of the map couldn't be fetched: %s
+= 
+
+Loading the map...
+= 
+
+From %s
+= 
+
+Click to choose it
+= 
+
+Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.
+= 
+
+1 turn = %s
+= 
+
+Or just type: %s
+= 
+
+ON %s
+= 
+
+Between this band's blocks
+= 
+
+Outside the amateur bands
+= 
+
+in the %s plan
+= 
+
+Name
+= 
+
+Save
+= 
+
+Filter
+= 
+
+Mode
+= 
+
+Click to tune, double-click to edit
+= 
+
+Edit memory
+= 
+
+Frequency
+= 
+
+e.g. 14.074 or 7030k
+= 
+
+Not a frequency the %s can tune
+= 
+
+Data mode
+= 
+
+Saved %s at %s
+= 
+
+Cancel
+= 
+
+All callsigns
+= 
+
+No callsign set
+= 
+
+New callsign
+= 
+
+Add
+= 
+
+The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it.
+= 
+
+Couldn't back up the log first, so nothing was imported
+= 
+
+Imported %d new QSOs, updated %d, and %d were already up to date
+= 
+
+Some are under other callsigns: choose them in the log book
+= 
+
+Couldn't save the log to %s
+= 
+
+The log is already in date order
+= 
+
+Couldn't back up the log first, so it wasn't sorted
+= 
+
+Sorted %d QSOs into date order. The log as it was is in %s.bak
+= 
+
+There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead
+= 
+
+Changing a logged contact
+= 
+
+, last on %s
+= 
+
+Worked once%s: %s
+= 
+
+Worked %d times%s: %s
+= 
+
+Already logged on this band and mode.
+= 
+
+Not worked before
+= 
+
+RST sent
+= 
+
+RST rcvd
+= 
+
+Power (W)
+= 
+
+Left empty, it's what the rig's power is set to
+= 
+
+Notes
+= 
+
+Contest
+= 
+
+Contest, such as CQ-WW-SSB
+= 
+
+Exchange sent
+= 
+
+Exchange rcvd
+= 
+
+An exchange sent that's only a number goes up by one with each contact
+= 
+
+Began
+= 
+
+Ended
+= 
+
+Your callsign for this contact
+= 
+
+Update
+= 
+
+Really delete it?
+= 
+
+Couldn't back up the log first, so nothing was deleted
+= 
+
+Keep it
+= 
+
+Delete
+= 
+
+%s  %s  %s UTC
+= 
+
+Log it
+= 
+
+That frequency isn't a number of kHz
+= 
+
+Times need to look like 2026-10-31 19:05
+= 
+
+Updated %s
+= 
+
+Couldn't save the log entry to %s
+= 
+
+Log book...
+= 
+
+Call
+= 
+
+%s  %s  %s/%s  %s %s\nDouble-click to change it
+= 
+
+%s km, %s miles
+= 
+
+%d contacts
+= 
+
+and %d earlier. Search the Contacts tab for %s to see them all.
+= 
+
+to
+= 
+
+Power
+= 
+
+Confirmed by
+= 
+
+Your callsign
+= 
+
+Exch sent
+= 
+
+Exch rcvd
+= 
+
+Contacts: %d. Places: %d.
+= 
+
+(%d with no locator aren't shown)
+= 
+
+Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts
+= 
+
+Log book
+= 
+
+%d contacts, %d callsigns, %d countries, %d confirmed
+= 
+
+Search
+= 
+
+Export ADIF
+= 
+
+Exported %d QSOs to %s
+= 
+
+Couldn't write %s
+= 
+
+Import ADIF...
+= 
+
+Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak.
+= 
+
+Sort
+= 
+
+Finish changing the contact on the Log tab first.
+= 
+
+Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.
+= 
+
+Restore
+= 
+
+Maximise
+= 
+
+Contacts
+= 
+
+World map
+= 
+
+Station
+= 
+
+Band
+= 
+
+Confirmed
+= 
+
+Sent
+= 
+
+Rcvd
+= 
+
+Distance (km)
+= 
+
+Country
+= 
+
+Double-click to change it on the Log tab
+= 
+
+%s miles
+= 
+
+The dial isn't on a band in the %s plan. Tune to one, or scan a range.
+= 
+
+Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say
+= 
+
+That's more than %d channels. Choose a bigger step or a smaller range.
+= 
+
+There's nothing to scan there that the %s can tune
+= 
+
+Scan stopped: every channel has been locked out
+= 
+
+Scan stopped: the rig isn't answering
+= 
+
+Scan stopped: the rig is transmitting
+= 
+
+Scan stopped: the rig refused every frequency in it
+= 
+
+Scan stopped: the dial was tuned
+= 
+
+The band the dial is on
+= 
+
+A range of frequencies
+= 
+
+Memories
+= 
+
+Scan
+= 
+
+From
+= 
+
+To
+= 
+
+Names with
+= 
+
+Empty for all of them
+= 
+
+All those showing
+= 
+
+Service
+= 
+
+Broadcasters go by the Stations menu's "Only what's scheduled now", as of when the scan starts.
+= 
+
+Each one for
+= 
+
+How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal.
+= 
+
+Stop at
+= 
+
+The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere.
+= 
+
+Stay until I carry on
+= 
+
+Carry on after 5 s
+= 
+
+Carry on after 10 s
+= 
+
+Carry on when it stops
+= 
+
+On a signal
+= 
+
+Next
+= 
+
+Carry on to the next channel
+= 
+
+Lock out
+= 
+
+Leave this channel out until the scan is stopped, for a signal that's always there
+= 
+
+Signal at %s  %s
+= 
+
+Listening at %s
+= 
+
+%s  %d of %d
+= 
+
+%d locked out
+= 
+
+S meter now: %s. Tuning stops a scan.
+= 
+
+HEARD
+= 
+
+Where
+= 
+
+What
+= 
+
+Click to stop the scan and go back there
+= 
+
+A DX cluster logs you in by callsign. Put yours in Rig > Settings first.
+= 
+
+Spotted by %s
+= 
+
+Spotted by %s at %sZ
+= 
+
+DX SPOTS
+= 
+
+Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign.
+= 
+
+All bands
+= 
+
+This band
+= 
+
+All modes
+= 
+
+Data
+= 
+
+No spots here yet.
+= 
+
+Age
+= 
+
+Worked on this band
+= 
+
+Worked, but not on this band
+= 
+
+Click to tune there and put the call in the log
+= 
+
+Nothing to send
+= 
+
+Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit.
+= 
+
+CW KEYER
+= 
+
+Mode must be CW. Sends through the rig's keyer.
+= 
+
+Type and press Enter to send
+= 
+
+STOP SENDING
+= 
+
+{CALL} is your callsign, from Settings.
+= 
+
+VOICE MEMORY
+= 
+
+Plays what's recorded on the rig. Mode must be SSB, AM or FM.
+= 
+
+STOP PLAYING
+= 
+
+Couldn't save the net list to %s
+= 
+
+Net
+= 
+
+Started %s UTC
+= 
+
+Net control %s
+= 
+
+Checked in: %d. Still on at %s UTC: %d.
+= 
+
+Joined (UTC)
+= 
+
+Left (UTC)
+= 
+
+Sent the net list to %s
+= 
+
+Print the net list
+= 
+
+Printer
+= 
+
+No printers are set up on this computer
+= 
+
+Printing...
+= 
+
+Print
+= 
+
+Net name, such as Sunday 80m net
+= 
+
+Already on the net, since %s UTC
+= 
+
+Check in
+= 
+
+Print list...
+= 
+
+%d on the net, %d checked in
+= 
+
+Really clear it?
+= 
+
+New net
+= 
+
+Clears the list for the next net. Print it first to keep it.
+= 
+
+Type a callsign and press Enter as each station checks in.
+= 
+
+In
+= 
+
+Out
+= 
+
+Back
+= 
+
+Find on the map
+= 
+
+Remove from the list
+= 
+
+Right-click to find them on the map, or to take them off if they went on by mistake.
+= 
+
+Left
+= 
+
+They're back: clears the time they left
+= 
+
+They've left the net: greys them out and notes the time
+= 
+
+Keypad
+= 
+
+Log
+= 
+
+CW / Voice
+= 
+
+DEMO: a simulated radio. Nothing is connected.
+= 
+
+Audio only: leaving the serial port alone
+= 
+
+%s  %s  %d baud
+= 
+
+. Close the other program: a port has one owner.
+= 
+
+A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address.
+= 
+
+%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one.
+= 
+
+Connecting...
+= 
+
+. Is the SUB band on that band?
+= 
+
+SCAN: signal. Next is on the Scan tab.
+= 
+
+SCANNING. Tune to stop it.
+= 
+
+New version available, built %s
+= 
+
+Click to open the download page on GitHub. You're on the build from %s UTC.
+= 
+
+The radio's clock wasn't set.
+= 
+
+The radio isn't connected, so its clock wasn't set.
+= 
+
+This program doesn't know how to set this radio's clock.
+= 
+
+The radio's clock follows on the minute.
+= 
+
+Conditions
+= 
+
+Put your locator in Settings to see HF conditions from your square.
+= 
+
+Opens HF conditions from %s on hf.dxview.org in your browser.
+= 
+
+Wait
+= 
+
+Sync
+= 
+
+Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it.
+= 
+
+Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.
+= 
+
+Then sets the radio's date, time and UTC offset from it, as the next minute starts.
+= 
+
+Last time:
+= 
+
+The radio stopped answering, so its clock wasn't set.
+= 
+
+Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+= 
+
+Rig
+= 
+
+Settings...
+= 
+
+Power on
+= 
+
+Power off...
+= 
+
+Open data folder
+= 
+
+Open received folder
+= 
+
+Quit
+= 
+
+View
+= 
+
+Band scope
+= 
+
+Audio waterfall
+= 
+
+Band plan on the scope
+= 
+
+DX spots panel
+= 
+
+DX spots on the scope
+= 
+
+Help
+= 
+
+Keys and rig set-up...
+= 
+
+Built %s UTC
+= 
+
+Settings
+= 
+
+THE RIG
+= 
+
+Port
+= 
+
+(choose)
+= 
+
+Baud
+= 
+
+Find out by asking it
+= 
+
+Radio
+= 
+
+It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed.
+= 
+
+CI-V address (hex)
+= 
+
+Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address.
+= 
+
+The scope stream needs 115200.
+= 
+
+SOUND
+= 
+
+From the rig
+= 
+
+(find the USB Audio CODEC)
+= 
+
+Listen on
+= 
+
+(system default)
+= 
+
+YOU
+= 
+
+Your locator
+= 
+
+Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.
+= 
+
+QRZ.com username
+= 
+
+For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position.
+= 
+
+QRZ.com password
+= 
+
+Kept in settings.ini in the data folder, as plain text.
+= 
+
+HamQTH username
+= 
+
+For finding stations on the map, free: make an account at hamqth.com. Asked after QRZ.com, or alone if there's no QRZ.com login.
+= 
+
+HamQTH password
+= 
+
+Log date format
+= 
+
+How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed.
+= 
+
+PTT time limit
+= 
+
+PTT from this program lets go by itself after this long
+= 
+
+DX CLUSTER
+= 
+
+Choose one
+= 
+
+Fill in from a list
+= 
+
+Server
+= 
+
+Commands after login
+= 
+
+Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty.
+= 
+
+Keep spots for
+= 
+
+Show robot spots (Reverse Beacon Network)
+= 
+
+Spots from automatic CW and data skimmers. There can be a great many.
+= 
+
+BAND PLAN
+= 
+
+Country or region
+= 
+
+This program has a newer copy of this plan (%s). Reset uses it.
+= 
+
+Open plans folder
+= 
+
+Each plan is a JSON file you can edit. README.txt there explains the format.
+= 
+
+Reload
+= 
+
+Reads the files again, after you've edited one
+= 
+
+Reset this plan
+= 
+
+Can't write to %s
+= 
+
+Puts the built-in copy back. Your file is kept as .json.bak
+= 
+
+STATIONS
+= 
+
+Shown on the scope whichever band plan is chosen. See the Stations menu.
+= 
+
+%s (%d stations, revision %s). %s
+= 
+
+Open stations folder
+= 
+
+Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.
+= 
+
+Reset station list
+= 
+
+Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak
+= 
+
+Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak
+= 
+
+Automatic (%s)
+= 
+
+Language
+= 
+
+Automatic follows the language this computer is set to. Choose one to keep to it whatever the computer uses. It changes straight away.
+= 
+
+Check GitHub for a new version at start
+= 
+
+Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent.
+= 
+
+Auto ON/OFF
+= 
+
+Switches the rig on when the program starts, and off when it closes. The rig's USB must stay powered for it to wake.
+= 
+
+Apply and reconnect
+= 
+
+Close
+= 
+
+Keys and rig set-up
+= 
+
+ON THE RIG  (MENU > SET > Connectors > CI-V)
+= 
+
+CI-V USB Port: Unlink from [REMOTE]
+= 
+
+CI-V USB Baud Rate: 115200
+= 
+
+CI-V USB Echo Back: OFF  (ON works too)
+= 
+
+CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700
+= 
+
+USB AF Output Level (Connectors): raise it until the level bar sits below red
+= 
+
+USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF
+= 
+
+KEYS
+= 
+
+Digits
+= 
+
+Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels.
+= 
+
+Left, Right
+= 
+
+Tune by the step. Hold Shift for ten times that.
+= 
+
+Up, Down
+= 
+
+Change the step
+= 
+
+Page Up, Page Down
+= 
+
+Next or previous band
+= 
+
+Find a station by name
+= 
+
+F1 to F8
+= 
+
+Data mode, next filter
+= 
+
+Split, swap VFOs
+= 
+
+PTT on or off, once armed
+= 
+
+Tuning dial
+= 
+
+Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on.
+= 
+
+Wheel
+= 
+
+On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it.
+= 
+
+Click a digit
+= 
+
+Top half up, bottom half down
+= 
+
+Click the band scope
+= 
+
+Tune there. Right-click for split and memories.
+= 
+
+< and > above the band scope
+= 
+
+Move the dial one whole page of the scope, in Centre mode.
+= 
+
+Click the audio waterfall
+= 
+
+Moves that signal to the pitch (not in data modes)
+= 
+
+Right-click a band
+= 
+
+CW, FT8, FT4, WSPR, SSB frequencies
+= 
+
+Click a DX spot
+= 
+
+Tune there, and put the call in the log. Red flags and green calls aren't worked yet.
+= 
+
+Double-click a log entry
+= 
+
+Bring it back to the Log tab, to change it and log it again
+= 
+
+Power off the rig?
+= 
+
+The rig will switch off. Rig > Power on brings it back while its USB stays powered.
+= 
+
+Power off
+= 
+
+This is an %s
+= 
+
+This is an %s, a receiver: it can't transmit
+= 
+
+Only ADIF files can be dropped here, to import them into the log
+= 
+
+The band plan is set to %s. Choose your country in Settings.
+= 
+
+The audio system didn't start
+= 
+
+Can't list the sound devices
+= 
+
+"%s" isn't there (radio off or unplugged?)
+= 
+
+Can't open "%s"
+= 
+
+Can't start "%s"
+= 
+
+The rig's USB sound card is the system default output, and the monitor won't feed it. Choose your speakers in Settings.
+= 
+
+No default output device
+= 
+
+"%s" isn't there
+= 
+
+Can't open the output device
+= 
+
+Can't start the output device
+= 
+
+Commercial
+= 
+
+Government
+= 
+
+Naval and maritime
+= 
+
+Military
+= 
+
+Broadcast
+= 
+
+Amateur satellites and beacons
+= 
+
+Aviation
+= 
+
+Satellites and navigation
+= 
+
+Land mobile and licence-free
+= 
+
+Numbers and mystery stations
+= 
+
+Beacons
+= 
+
+Satellite
+= 
+
+Maritime
+= 
+
+Mobile
+= 
+
+Navigation
+= 
+
+Other
+= 
+
+Can't read the chart %s
+= 
+
+There's no overlay to save
+= 
+
+No time server answered. Is this computer online, and is UDP port 123 open?
+= 
+
+The time servers disagree, so the clock was left alone. Try again in a minute.
+= 
+
+%.3f s slow
+= 
+
+%.3f s fast
+= 
+
+The clock is %s, too far out to trust. Check its date and time in your system settings.
+= 
+
+The clock is right: %s, to within %s. Left it alone.
+= 
+
+The clock is %s. Demo: left it alone.
+= 
+
+The clock is still %s: Windows wasn't given permission to set it.
+= 
+
+The clock is %s. Setting it needs root: run this program once with sudo and --sync-clock.
+= 
+
+The clock is still %s: it couldn't be set.
+= 
+
+The clock was %s and has been set, but the servers didn't answer to confirm it.
+= 
+
+The clock was %s and was set, but is now %s.
+= 
+
+The clock was %s. It's now %s, to within %s.
+= 
+
+Connected to %s
+= 
+
+Nothing heard for ten minutes
+= 
+
+Connecting to %s
+= 
+
+Couldn't reach %s. Trying again in a minute.
+= 
+
+Lost %s. Trying again in a minute.
+= 
+
+Lost %s (it said: %s). Trying again in a minute.
+= 
+
+Made-up spots, as this is the demo. Nothing is connected.
+= 
+
+position set by the operator on QRZ
+= 
+
+street address
+= 
+
+post code
+= 
+
+state or county
+= 
+
+country only
+= 
+
+worked out from QRZ's bearing and distance, to about 100 m
+= 
+
+worked out from QRZ's bearing and distance from your locator, to a few km
+= 
+
+6-character locator, about 5 km by 4
+= 
+
+4-character locator, about 150 km by 110
+= 
+
+QRZ.com wouldn't log in.
+= 
+
+QRZ.com wouldn't log in: %s
+= 
+
+the session ended
+= 
+
+QRZ.com has %s but gives no locator or position.
+= 
+
+QRZ.com has %s but gives no locator or position (%s)
+= 
+
+QRZ.com's sign-in page: %s
+= 
+
+QRZ.com's sign-in page has changed, so this can't sign in any more
+= 
+
+Your QRZ.com account asks for a two-factor code to sign in, which this can't give
+= 
+
+QRZ.com's page for %s: %s
+= 
+
+QRZ.com's page for %s gives no locator.
+= 
+
+QRZ.com has no %s
+= 
+
+QRZ.com's page for %s gives no locator. It's in qrz-page.html in the data folder.
+= 
+
+Put your QRZ.com username and password in Settings to look callsigns up there
+= 
+
+HamQTH wouldn't log in.
+= 
+
+HamQTH wouldn't log in: %s
+= 
+
+HamQTH has no %s
+= 
+
+it gave an answer this can't read
+= 
+
+HamQTH has %s but gives no locator or position.
+= 
+
+Put your HamQTH username and password in Settings to look callsigns up there
+= 
+
+your log
+= 
+
+Not a web address: %s
+= 
+
+Windows couldn't start a web session
+= 
+
+The answer was too long
+= 
+
+The server answered %d
+= 
+
+Couldn't reach the server (error %lu)
+= 
+
+Couldn't write a temporary file
+= 
+
+Couldn't run curl
+= 
+
+Couldn't fetch it (is curl installed?)
+= 
+
+Couldn't open the printer %s
+= 
+
+Printing was cancelled
+= 
+
+The printer %s wouldn't take the job
+= 
+
+The printer %s stopped part way through
+= 
+
+The printer %s wouldn't start a page
+= 
+
+Couldn't write the page to print
+= 
+
+set that frequency
+= 
+
+set the other VFO
+= 
+
+set that mode
+= 
+
+set data mode
+= 
+
+set the other VFO's mode
+= 
+
+set that level
+= 
+
+change that setting
+= 
+
+set that EQ level
+= 
+
+set its time
+= 
+
+set its date
+= 
+
+set its UTC offset
+= 
+
+set the attenuator
+= 
+
+change antenna
+= 
+
+set IP+
+= 
+
+set split
+= 
+
+set the filter width
+= 
+
+set the RIT offset
+= 
+
+set RIT
+= 
+
+set XIT
+= 
+
+copy the VFO
+= 
+
+swap the VFOs
+= 
+
+set the tuner
+= 
+
+power off
+= 
+
+power on
+= 
+
+turn the scope on
+= 
+
+start the scope data
+= 
+
+set the span
+= 
+
+set the scope mode
+= 
+
+set the scope reference
+= 
+
+set the sweep speed
+= 
+
+transmit
+= 
+
+start the tuner
+= 
+
+send CW
+= 
+
+stop CW
+= 
+
+play that voice memory
+= 
+
+Writing to the port failed (unplugged?)
+= 
+
+Transmit time limit reached: PTT released
+= 
+
+The port has gone (unplugged?)
+= 
+
+No serial port chosen
+= 
+
+The simulated port is unplugged
+= 
+
+Couldn't open %s
+= 
+
+There are no ADIF records in %s
+= 
+
+Street
+= 
+
+Topo
+= 
+
+Hybrid
+= 
+
+OpenStreetMap: streets, footpaths and buildings, for finding your way on foot
+= 
+
+Esri's topographic map: terrain, contours and trails
+= 
+
+Esri's satellite and aerial photographs
+= 
+
+The photographs with roads and place names over them
+= 
+
+a tile that wouldn't decode
+= 
+
+Classic
+= 
+
+Thermal
+= 
+
+Ice
+= 
+
+Grey
+= 
+

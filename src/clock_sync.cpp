@@ -1,5 +1,7 @@
 #include "clock_sync.h"
 
+#include "i18n.h"
+
 #ifdef _WIN32
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0602  // GetSystemTimePreciseAsFileTime
@@ -131,11 +133,11 @@ bool measure(Sample& best, std::string& why) {
     if (askServer(host, s)) answers.push_back(s);
   }
   if (answers.empty()) {
-    why = "No time server answered. Is this computer online, and is UDP port 123 open?";
+    why = tr("No time server answered. Is this computer online, and is UDP port 123 open?");
     return false;
   }
   if (!choose(answers, best)) {
-    why = "The time servers disagree, so the clock was left alone. Try again in a minute.";
+    why = tr("The time servers disagree, so the clock was left alone. Try again in a minute.");
     return false;
   }
   return true;
@@ -258,7 +260,7 @@ Verdict judge(double offset) {
 
 std::string describe(double offset) {
   char b[64];
-  snprintf(b, sizeof b, "%.3f s %s", fabs(offset), offset >= 0 ? "slow" : "fast");
+  snprintf(b, sizeof b, offset >= 0 ? tr("%.3f s slow") : tr("%.3f s fast"), fabs(offset));
   return b;
 }
 
@@ -268,31 +270,31 @@ Report jog(bool change) {
   if (!measure(before, why)) return said(false, why);
   switch (judge(before.offset)) {
     case V_TOO_FAR:
-      return said(false, "The clock is " + describe(before.offset) + ", too far out to trust. Check its date and time in your system settings.");
+      return said(false, trf("The clock is %s, too far out to trust. Check its date and time in your system settings.", describe(before.offset).c_str()));
     case V_CLOSE_ENOUGH:
-      return said(true, "The clock is right: " + describe(before.offset) + ", to within " + within(before) + ". Left it alone.");
+      return said(true, trf("The clock is right: %s, to within %s. Left it alone.", describe(before.offset).c_str(), within(before).c_str()));
     case V_STEP:
       break;
   }
-  if (!change) return said(true, "The clock is " + describe(before.offset) + ". Demo: left it alone.");
+  if (!change) return said(true, trf("The clock is %s. Demo: left it alone.", describe(before.offset).c_str()));
 
   SetResult set = setClock(before.offset);
   if (set == SET_NOT_ALLOWED) {
 #ifdef _WIN32
     AskResult asked = askWindowsToSet();
-    if (asked == ASK_DECLINED) return said(false, "The clock is still " + describe(before.offset) + ": Windows wasn't given permission to set it.");
+    if (asked == ASK_DECLINED) return said(false, trf("The clock is still %s: Windows wasn't given permission to set it.", describe(before.offset).c_str()));
     set = asked == ASK_DONE ? SET_OK : SET_FAILED;
 #else
-    return said(false, "The clock is " + describe(before.offset) + ". Setting it needs root: run this program once with sudo and --sync-clock.");
+    return said(false, trf("The clock is %s. Setting it needs root: run this program once with sudo and --sync-clock.", describe(before.offset).c_str()));
 #endif
   }
-  if (set != SET_OK) return said(false, "The clock is still " + describe(before.offset) + ": it couldn't be set.");
+  if (set != SET_OK) return said(false, trf("The clock is still %s: it couldn't be set.", describe(before.offset).c_str()));
 
   // Say what actually happened, from a fresh look at the clock rather than from what was asked for.
   Sample after;
-  if (!measure(after, why)) return said(true, "The clock was " + describe(before.offset) + " and has been set, but the servers didn't answer to confirm it.");
-  if (judge(after.offset) != V_CLOSE_ENOUGH) return said(false, "The clock was " + describe(before.offset) + " and was set, but is now " + describe(after.offset) + ".");
-  return said(true, "The clock was " + describe(before.offset) + ". It's now " + describe(after.offset) + ", to within " + within(after) + ".");
+  if (!measure(after, why)) return said(true, trf("The clock was %s and has been set, but the servers didn't answer to confirm it.", describe(before.offset).c_str()));
+  if (judge(after.offset) != V_CLOSE_ENOUGH) return said(false, trf("The clock was %s and was set, but is now %s.", describe(before.offset).c_str(), describe(after.offset).c_str()));
+  return said(true, trf("The clock was %s. It's now %s, to within %s.", describe(before.offset).c_str(), describe(after.offset).c_str(), within(after).c_str()));
 }
 
 int runSyncClock() {

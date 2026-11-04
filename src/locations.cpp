@@ -1,5 +1,7 @@
 #include "locations.h"
 
+#include "i18n.h"
+
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -204,17 +206,21 @@ double suggestedZoom(const Location& l) {
   if (a == "zip") return 11;
   if (a == "state") return 6;
   if (a == "dxcc" || a == "none") return 4;
+  if (a == "bearing") return 14;
+  if (a == "bearing-grid") return 11.5;
   return gridLength(l.locator) == 6 ? 11.5 : 7.5;
 }
 
 std::string accuracyName(const Location& l) {
   const std::string& a = l.accuracy;
-  if (a == "user") return "position set by the operator on QRZ";
-  if (a == "geocode") return "street address";
-  if (a == "zip") return "post code";
-  if (a == "state") return "state or county";
-  if (a == "dxcc" || a == "none") return "country only";
-  return gridLength(l.locator) == 6 ? "6-character locator, about 5 km by 4" : "4-character locator, about 150 km by 110";
+  if (a == "user") return N_("position set by the operator on QRZ");
+  if (a == "geocode") return N_("street address");
+  if (a == "zip") return N_("post code");
+  if (a == "state") return N_("state or county");
+  if (a == "dxcc" || a == "none") return N_("country only");
+  if (a == "bearing") return N_("worked out from QRZ's bearing and distance, to about 100 m");
+  if (a == "bearing-grid") return N_("worked out from QRZ's bearing and distance from your locator, to a few km");
+  return gridLength(l.locator) == 6 ? N_("6-character locator, about 5 km by 4") : N_("4-character locator, about 150 km by 110");
 }
 
 std::string utcNow() {
@@ -378,7 +384,7 @@ static bool qrzLogin(const std::string& user, const std::string& password, std::
   key = session == std::string::npos ? "" : tag(body, "Key", session);
   if (key.empty()) {
     std::string why = session == std::string::npos ? "" : tag(body, "Error", session);
-    error = "QRZ.com wouldn't log in" + (why.empty() ? std::string(".") : ": " + why);
+    error = why.empty() ? std::string(tr("QRZ.com wouldn't log in.")) : trf("QRZ.com wouldn't log in: %s", why.c_str());
     return false;
   }
   return true;
@@ -396,7 +402,7 @@ static Found qrzFind(const std::string& key, const std::string& call, Location& 
   size_t session = body.find("<Session>");
   std::string sessionError = session == std::string::npos ? "" : tag(body, "Error", session);
   if (session == std::string::npos || tag(body, "Key", session).empty()) {
-    error = "QRZ.com: " + (sessionError.empty() ? std::string("the session ended") : sessionError);
+    error = "QRZ.com: " + (sessionError.empty() ? std::string(tr("the session ended")) : sessionError);
     return STALE;
   }
   size_t rec = body.find("<Callsign>");
@@ -430,7 +436,7 @@ static Found qrzFind(const std::string& key, const std::string& call, Location& 
     out.accuracy = "grid";
   } else {
     std::string message = tag(body, "Message", session);
-    error = "QRZ.com has " + out.call + " but gives no locator or position" + (message.empty() ? std::string(".") : " (" + message + ")");
+    error = message.empty() ? trf("QRZ.com has %s but gives no locator or position.", out.call.c_str()) : trf("QRZ.com has %s but gives no locator or position (%s)", out.call.c_str(), message.c_str());
     return FOUND_NO_PLACE;
   }
   if (out.accuracy.empty()) out.accuracy = "grid";
@@ -447,6 +453,7 @@ namespace web {
 std::mutex m;
 std::unique_ptr<net::Session> session;
 std::string loggedInAs;  // empty until logged in
+std::string handshakeMessage;  // what the sign-in handshake said if it turned the sign-in down
 const char kSite[] = "https://www.qrz.com";
 const char kAjax[] = "X-Requested-With: XMLHttpRequest\r\nReferer: https://www.qrz.com/login\r\nOrigin: https://www.qrz.com\r\n";
 
@@ -542,38 +549,39 @@ bool login(const std::string& user, const std::string& password, std::string& er
   loggedInAs.clear();
   std::string page;
   if (!session->get(std::string(kSite) + "/login", page, error)) {
-    error = "QRZ.com's sign-in page: " + error;
+    error = trf("QRZ.com's sign-in page: %s", error.c_str());
     return false;
   }
   size_t t = page.find("'loginTicket'");
   t = t == std::string::npos ? t : page.find('\'', page.find(':', t) + 1);
   size_t te = t == std::string::npos ? t : page.find('\'', t + 1);
   if (te == std::string::npos) {
-    error = "QRZ.com's sign-in page has changed, so this can't sign in any more";
+    error = tr("QRZ.com's sign-in page has changed, so this can't sign in any more");
     return false;
   }
   const std::string ticket = page.substr(t + 1, te - t - 1);
   const std::string who = "loginTicket=" + net::urlEscape(ticket) + "&username=" + net::urlEscape(user);
   std::string reply, message;
   bool twoFactor = false;
+  // The handshake the page does first. QRZ.com sometimes turns it down ("ticketInvalid") when the sign-in form after
+  // it works anyway, so what it says is kept, and the sign-in is judged by whether the callsign pages then show
+  // their detail.
+  handshakeMessage.clear();
   if (!session->post(std::string(kSite) + "/login-handshake", who + "&step=1", reply, error, kAjax)) {
     error = "Signing in to QRZ.com: " + error;
     return false;
   }
   if (!handshakeOk(reply, message, twoFactor)) {
-    error = "QRZ.com wouldn't sign in: " + (message.empty() ? std::string("it didn't know the username") : message);
-    return false;
-  }
-  if (!session->post(std::string(kSite) + "/login-handshake", who + "&password=" + net::urlEscape(password) + "&step=2", reply, error, kAjax)) {
-    error = "Signing in to QRZ.com: " + error;
-    return false;
-  }
-  if (!handshakeOk(reply, message, twoFactor)) {
-    error = "QRZ.com wouldn't sign in: " + (message.empty() ? std::string("check the password in Settings") : message);
-    return false;
+    handshakeMessage = message.empty() ? "it didn't know the username" : message;
+  } else {
+    if (!session->post(std::string(kSite) + "/login-handshake", who + "&password=" + net::urlEscape(password) + "&step=2", reply, error, kAjax)) {
+      error = "Signing in to QRZ.com: " + error;
+      return false;
+    }
+    if (!handshakeOk(reply, message, twoFactor)) handshakeMessage = message.empty() ? "check the password in Settings" : message;
   }
   if (twoFactor) {
-    error = "Your QRZ.com account asks for a two-factor code to sign in, which this can't give";
+    error = tr("Your QRZ.com account asks for a two-factor code to sign in, which this can't give");
     return false;
   }
   const std::string form = "login_ref=&username=" + net::urlEscape(user) + "&password=" + net::urlEscape(password) + "&target=%2F&flush=1";
@@ -585,21 +593,108 @@ bool login(const std::string& user, const std::string& password, std::string& er
   return true;
 }
 
-// Where the page for call says the station is.
-bool lookup(const std::string& user, const std::string& password, const std::string& call, Location& out, std::string& error) {
+// Where a station is from its own page's latitude and longitude. Kept for the run, by callsign.
+std::map<std::string, std::pair<double, double>> origins;
+bool positionOf(const std::string& call, double& lat, double& lon) {
+  auto kept = origins.find(call);
+  if (kept != origins.end()) {
+    lat = kept->second.first, lon = kept->second.second;
+    return true;
+  }
+  std::string page, error;
+  if (!session->get(std::string(kSite) + "/db/" + net::urlEscape(call), page, error)) return false;
+  size_t detail = page.find("id=\"t_detail\"");
+  if (detail == std::string::npos) detail = 0;
+  double la, lo;
+  if (degrees(cellAfter(page, detail, "Latitude"), 90, la) && degrees(cellAfter(page, detail, "Longitude"), 180, lo) && !(la == 0 && lo == 0)) {
+    origins[call] = {la, lo};
+    lat = la, lon = lo;
+    return true;
+  }
+  return false;
+}
+
+// Where a station is, from the bearing and distance its page gives from the operator's own station, which QRZ.com
+// still shows when it no longer shows the locator. The bearing is in the page to many places and the distance to
+// 0.1 km, so this is as close as the starting point: the operator's own page if it gives a position, else their
+// locator.
+bool fromBearing(const std::string& page, size_t detail, const std::string& homeLocator, Location& out) {
+  size_t at = page.find(">Bearing<", detail);
+  if (at == std::string::npos) return false;
+  size_t rowEnd = page.find("</tr>", at);
+  const std::string row = page.substr(at, rowEnd == std::string::npos ? std::string::npos : rowEnd - at);
+  double bearing;
+  size_t rot = row.find("rotate(");
+  if (rot != std::string::npos) {
+    bearing = strtod(row.c_str() + rot + 7, nullptr);
+  } else if (!degrees(cellAfter(page, detail, "Bearing"), 360, bearing)) {
+    return false;
+  }
+  // "7.7 mi ( 12.4 km)", perhaps with thousands marked by commas.
+  std::string distance;
+  for (char c : cellAfter(page, detail, "Distance"))
+    if (c != ',') distance += c;
+  size_t open = distance.find('('), unit = distance.find("km");
+  if (open == std::string::npos || unit == std::string::npos) return false;
+  char* end = nullptr;
+  const double km = strtod(distance.c_str() + open + 1, &end);
+  if (end == distance.c_str() + open + 1 || km < 0 || km > 20100) return false;
+  // Where it's measured from: "(from M6NMQ)".
+  std::string from;
+  size_t f = row.find("(from ");
+  if (f != std::string::npos) {
+    for (size_t i = f + 6; i < row.size() && row[i] != ')'; i++) from += row[i];
+    from = normalCall(stripTags(from));
+  }
+  double lat1, lon1;
+  if (!from.empty() && positionOf(from, lat1, lon1)) {
+    out.accuracy = "bearing";
+  } else if (dx::gridToLatLon(homeLocator, lat1, lon1)) {
+    out.accuracy = "bearing-grid";
+  } else {
+    return false;
+  }
+  const double rad = M_PI / 180, d = km / 6371.0, th = bearing * rad, p1 = lat1 * rad;
+  const double p2 = asin(sin(p1) * cos(d) + cos(p1) * sin(d) * cos(th));
+  const double l2 = lon1 * rad + atan2(sin(th) * sin(d) * cos(p1), cos(d) - sin(p1) * sin(p2));
+  out.lat = p2 / rad;
+  out.lon = fmod(l2 / rad + 540, 360) - 180;
+  out.locator = latLonToGrid(out.lat, out.lon);
+  return true;
+}
+
+// Where the page for call says the station is. If it gives no locator or position but does give a bearing and
+// distance, estimate is filled from those and haveEstimate set.
+bool lookup(const std::string& user, const std::string& password, const std::string& call, const std::string& homeLocator, Location& out, Location& estimate, bool& haveEstimate, std::string& error) {
   std::lock_guard<std::mutex> g(m);
+  // After a sign-in fails, none again for ten minutes, so as not to look to QRZ.com like someone guessing passwords.
+  static time_t failedAt = 0;
+  static std::string failedAs, failedWhy;
+  const int kWait = 600;
   for (int attempt = 0; attempt < 2; attempt++) {
-    if ((loggedInAs != user || !session) && !login(user, password, error)) return false;
+    if (loggedInAs != user || !session) {
+      const time_t now = time(nullptr);
+      if (failedAs == user && now - failedAt < kWait) {
+        error = failedWhy + " Not trying QRZ.com's sign-in again for " + std::to_string((kWait - (now - failedAt) + 59) / 60) + " minutes.";
+        return false;
+      }
+      if (!login(user, password, error)) {
+        failedAt = now, failedAs = user, failedWhy = error + ".";
+        return false;
+      }
+      failedAs.clear();
+    }
     std::string page;
     if (!session->get(std::string(kSite) + "/db/" + net::urlEscape(call), page, error)) {
-      error = "QRZ.com's page for " + call + ": " + error;
+      error = trf("QRZ.com's page for %s: %s", call.c_str(), error.c_str());
       return false;
     }
     if (page.find("Login is required for additional detail") != std::string::npos) {
       loggedInAs.clear();  // the sign-in has lapsed, or didn't take: once more
       if (attempt == 0) continue;
       store::saveText(store::dataDir() + "qrz-page.html", page);
-      error = "QRZ.com didn't keep the sign-in, so the locator wasn't shown. The page is in qrz-page.html in the data folder.";
+      error = handshakeMessage.empty() ? "QRZ.com didn't keep the sign-in, so the locator wasn't shown. The page is in qrz-page.html in the data folder."
+                                       : "QRZ.com wouldn't sign in: " + handshakeMessage;
       return false;
     }
     size_t detail = page.find("id=\"t_detail\"");
@@ -613,11 +708,20 @@ bool lookup(const std::string& user, const std::string& password, const std::str
     double la, lo;
     const bool haveLatLon = degrees(latText, 90, la) && degrees(lonText, 180, lo) && !(la == 0 && lo == 0);
     if (!haveGrid && !haveLatLon) {
+      if (fromBearing(page, detail, homeLocator, estimate)) {
+        estimate.call = normalCall(call);
+        estimate.source = "QRZ";
+        estimate.updated = utcNow();
+        estimate.country = dx::countryOf(estimate.call);
+        haveEstimate = true;
+        error = trf("QRZ.com's page for %s gives no locator.", call.c_str());
+        return false;
+      }
       if (page.find("produced no results") != std::string::npos || page.find("not found") != std::string::npos) {
-        error = "QRZ.com has no " + call;
+        error = trf("QRZ.com has no %s", call.c_str());
       } else {
         store::saveText(store::dataDir() + "qrz-page.html", page);
-        error = "QRZ.com's page for " + call + " gives no locator. It's in qrz-page.html in the data folder.";
+        error = trf("QRZ.com's page for %s gives no locator. It's in qrz-page.html in the data folder.", call.c_str());
       }
       return false;
     }
@@ -646,9 +750,10 @@ bool lookup(const std::string& user, const std::string& password, const std::str
 
 }  // namespace web
 
-bool qrzLookup(const std::string& user, const std::string& password, const std::string& callIn, std::string& sessionKey, Location& out, std::string& error) {
+bool qrzLookup(const std::string& user, const std::string& password, const std::string& callIn, const std::string& homeLocator, std::string& sessionKey, Location& out, Location& estimate, bool& haveEstimate, std::string& error) {
+  haveEstimate = false;
   if (user.empty() || password.empty()) {
-    error = "Put your QRZ.com username and password in Settings to look callsigns up there";
+    error = tr("Put your QRZ.com username and password in Settings to look callsigns up there");
     return false;
   }
   const std::string call = normalCall(callIn);
@@ -678,8 +783,15 @@ bool qrzLookup(const std::string& user, const std::string& password, const std::
   // The XML service had no place for it, or couldn't be used: its page on the website may say.
   const std::string xmlError = error;
   Location place;
-  if (!web::lookup(user, password, asked, place, error)) {
+  if (!web::lookup(user, password, asked, homeLocator, place, estimate, haveEstimate, error)) {
     if (found == FOUND_NO_PLACE) error = xmlError + " " + error;
+    if (haveEstimate && found == FOUND_NO_PLACE) {
+      // The XML service's name and town with the place worked out.
+      Location e = record;
+      e.lat = estimate.lat, e.lon = estimate.lon, e.locator = estimate.locator, e.accuracy = estimate.accuracy;
+      estimate = e;
+    }
+    if (haveEstimate) estimate.call = call;
     return false;
   }
   if (found == FOUND_NO_PLACE) {
@@ -690,6 +802,111 @@ bool qrzLookup(const std::string& user, const std::string& password, const std::
   }
   out.call = call;
   return true;
+}
+
+// ---------------------------------------------------------------- HamQTH.com, free for anyone with an account there
+
+static const char kHamQthUrl[] = "https://www.hamqth.com/xml.php";
+
+static bool hamqthLogin(const std::string& user, const std::string& password, std::string& id, std::string& error) {
+  std::string body;
+  if (!net::httpGet(std::string(kHamQthUrl) + "?u=" + net::urlEscape(user) + "&p=" + net::urlEscape(password), body, error, 1 << 16)) {
+    error = "HamQTH: " + error;
+    return false;
+  }
+  id = tag(body, "session_id");
+  if (id.empty()) {
+    std::string why = tag(body, "error");
+    error = why.empty() ? std::string(tr("HamQTH wouldn't log in.")) : trf("HamQTH wouldn't log in: %s", why.c_str());
+    return false;
+  }
+  return true;
+}
+
+// One lookup with a session id, which HamQTH keeps for an hour.
+static Found hamqthFind(const std::string& id, const std::string& call, Location& out, std::string& error) {
+  std::string body;
+  if (!net::httpGet(std::string(kHamQthUrl) + "?id=" + net::urlEscape(id) + "&callsign=" + net::urlEscape(call) + "&prg=IC7300Console", body, error, 1 << 18)) {
+    error = "HamQTH: " + error;
+    return FAILED;
+  }
+  size_t rec = body.find("<search>");
+  if (rec == std::string::npos) {
+    std::string why = tag(body, "error");
+    std::string lower = why;
+    for (char& c : lower) c = (char)tolower((unsigned char)c);
+    if (lower.find("session") != std::string::npos) {
+      error = "HamQTH: " + why;
+      return STALE;
+    }
+    if (lower.find("not found") != std::string::npos) {
+      error = trf("HamQTH has no %s", call.c_str());
+      return NOT_FOUND;
+    }
+    error = "HamQTH: " + (why.empty() ? std::string(tr("it gave an answer this can't read")) : why);
+    return FAILED;
+  }
+  out = Location();
+  out.call = normalCall(call);
+  out.name = tag(body, "adr_name", rec);
+  if (out.name.empty()) out.name = tag(body, "nick", rec);
+  out.qth = tag(body, "qth", rec);
+  if (out.qth.empty()) out.qth = tag(body, "adr_city", rec);
+  out.country = tag(body, "country", rec);
+  out.locator = tag(body, "grid", rec);
+  out.source = "HamQTH";
+  out.updated = utcNow();
+  out.accuracy = "grid";
+  std::string lat = tag(body, "latitude", rec), lon = tag(body, "longitude", rec);
+  char* endLat = nullptr;
+  char* endLon = nullptr;
+  double la = strtod(lat.c_str(), &endLat), lo = strtod(lon.c_str(), &endLon);
+  bool havePos = !lat.empty() && !lon.empty() && endLat != lat.c_str() && endLon != lon.c_str() && fabs(la) <= 90 && fabs(lo) <= 180 && !(la == 0 && lo == 0);
+  // HamQTH's position is sometimes wrong where its locator is right, such as east longitudes given as west. One
+  // outside the locator's square, give or take a little, gives way to the locator.
+  double south, west, north, east;
+  if (havePos && gridBounds(out.locator, south, west, north, east)) {
+    const double slack = 0.1;
+    if (la < south - slack || la > north + slack || lo < west - slack || lo > east + slack) havePos = false;
+  }
+  if (havePos) {
+    out.lat = la, out.lon = lo;
+    if (out.locator.empty()) out.locator = latLonToGrid(la, lo);
+  } else if (dx::gridToLatLon(out.locator, la, lo)) {
+    out.lat = la, out.lon = lo;
+  } else {
+    error = trf("HamQTH has %s but gives no locator or position.", out.call.c_str());
+    return FOUND_NO_PLACE;
+  }
+  return FOUND;
+}
+
+bool hamqthLookup(const std::string& user, const std::string& password, const std::string& callIn, std::string& sessionId, Location& out, std::string& error) {
+  if (user.empty() || password.empty()) {
+    error = tr("Put your HamQTH username and password in Settings to look callsigns up there");
+    return false;
+  }
+  const std::string call = normalCall(callIn);
+  Found found = FAILED;
+  for (int attempt = 0; attempt < 2; attempt++) {
+    if (sessionId.empty() && !hamqthLogin(user, password, sessionId, error)) return false;
+    found = hamqthFind(sessionId, call, out, error);
+    if (found == NOT_FOUND) {
+      const std::string base = baseCall(call);
+      if (base != call) found = hamqthFind(sessionId, base, out, error);
+    }
+    if (found != STALE) break;
+    sessionId.clear();
+  }
+  if (found != FOUND) return false;
+  out.call = call;
+  return true;
+}
+
+std::string sourceName(const Location& l) {
+  if (l.source == "QRZ") return "QRZ.com";
+  if (l.source == "HamQTH") return "HamQTH";
+  return N_("your log");
 }
 
 }  // namespace locations

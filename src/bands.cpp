@@ -1,5 +1,7 @@
 #include "bands.h"
 
+#include "i18n.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -452,16 +454,16 @@ void sortByName(Stations& s) {
 
 const char* serviceName(Service s) {
   switch (s) {
-    case S_COMMERCIAL: return "Commercial";
-    case S_GOVERNMENT: return "Government";
-    case S_NAVAL: return "Naval and maritime";
-    case S_MILITARY: return "Military";
-    case S_BROADCAST: return "Broadcast";
-    case S_AMATEUR: return "Amateur satellites and beacons";
-    case S_AVIATION: return "Aviation";
-    case S_SPACE: return "Satellites and navigation";
-    case S_LAND: return "Land mobile and licence-free";
-    case S_MYSTERY: return "Numbers and mystery stations";
+    case S_COMMERCIAL: return N_("Commercial");
+    case S_GOVERNMENT: return N_("Government");
+    case S_NAVAL: return N_("Naval and maritime");
+    case S_MILITARY: return N_("Military");
+    case S_BROADCAST: return N_("Broadcast");
+    case S_AMATEUR: return N_("Amateur satellites and beacons");
+    case S_AVIATION: return N_("Aviation");
+    case S_SPACE: return N_("Satellites and navigation");
+    case S_LAND: return N_("Land mobile and licence-free");
+    case S_MYSTERY: return N_("Numbers and mystery stations");
     default: return "";
   }
 }
@@ -660,18 +662,18 @@ std::vector<StationHit> Stations::search(const std::string& query) const {
 const char* useName(Use u) {
   switch (u) {
     case U_CW: return "CW";
-    case U_DIGI: return "Data";
-    case U_SSB: return "Voice";
+    case U_DIGI: return N_("Data");
+    case U_SSB: return N_("Voice");
     case U_FM: return "FM";
-    case U_BEACON: return "Beacons";
-    case U_SAT: return "Satellite";
-    case U_BROADCAST: return "Broadcast";
-    case U_AIR: return "Aviation";
-    case U_MARINE: return "Maritime";
-    case U_MOBILE: return "Mobile";
-    case U_FIXED: return "Fixed";
-    case U_NAV: return "Navigation";
-    default: return "Other";
+    case U_BEACON: return N_("Beacons");
+    case U_SAT: return N_("Satellite");
+    case U_BROADCAST: return N_("Broadcast");
+    case U_AIR: return N_("Aviation");
+    case U_MARINE: return N_("Maritime");
+    case U_MOBILE: return N_("Mobile");
+    case U_FIXED: return N_("Fixed");
+    case U_NAV: return N_("Navigation");
+    default: return N_("Other");
   }
 }
 

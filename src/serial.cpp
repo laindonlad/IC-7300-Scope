@@ -1,4 +1,5 @@
 #include "transport.h"
+#include "i18n.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +44,7 @@ class WinSerial : public Transport {
   bool open(std::string& err) override {
     close();
     if (port_.empty()) {
-      err = "No serial port chosen";
+      err = N_("No serial port chosen");
       return false;
     }
     std::string name = "\\\\.\\" + port_;
@@ -176,7 +177,7 @@ class PosixSerial : public Transport {
   bool open(std::string& err) override {
     close();
     if (port_.empty()) {
-      err = "No serial port chosen";
+      err = N_("No serial port chosen");
       return false;
     }
     // O_NONBLOCK so opening can't hang on carrier detect. O_EXCL-style locking keeps a second program out.

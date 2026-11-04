@@ -13,8 +13,9 @@ struct Location {
   std::string call;
   double lat = 0, lon = 0;
   std::string locator, name, qth, country;
-  std::string source;    // "Log" or "QRZ"
-  std::string accuracy;  // how the place was found: "locator", or QRZ's geoloc: user, geocode, grid, zip, state, dxcc, none
+  std::string source;    // "Log", "QRZ" or "HamQTH"
+  std::string accuracy;  // how the place was found: "locator", or QRZ's geoloc: user, geocode, grid, zip, state, dxcc,
+                         // none; or "bearing" or "bearing-grid" when worked out from QRZ's bearing and distance
   std::string updated;   // UTC "YYYY-MM-DD HH:MM"
 };
 
@@ -65,7 +66,16 @@ bool fromLog(const std::vector<store::LogEntry>& log, const std::string& call, L
 // Looks a callsign up with QRZ.com's XML service, logging in first if sessionKey is empty or has run out, and
 // leaving the key in it for next time. Waits on the network, so it belongs on its own thread. False with a message
 // if there's no place to be had: a QRZ account without an XML subscription gets no locator or position for most
-// callsigns.
-bool qrzLookup(const std::string& user, const std::string& password, const std::string& call, std::string& sessionKey, Location& out, std::string& error);
+// callsigns. When it finds no place but QRZ.com's page gives a bearing and distance from the operator's station,
+// estimate is the place worked out from those, and haveEstimate is set: a last resort, after other services. Where
+// the operator's own station is comes from their QRZ.com page, or failing that from homeLocator.
+bool qrzLookup(const std::string& user, const std::string& password, const std::string& call, const std::string& homeLocator, std::string& sessionKey, Location& out, Location& estimate, bool& haveEstimate, std::string& error);
+
+// The same with HamQTH.com's free XML service, which needs only a free HamQTH account. sessionId is kept between
+// lookups like QRZ's key. Its place is the station's own locator or position, where they've given one.
+bool hamqthLookup(const std::string& user, const std::string& password, const std::string& call, std::string& sessionId, Location& out, std::string& error);
+
+// Where a kept place came from, in words: "QRZ.com", "HamQTH" or "your log".
+std::string sourceName(const Location& l);
 
 }  // namespace locations

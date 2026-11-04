@@ -1,5 +1,7 @@
 #include "audio.h"
 
+#include "i18n.h"
+
 #define MINIAUDIO_IMPLEMENTATION
 #define MA_NO_ENCODING
 #define MA_NO_DECODING
@@ -151,20 +153,20 @@ std::string AudioEngine::guessRigInput() {
 bool AudioEngine::startCapture(const std::string& name, std::string& err) {
   stopCapture();
   if (!impl_->ctxOk) {
-    err = "The audio system didn't start";
+    err = tr("The audio system didn't start");
     return false;
   }
   ma_device_info* info;
   ma_uint32 n;
   if (ma_context_get_devices(&impl_->ctx, nullptr, nullptr, &info, &n) != MA_SUCCESS) {
-    err = "Can't list the sound devices";
+    err = tr("Can't list the sound devices");
     return false;
   }
   const ma_device_id* id = nullptr;
   for (ma_uint32 i = 0; i < n; i++)
     if (name == info[i].name) id = &info[i].id;
   if (!id) {
-    err = "\"" + name + "\" isn't there (radio off or unplugged?)";
+    err = trf("\"%s\" isn't there (radio off or unplugged?)", name.c_str());
     return false;
   }
   ma_device_config c = ma_device_config_init(ma_device_type_capture);
@@ -177,14 +179,14 @@ bool AudioEngine::startCapture(const std::string& name, std::string& err) {
   c.notificationCallback = AudioCallbacks::notify;
   c.pUserData = this;
   if (ma_device_init(&impl_->ctx, &c, &impl_->cap) != MA_SUCCESS) {
-    err = "Can't open \"" + name + "\"";
+    err = trf("Can't open \"%s\"", name.c_str());
     return false;
   }
   lost_ = false;
   impl_->forDsp.clear();
   if (ma_device_start(&impl_->cap) != MA_SUCCESS) {
     ma_device_uninit(&impl_->cap);
-    err = "Can't start \"" + name + "\"";
+    err = trf("Can't start \"%s\"", name.c_str());
     return false;
   }
   impl_->capOpen = true;
@@ -228,13 +230,13 @@ bool AudioEngine::capturing() const { return impl_->capOpen || genThread_.joinab
 bool AudioEngine::startMonitor(const std::string& name, std::string& err) {
   stopMonitor();
   if (!impl_->ctxOk) {
-    err = "The audio system didn't start";
+    err = tr("The audio system didn't start");
     return false;
   }
   ma_device_info* info;
   ma_uint32 n;
   if (ma_context_get_devices(&impl_->ctx, &info, &n, nullptr, nullptr) != MA_SUCCESS) {
-    err = "Can't list the sound devices";
+    err = tr("Can't list the sound devices");
     return false;
   }
   const ma_device_id* id = nullptr;
@@ -243,13 +245,13 @@ bool AudioEngine::startMonitor(const std::string& name, std::string& err) {
     if (!pick) continue;
     if (isRigCodec(info[i].name)) {
       // Playing to it feeds the rig's modulation input: it goes on the air if the rig transmits.
-      err = "The rig's USB sound card is the system default output, and the monitor won't feed it. Choose your speakers in Settings.";
+      err = tr("The rig's USB sound card is the system default output, and the monitor won't feed it. Choose your speakers in Settings.");
       return false;
     }
     id = &info[i].id;
   }
   if (!id) {
-    err = name.empty() ? "No default output device" : "\"" + name + "\" isn't there";
+    err = name.empty() ? std::string(tr("No default output device")) : trf("\"%s\" isn't there", name.c_str());
     return false;
   }
   ma_device_config c = ma_device_config_init(ma_device_type_playback);
@@ -261,7 +263,7 @@ bool AudioEngine::startMonitor(const std::string& name, std::string& err) {
   c.dataCallback = AudioCallbacks::output;
   c.pUserData = this;
   if (ma_device_init(&impl_->ctx, &c, &impl_->play) != MA_SUCCESS) {
-    err = "Can't open the output device";
+    err = tr("Can't open the output device");
     return false;
   }
   impl_->forMonitor.clear();
@@ -269,7 +271,7 @@ bool AudioEngine::startMonitor(const std::string& name, std::string& err) {
   if (ma_device_start(&impl_->play) != MA_SUCCESS) {
     impl_->playOpen = false;
     ma_device_uninit(&impl_->play);
-    err = "Can't start the output device";
+    err = tr("Can't start the output device");
     return false;
   }
   return true;

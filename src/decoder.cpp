@@ -1,5 +1,7 @@
 #include "decoder.h"
 
+#include "i18n.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -113,7 +115,7 @@ struct ChartFile {
 }  // namespace
 
 const char* Decoder::modeName(int mode) {
-  static const char* const kNames[MODE_COUNT] = {"Off", "CW", "RTTY", "NAVTEX", "WEFAX"};
+  static const char* const kNames[MODE_COUNT] = {N_("Off"), "CW", "RTTY", "NAVTEX", "WEFAX"};
   return mode >= 0 && mode < MODE_COUNT ? kNames[mode] : "?";
 }
 

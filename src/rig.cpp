@@ -1,5 +1,7 @@
 #include "rig.h"
 
+#include "i18n.h"
+
 #include <string.h>
 
 #include <algorithm>
@@ -130,7 +132,7 @@ bool Rig::held(uint32_t k, uint64_t now) const {
 void Rig::setFreq(long long hz) {
   std::lock_guard<std::mutex> g(m_);
   hz = radio_->clamp(hz);
-  post(K_FREQ, civ::setFreq(addr_, hz), "set that frequency");
+  post(K_FREQ, civ::setFreq(addr_, hz), N_("set that frequency"));
   st_.hz = hz;
   hold(K_FREQ);
 }
@@ -139,7 +141,7 @@ void Rig::setOtherFreq(long long hz) {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasOtherVfo) return;
   hz = radio_->clamp(hz);
-  post(K_OTHER_FREQ, civ::setOtherFreq(addr_, hz), "set the other VFO");
+  post(K_OTHER_FREQ, civ::setOtherFreq(addr_, hz), N_("set the other VFO"));
   st_.otherHz = hz;
   hold(K_OTHER_FREQ);
 }
@@ -148,10 +150,10 @@ void Rig::setMode(int mode, bool data, int filter) {
   filter = std::min(3, std::max(1, filter));
   std::lock_guard<std::mutex> g(m_);
   mode = civ::modeOn(*radio_, mode);
-  post(K_MODE, civ::setMode(addr_, mode, filter), "set that mode");
+  post(K_MODE, civ::setMode(addr_, mode, filter), N_("set that mode"));
   bool canData = radio_->hasDataMode && civ::hasData(mode);
   bool d = data && canData;
-  if (canData) post(K_DATA, civ::setData(addr_, d, filter), "set data mode");
+  if (canData) post(K_DATA, civ::setData(addr_, d, filter), N_("set data mode"));
   st_.mode = mode, st_.data = d, st_.filter = filter;
   hold(K_MODE);
   hold(K_DATA);
@@ -163,7 +165,7 @@ void Rig::setOtherMode(int mode, bool data, int filter) {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasOtherVfo) return;
   bool d = data && civ::hasData(mode);
-  post(K_OTHER_MODE, civ::setOtherMode(addr_, mode, d, filter, radio_->hasMainSub), "set the other VFO's mode");
+  post(K_OTHER_MODE, civ::setOtherMode(addr_, mode, d, filter, radio_->hasMainSub), N_("set the other VFO's mode"));
   st_.otherMode = mode, st_.otherData = d, st_.otherFilter = filter;
   hold(K_OTHER_MODE);
 }
@@ -173,7 +175,7 @@ void Rig::setLevel(int l, int v) {
   uint32_t k = key(0x14, civ::levelSub(l));
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasTransmit && civ::levelIsTx(l)) return;
-  post(k, civ::setLevel(addr_, l, v), "set that level");
+  post(k, civ::setLevel(addr_, l, v), N_("set that level"));
   st_.level[l] = v;
   hold(k);
 }
@@ -182,7 +184,7 @@ void Rig::setSwitch(int s, int v) {
   uint32_t k = key(0x16, civ::switchSub(s));
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasTransmit && civ::switchIsTx(s)) return;
-  post(k, civ::setSwitch(addr_, s, v), "change that setting");
+  post(k, civ::setSwitch(addr_, s, v), N_("change that setting"));
   st_.sw[s] = v;
   hold(k);
 }
@@ -191,7 +193,7 @@ void Rig::setTone(int t, int v) {
   v = std::min(10, std::max(0, v));
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasToneMenu() || !civ::toneWritable(t, st_.rigId)) return;
-  post(toneKey(t), civ::setTone(addr_, t, v), "set that EQ level");
+  post(toneKey(t), civ::setTone(addr_, t, v), N_("set that EQ level"));
   st_.tone[t] = v;
   hold(toneKey(t));
 }
@@ -201,15 +203,15 @@ bool Rig::setRadioClock(int year, int month, int day, int hour, int minute, int 
   const civ::ClockRows* rows = civ::clockRows(st_.rigId);
   if (!rows || !st_.connected) return false;
   // The time first, as that's the one that was meant for this moment.
-  post(K_CLOCK_TIME, civ::setClockTime(addr_, *rows, hour, minute), "set its time");
-  post(K_CLOCK_DATE, civ::setClockDate(addr_, *rows, year, month, day), "set its date");
-  post(K_CLOCK_OFFSET, civ::setClockOffset(addr_, *rows, utcOffsetMinutes), "set its UTC offset");
+  post(K_CLOCK_TIME, civ::setClockTime(addr_, *rows, hour, minute), N_("set its time"));
+  post(K_CLOCK_DATE, civ::setClockDate(addr_, *rows, year, month, day), N_("set its date"));
+  post(K_CLOCK_OFFSET, civ::setClockOffset(addr_, *rows, utcOffsetMinutes), N_("set its UTC offset"));
   return true;
 }
 
 void Rig::setAtt(bool on) {
   std::lock_guard<std::mutex> g(m_);
-  post(K_ATT, civ::setAtt(addr_, on, radio_->attCode), "set the attenuator");
+  post(K_ATT, civ::setAtt(addr_, on, radio_->attCode), N_("set the attenuator"));
   st_.att = on;
   st_.attDb = on ? radio_->attDb : 0;
   hold(K_ATT);
@@ -217,7 +219,7 @@ void Rig::setAtt(bool on) {
 
 void Rig::setAttDb(int db) {
   std::lock_guard<std::mutex> g(m_);
-  post(K_ATT, civ::setAttDb(addr_, db), "set the attenuator");
+  post(K_ATT, civ::setAttDb(addr_, db), N_("set the attenuator"));
   st_.att = db > 0;
   st_.attDb = db;
   hold(K_ATT);
@@ -227,7 +229,7 @@ void Rig::setAntenna(int index) {
   std::lock_guard<std::mutex> g(m_);
   if (radio_->antennas <= 1 || index < 0 || index >= radio_->antennas) return;
   if (index > 0 && st_.hz >= radio_->antennaSwitchBelowHz) return;
-  post(K_ANT, civ::setAntenna(addr_, index), "change antenna");
+  post(K_ANT, civ::setAntenna(addr_, index), N_("change antenna"));
   st_.ant = index;
   hold(K_ANT);
 }
@@ -235,7 +237,7 @@ void Rig::setAntenna(int index) {
 void Rig::setIpPlus(bool on) {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasIpPlus) return;
-  post(K_IP_PLUS, civ::setIpPlus(addr_, on), "set IP+");
+  post(K_IP_PLUS, civ::setIpPlus(addr_, on), N_("set IP+"));
   st_.ipPlus = on;
   hold(K_IP_PLUS);
 }
@@ -243,14 +245,14 @@ void Rig::setIpPlus(bool on) {
 void Rig::setSplit(bool on) {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasOtherVfo) return;
-  post(K_SPLIT, civ::setSplit(addr_, on), "set split");
+  post(K_SPLIT, civ::setSplit(addr_, on), N_("set split"));
   st_.split = on;
   hold(K_SPLIT);
 }
 
 void Rig::setWidth(int code) {
   std::lock_guard<std::mutex> g(m_);
-  post(K_WIDTH, civ::setWidth(addr_, code), "set the filter width");
+  post(K_WIDTH, civ::setWidth(addr_, code), N_("set the filter width"));
   st_.width = code;
   hold(K_WIDTH);
 }
@@ -259,7 +261,7 @@ void Rig::setRit(int hz) {
   hz = std::min(9999, std::max(-9999, hz));
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasRit) return;
-  post(K_RIT, civ::setRit(addr_, hz), "set the RIT offset");
+  post(K_RIT, civ::setRit(addr_, hz), N_("set the RIT offset"));
   st_.ritHz = hz;
   hold(K_RIT);
 }
@@ -267,7 +269,7 @@ void Rig::setRit(int hz) {
 void Rig::setRitOn(bool on) {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasRit) return;
-  post(K_RIT_ON, civ::ritOn(addr_, on), "set RIT");
+  post(K_RIT_ON, civ::ritOn(addr_, on), N_("set RIT"));
   st_.ritOn = on;
   hold(K_RIT_ON);
 }
@@ -275,7 +277,7 @@ void Rig::setRitOn(bool on) {
 void Rig::setXitOn(bool on) {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasXit) return;
-  post(K_XIT_ON, civ::xitOn(addr_, on), "set XIT");
+  post(K_XIT_ON, civ::xitOn(addr_, on), N_("set XIT"));
   st_.xitOn = on;
   hold(K_XIT_ON);
 }
@@ -283,24 +285,24 @@ void Rig::setXitOn(bool on) {
 void Rig::vfoEqual() {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasOtherVfo) return;
-  post(key(0x07, 0xA0), civ::vfoEqual(addr_), "copy the VFO");
+  post(key(0x07, 0xA0), civ::vfoEqual(addr_), N_("copy the VFO"));
 }
 
 void Rig::vfoSwap() {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasOtherVfo) return;
   if (radio_->hasVfoExchange) {
-    post(key(0x07, 0xB0), civ::vfoSwap(addr_), "swap the VFOs");
+    post(key(0x07, 0xB0), civ::vfoSwap(addr_), N_("swap the VFOs"));
   } else {
     // No command does this: 07 B0 would exchange the MAIN and SUB bands. So each VFO is given the other's
     // settings, which takes knowing them.
     if (st_.hz <= 0 || st_.otherHz <= 0 || st_.mode < 0 || st_.otherMode < 0) return;
     int filter = std::min(3, std::max(1, st_.otherFilter)), otherFilter = std::min(3, std::max(1, st_.filter));
-    post(K_FREQ, civ::setFreq(addr_, st_.otherHz), "swap the VFOs");
-    post(K_OTHER_FREQ, civ::setOtherFreq(addr_, st_.hz), "swap the VFOs");
-    post(K_MODE, civ::setMode(addr_, st_.otherMode, filter), "swap the VFOs");
-    if (civ::hasData(st_.otherMode)) post(K_DATA, civ::setData(addr_, st_.otherData, filter), "swap the VFOs");
-    post(K_OTHER_MODE, civ::setOtherMode(addr_, st_.mode, st_.data, otherFilter, radio_->hasMainSub), "swap the VFOs");
+    post(K_FREQ, civ::setFreq(addr_, st_.otherHz), N_("swap the VFOs"));
+    post(K_OTHER_FREQ, civ::setOtherFreq(addr_, st_.hz), N_("swap the VFOs"));
+    post(K_MODE, civ::setMode(addr_, st_.otherMode, filter), N_("swap the VFOs"));
+    if (civ::hasData(st_.otherMode)) post(K_DATA, civ::setData(addr_, st_.otherData, filter), N_("swap the VFOs"));
+    post(K_OTHER_MODE, civ::setOtherMode(addr_, st_.mode, st_.data, otherFilter, radio_->hasMainSub), N_("swap the VFOs"));
   }
   std::swap(st_.hz, st_.otherHz);
   std::swap(st_.mode, st_.otherMode);
@@ -312,20 +314,20 @@ void Rig::vfoSwap() {
 void Rig::setAtu(bool on) {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasTuner) return;
-  post(K_ATU, civ::atu(addr_, on ? 1 : 0), "set the tuner");
+  post(K_ATU, civ::atu(addr_, on ? 1 : 0), N_("set the tuner"));
   st_.atu = on;
   hold(K_ATU);
 }
 
 void Rig::powerOff() {
   std::lock_guard<std::mutex> g(m_);
-  post(key(0x18), civ::powerOff(addr_), "power off");
+  post(key(0x18), civ::powerOff(addr_), N_("power off"));
 }
 
 void Rig::powerOn() {
   // The rig's asleep, so nothing's connected and post would refuse. The worker's next write goes first.
   std::lock_guard<std::mutex> g(m_);
-  Cmd c{key(0x18), {}, "power on"};
+  Cmd c{key(0x18), {}, N_("power on")};
   // At 115200 the rig needs about 150 FEs to wake its CI-V (Hamlib's icom_set_powerstat).
   c.bytes.assign(150, 0xFE);
   // A radio that's off can't say which it is, so each candidate is told. The others ignore what isn't theirs.
@@ -342,36 +344,36 @@ void Rig::powerOn() {
 void Rig::setScope(bool output) {
   std::lock_guard<std::mutex> g(m_);
   wantScope_ = output;
-  if (output) post(K_SCOPE_ON, civ::scopeOn(addr_, true), "turn the scope on");
-  post(K_SCOPE_OUT, civ::scopeOutput(addr_, output), "start the scope data");
+  if (output) post(K_SCOPE_ON, civ::scopeOn(addr_, true), N_("turn the scope on"));
+  post(K_SCOPE_OUT, civ::scopeOutput(addr_, output), N_("start the scope data"));
   st_.scopeOutput = output;
   hold(K_SCOPE_OUT);
 }
 
 void Rig::setScopeSpan(long long hz) {
   std::lock_guard<std::mutex> g(m_);
-  post(K_SCOPE_SPAN, civ::scopeSpan(addr_, hz), "set the span");
+  post(K_SCOPE_SPAN, civ::scopeSpan(addr_, hz), N_("set the span"));
   st_.scopeSpan = hz;
   hold(K_SCOPE_SPAN);
 }
 
 void Rig::setScopeMode(int mode) {
   std::lock_guard<std::mutex> g(m_);
-  post(K_SCOPE_MODE, civ::scopeMode(addr_, mode), "set the scope mode");
+  post(K_SCOPE_MODE, civ::scopeMode(addr_, mode), N_("set the scope mode"));
   st_.scopeMode = mode;
   hold(K_SCOPE_MODE);
 }
 
 void Rig::setScopeRef(double db) {
   std::lock_guard<std::mutex> g(m_);
-  post(K_SCOPE_REF, civ::scopeRef(addr_, db), "set the scope reference");
+  post(K_SCOPE_REF, civ::scopeRef(addr_, db), N_("set the scope reference"));
   st_.scopeRef = db, st_.scopeRefKnown = true;
   hold(K_SCOPE_REF);
 }
 
 void Rig::setScopeSpeed(int s) {
   std::lock_guard<std::mutex> g(m_);
-  post(K_SCOPE_SPEED, civ::scopeSpeed(addr_, s), "set the sweep speed");
+  post(K_SCOPE_SPEED, civ::scopeSpeed(addr_, s), N_("set the sweep speed"));
   st_.scopeSpeed = s;
   hold(K_SCOPE_SPEED);
 }
@@ -387,7 +389,7 @@ bool Rig::ptt(bool on) {
   if (on && (!st_.txArmed || !st_.connected)) return false;
   keyWanted_ = on;
   if (on) {
-    post(K_TX, civ::ptt(addr_, true), "transmit", true);
+    post(K_TX, civ::ptt(addr_, true), N_("transmit"), true);
     keyedByUs_ = true;
     keyedAt_ = nowMs();
     st_.tx = true;
@@ -400,7 +402,7 @@ bool Rig::ptt(bool on) {
 bool Rig::tuneAtu() {
   std::lock_guard<std::mutex> g(m_);
   if (!st_.txArmed || !st_.connected || !radio_->hasTuner) return false;
-  post(K_ATU, civ::atu(addr_, 2), "start the tuner");
+  post(K_ATU, civ::atu(addr_, 2), N_("start the tuner"));
   st_.atu = 2;
   hold(K_ATU);
   return true;
@@ -412,7 +414,7 @@ bool Rig::sendCw(const std::string& text) {
   // Each chunk has its own key, so they queue in order rather than replacing each other.
   static uint32_t seq = 0;
   for (const std::string& chunk : civ::cwChunks(text))
-    post(key(0x17, 0) | (++seq << 16), civ::cwText(addr_, chunk), "send CW");
+    post(key(0x17, 0) | (++seq << 16), civ::cwText(addr_, chunk), N_("send CW"));
   return true;
 }
 
@@ -422,13 +424,13 @@ void Rig::stopCw() {
   // Whatever's still queued mustn't follow the stop.
   queue_.erase(std::remove_if(queue_.begin(), queue_.end(), [](const Cmd& c) { return (c.key & 0xFF00) == (0x17u << 8); }),
                queue_.end());
-  post(key(0x17, 0xFF), civ::cwStop(addr_), "stop CW", true);
+  post(key(0x17, 0xFF), civ::cwStop(addr_), N_("stop CW"), true);
 }
 
 bool Rig::playVoice(int n) {
   std::lock_guard<std::mutex> g(m_);
   if (!radio_->hasTransmit || (n != 0 && (!st_.txArmed || !st_.connected))) return false;
-  post(key(0x28), civ::voiceMemory(addr_, n), "play that voice memory");
+  post(key(0x28), civ::voiceMemory(addr_, n), N_("play that voice memory"));
   return true;
 }
 
@@ -493,7 +495,7 @@ void Rig::buildPolls() {
 bool Rig::write(const civ::Bytes& b) {
   if (!tp_ || !tp_->isOpen()) return false;
   if (tp_->write(b.data(), (int)b.size())) return true;
-  closeLink("Writing to the port failed (unplugged?)");
+  closeLink(N_("Writing to the port failed (unplugged?)"));
   return false;
 }
 
@@ -538,8 +540,8 @@ void Rig::linkUp() {
   if (radio_->hasMainSub && wantScope_) post(key(0x27, 0x12), civ::selectMainScope(addr_), "");
   // A power cycle forgets the data output, so it's asked for every time the rig comes back.
   if (wantScope_) {
-    post(K_SCOPE_ON, civ::scopeOn(addr_, true), "turn the scope on");
-    post(K_SCOPE_OUT, civ::scopeOutput(addr_, true), "start the scope data");
+    post(K_SCOPE_ON, civ::scopeOn(addr_, true), N_("turn the scope on"));
+    post(K_SCOPE_OUT, civ::scopeOutput(addr_, true), N_("start the scope data"));
   }
 }
 
@@ -780,7 +782,7 @@ void Rig::serviceTx(uint64_t now) {
       st_.txSeconds = (int)((now - keyedAt_) / 1000);
       if (now - keyedAt_ >= (uint64_t)st_.txLimit * 1000) {
         keyWanted_ = false;  // the watchdog
-        st_.lastError = "Transmit time limit reached: PTT released";
+        st_.lastError = N_("Transmit time limit reached: PTT released");
         st_.lastErrorSeq++;
         st_.txLimitHits++;
       }
@@ -868,6 +870,19 @@ void Rig::shutdownLink() {
     }
   }
   if (scope) write(civ::scopeOutput(addr_, false));  // or the rig streams into a port nobody's reading
+  if (powerOffAtStop_) {
+    bool on;
+    {
+      std::lock_guard<std::mutex> g(m_);
+      on = st_.connected;
+    }
+    // Twice, as nothing's left to see a lost frame. A rig that's already off is left alone.
+    uint8_t b[64];
+    for (int i = 0; on && i < 2 && tp_ && tp_->isOpen(); i++) {
+      write(civ::powerOff(addr_));
+      if (tp_ && tp_->isOpen()) tp_->read(b, sizeof b, 60);
+    }
+  }
   if (tp_ && tp_->isOpen()) {
     uint8_t b[64];
     tp_->read(b, sizeof b, 30);
@@ -893,7 +908,7 @@ void Rig::run() {
     }
     int n = tp_->read(buf, sizeof buf, 3);
     if (n < 0) {
-      closeLink("The port has gone (unplugged?)");
+      closeLink(N_("The port has gone (unplugged?)"));
       continue;
     }
     if (n > 0) {

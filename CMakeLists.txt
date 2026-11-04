@@ -10,7 +10,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # ---- everything below the window: no GUI, no audio, so the tests and the probe can use it ----
-add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp src/dxcluster.cpp src/decoder.cpp src/chart_overlay.cpp src/update_check.cpp src/net.cpp src/locations.cpp src/printing.cpp)
+add_library(rigcore STATIC src/rig.cpp src/serial.cpp src/sim_rig.cpp src/store.cpp src/bands.cpp src/clock_sync.cpp src/dxcluster.cpp src/decoder.cpp src/chart_overlay.cpp src/update_check.cpp src/net.cpp src/locations.cpp src/printing.cpp src/i18n.cpp)
 target_include_directories(rigcore PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(rigcore SYSTEM PRIVATE third_party/morse third_party/stb)
 
@@ -35,12 +35,16 @@ endfunction()
 embed_folder(bandplans json kBuiltinPlans builtin_bandplans.inc)
 embed_folder(stations json kBuiltinStations builtin_stations.inc)
 embed_folder(overlays png kBuiltinOverlays builtin_overlays.inc)
+embed_folder(lang txt kBuiltinLang builtin_lang.inc)
 
 find_package(Threads REQUIRED)
 target_link_libraries(rigcore PUBLIC Threads::Threads)
 if(WIN32)
   target_link_libraries(rigcore PUBLIC setupapi shell32 ws2_32 ole32 comdlg32 winhttp winspool gdi32)
   target_compile_definitions(rigcore PUBLIC _USE_MATH_DEFINES)
+endif()
+if(APPLE)
+  target_link_libraries(rigcore PUBLIC "-framework CoreFoundation")  # the system's language
 endif()
 if(MSVC)
   target_compile_options(rigcore PRIVATE /W3)

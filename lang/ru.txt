@@ -1,0 +1,2290 @@
+# Русский (ru)
+
+%s is in use by another program
+= %s занят другой программой
+
+%s isn't there (radio off or unplugged?)
+= %s не найден (радио выключено или отсоединено?)
+
+%s: permission denied (on Linux, join the dialout group)
+= %s: доступ запрещён (в Linux добавьте себя в группу dialout)
+
+%s can't be opened
+= Не удаётся открыть %s
+
+The rig wouldn't %s
+= Трансивер не смог %s
+
+A band plan has a problem: %s
+= Ошибка в плане диапазонов: %s
+
+A station list has a problem: %s
+= Ошибка в списке станций: %s
+
+Band plans and stations reloaded
+= Планы диапазонов и станции перезагружены
+
+DEMO: simulated %s
+= ДЕМО: имитация %s
+
+The rig's USB audio isn't there (radio off?). Choose a device in Settings.
+= USB-звук трансивера не найден (радио выключено?). Выберите устройство в настройках.
+
+Saved %s
+= Сохранено: %s
+
+%s isn't on the %s, which tunes %s
+= %s недоступно на %s (диапазон: %s)
+
+"%s" isn't a frequency the %s can tune (%s)
+= «%s» – частота, недоступная для %s (%s)
+
+The %s is a receiver: it can't transmit.
+= %s – приёмник, он не может передавать.
+
+Transmit isn't armed. Press ARM TX first.
+= Передача не разрешена. Сначала нажмите ARM TX.
+
+Enter: %s MHz
+= Ввод: %s МГц
+
+keep typing, or Esc to cancel
+= продолжайте ввод или Esc для отмены
+
+Other VFO
+= Другой VFO
+
+Listening on
+= Приём на
+
+Click for the bar meter
+= Щёлкните: столбчатый индикатор
+
+Click for the needle meter
+= Щёлкните: стрелочный индикатор
+
+Squelch open
+= Шумодав открыт
+
+Squelch closed
+= Шумодав закрыт
+
+OVERLOAD
+= ПЕРЕГРУЗКА
+
+No overload
+= Нет перегрузки
+
+SIGNAL
+= СИГНАЛ
+
+Saved %s to memories
+= %s сохранено в память
+
+Type-N, 50 ohms: 10 kHz to 3 GHz
+= Type-N, 50 Ом: от 10 кГц до 3 ГГц
+
+SO-239, 50 ohms: 10 kHz to 30 MHz
+= SO-239, 50 Ом: от 10 кГц до 30 МГц
+
+RCA, 500 ohms: 10 kHz to 30 MHz
+= RCA, 500 Ом: от 10 кГц до 30 МГц
+
+Save to memories
+= В память
+
+Save this frequency and mode to memories
+= Сохранить эту частоту и режим в память
+
+Receive only. Hold the mouse over an antenna for its port.
+= Только приём. Наведите мышь на антенну, чтобы увидеть её разъём.
+
+Receive only. Above 30 MHz it can only use ANT1.
+= Только приём. Выше 30 МГц доступна только ANT1.
+
+Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT.
+= Пока это не включено, здесь ничто не передаёт. Выключается при каждом запуске.\nВыключение также отпускает PTT.
+
+The rig isn't connected
+= Трансивер не подключён
+
+Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).
+= Щелчок включает, щелчок выключает. То же делает Ctrl+Space.\nОтпускается сам через %d с (Настройки).
+
+Starts the rig's antenna tuner. This transmits a carrier.
+= Запускает антенный тюнер трансивера. При этом излучается несущая.
+
+The antenna tuner in or out of line
+= Включить или выключить антенный тюнер
+
+Receive on this VFO, transmit on the other. Right-click for a quick offset.
+= Приём на этом VFO, передача на другом. Правый щелчок – быстрый разнос.
+
+Split %+d kHz
+= Сплит %+d кГц
+
+Swap the two VFOs
+= Поменять VFO местами
+
+Copy this VFO to the other
+= Копировать этот VFO в другой
+
+Mem
+= Пам.
+
+TRANSMITTING
+= ПЕРЕДАЧА
+
+%d s of %d s
+= %d с из %d с
+
+Armed: the buttons above will transmit
+= Разрешено: кнопки выше включат передачу
+
+Transmit locked
+= Передача заблокирована
+
+Bands
+= Диапазоны
+
+The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order.
+= Текущий диапазон. Щёлкните, чтобы увидеть все диапазоны приёмника.\nPage Up и Page Down перебирают их по порядку.
+
+Go to the band
+= Перейти на диапазон
+
+Wide FM, for FM broadcast and other wide signals
+= Широкополосная FM, для FM-вещания и других широких сигналов
+
+Synchronous AM: both sidebands, or just the lower or upper one to dodge interference
+= Синхронная AM: обе боковые полосы или только нижняя или верхняя, чтобы уйти от помех
+
+Digital
+= Цифра
+
+D-STAR, P25, dPMR, NXDN and DCR digital voice
+= Цифровая речь D-STAR, P25, dPMR, NXDN и DCR
+
+Transmit bass and treble
+= НЧ и ВЧ на передаче
+
+Receive bass and treble
+= НЧ и ВЧ на приёме
+
+The rig has no bass or treble setting for %s
+= У трансивера нет регулировки НЧ/ВЧ для %s
+
+Not available: this radio hasn't said it's an IC-7300 (SSB only on an MK2)
+= Недоступно: радио не сообщило, что это IC-7300 (на MK2 только SSB)
+
+Not available: this radio hasn't said it's an IC-7300
+= Недоступно: радио не сообщило, что это IC-7300
+
+Not available in %s
+= Недоступно в %s
+
+Transmit audio
+= Звук передачи
+
+Receive audio
+= Звук приёма
+
+Bass
+= НЧ
+
+Treble
+= ВЧ
+
+%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.
+= %s. Возврат туда, где вы были на этом диапазоне.\nПравый щелчок: CW, FT8 и т. д.
+
+The %s plan has no bands for the %s
+= В плане %s нет диапазонов для %s
+
+D-STAR digital voice
+= Цифровая речь D-STAR
+
+D-STAR high-speed data, on 23 cm only
+= Высокоскоростные данные D-STAR, только на 23 см
+
+Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)
+= Режим данных: трансивер берёт звук для передачи со звуковой карты USB (при DATA MOD = USB)
+
+Step
+= Шаг
+
+Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too.
+= Стрелки влево и вправо перестраивают на этот шаг, вверх и вниз меняют его.\nКолесо мыши над водопадами тоже использует его.
+
+RECEIVE
+= ПРИЁМ
+
+RF gain
+= Усиление ВЧ
+
+Squelch
+= Шумодав
+
+Preamp
+= Предусил.
+
+The internal preamp, and any external one the rig powers (set up in its menu)
+= Встроенный предусилитель и внешний, питаемый от трансивера (настраивается в его меню)
+
+Improves how it copes with strong signals, at some cost in sensitivity
+= Улучшает работу с сильными сигналами ценой некоторой потери чувствительности
+
+Attenuator
+= Аттенюатор
+
+Width
+= Ширина
+
+fixed by the mode
+= задана режимом
+
+Shape
+= Форма
+
+PBT inner
+= PBT внутр.
+
+PBT outer
+= PBT внешн.
+
+Centre PBT
+= Центр PBT
+
+Notch
+= Режектор
+
+Notch width
+= Шир. режектора
+
+Auto notch
+= Авторежектор
+
+RIT / XIT
+= RIT / XIT
+
+Clear
+= Сброс
+
+CW pitch
+= Тон CW
+
+TRANSMIT
+= ПЕРЕДАЧА
+
+RF power
+= Мощность
+
+Mic gain
+= Усил. микр.
+
+Comp
+= Компр.
+
+SSB TX BW
+= Полоса TX SSB
+
+Monitor
+= Монитор
+
+Anti-VOX
+= Anti-VOX
+
+Break-in
+= Break-in
+
+Key speed
+= Скорость
+
+BK-IN delay
+= Задерж. BK-IN
+
+Not on a band in the %s plan
+= Вне диапазонов плана %s
+
+In the %s band
+= В диапазоне %s
+
+%s: %s\n%s to %s MHz\nClick to tune here
+= %s: %s\n%s – %s МГц\nЩёлкните, чтобы настроиться сюда
+
+Out of band under the %s plan
+= Вне диапазона по плану %s
+
+Out of band
+= Вне диапазона
+
+%s begins %s
+= %s: начало %s
+
+%s ends %s
+= %s: конец %s
+
+Stations
+= Станции
+
+Find a station...
+= Найти станцию...
+
+Show on the scope
+= Показывать на панораме
+
+Only what's scheduled now
+= Только работающие по расписанию
+
+Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it.
+= Отмечает вещательную станцию только в часы её расписания. Это меню и «Найти станцию» показывают все,\nс временем в UTC. Расписание не означает, что вы её услышите.
+
+%s to %s
+= %s – %s
+
+Find a station
+= Найти станцию
+
+Name, type, place or frequency in kHz
+= Название, тип, место или частота в кГц
+
+%d found. Click one to go there, or press Enter for the first.
+= Найдено: %d. Щёлкните по станции, чтобы перейти, или нажмите Enter для первой.
+
+%d found. Connect the rig to go there.
+= Найдено: %d. Подключите трансивер, чтобы перейти.
+
+On
+= Вкл
+
+Off
+= Выкл
+
+Streams the rig's own spectrum scope over CI-V
+= Передаёт данные собственной панорамы трансивера по CI-V
+
+Span, in Centre mode
+= Полоса обзора, в режиме «Центр»
+
+Centre
+= Центр
+
+Fixed
+= Фикс.
+
+Centre follows the dial. Fixed uses the band edges set on the rig.
+= «Центр» следует за частотой. «Фикс.» использует границы, заданные на трансивере.
+
+Ref
+= Опорн.
+
+The rig's scope reference level
+= Опорный уровень панорамы трансивера
+
+Fast
+= Быстро
+
+Mid
+= Средне
+
+Slow
+= Медленно
+
+Speed
+= Скорость
+
+Sweep speed
+= Скорость развёртки
+
+Auto
+= Авто
+
+Set the colours from the noise floor
+= Подобрать цвета по уровню шума
+
+Display
+= Отображение
+
+Floor
+= Минимум
+
+Range
+= Размах
+
+Colours
+= Цвета
+
+Back one page of the scope. Centre mode only.
+= На страницу панорамы назад. Только в режиме «Центр».
+
+On one page of the scope. Centre mode only.
+= На страницу панорамы вперёд. Только в режиме «Центр».
+
+Click to tune there
+= Щёлкните, чтобы настроиться туда
+
+Click to tune %s at %s
+= Щёлкните: настроиться на %s, %s
+
+Click to go there in %s
+= Щёлкните, чтобы перейти туда в %s
+
+Scope data is off
+= Данные панорамы выключены
+
+No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+= Нет данных панорамы. На трансивере: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+
+Out of the scope's range
+= Вне полосы панорамы
+
+Tune here
+= Настроиться сюда
+
+Transmit here (split)
+= Передавать здесь (сплит)
+
+Recording to %s
+= Запись в %s
+
+Can't write %s
+= Не удаётся записать %s
+
+Clear this panel. What's in the file stays there.
+= Очистить панель. Содержимое файла сохранится.
+
+Hearing:
+= Слышно:
+
+CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing
+= CW выводится, когда декодер уверен в нём, примерно на 16 знаков позже того, что он слышит
+
+Nothing decoded yet
+= Пока ничего не декодировано
+
+Saving to %s
+= Сохранение в %s
+
+Can't read the overlay %s
+= Не удаётся прочитать наложение %s
+
+Overlay
+= Наложение
+
+None
+= Нет
+
+Open the overlays folder
+= Открыть папку наложений
+
+Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts
+= Накладывает контуры карты на метеокарту. Наложения – прозрачные PNG в папке наложений, каждое сделано для карт одной станции
+
+Save a copy
+= Сохранить копию
+
+Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type
+= Сдвигает наложение по горизонтали, в пикселях метеокарты, если она не совпадает. Перетащите или дважды щёлкните для ввода
+
+Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type
+= Сдвигает наложение вниз, в пикселях метеокарты, если приём начат с опозданием. Перетащите или дважды щёлкните для ввода
+
+Once the chart has finished
+= Когда метеокарта будет принята
+
+Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was.
+= Сохраняет метеокарту с этим наложением как новое изображение в папке принятого. Сама метеокарта не меняется.
+
+Receiving: %u lines, IOC %d, %+.0f ppm (measured)
+= Приём: строк %u, IOC %d, %+.0f ppm (измерено)
+
+Receiving: %u lines, IOC %d, %+.0f ppm
+= Приём: строк %u, IOC %d, %+.0f ppm
+
+Phasing: %d lines
+= Фазирование: строк %d
+
+Start tone heard
+= Принят стартовый тон
+
+Waiting for a chart to start
+= Ожидание начала метеокарты
+
+Stop and save
+= Стоп и сохранить
+
+Start now
+= Начать сейчас
+
+Start a chart from here, for one that's already under way. Set the slant by hand if it leans.
+= Начать метеокарту с этого места, если передача уже идёт. Если изображение наклонено, задайте наклон вручную.
+
+Centre %.0f Hz
+= Центр %.0f Гц
+
+Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz
+= Где слышен центр сигнала: середина между чёрным на -400 Гц и белым на +400 Гц
+
+Slant %+.0f ppm
+= Наклон %+.0f ppm
+
+Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself.
+= Подстраивает длину строки, чтобы выпрямить наклонённую метеокарту. Если передача начинается с фазирования, это измеряется автоматически.
+
+No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard.
+= Метеокарты пока нет. В USB установите частоту на 1,9 кГц ниже указанной частоты станции. Приём начнётся сам, когда будет слышен стартовый тон или фазирование.
+
+%d lines/s
+= %d стр./с
+
+FFT size
+= Размер FFT
+
+Larger shows finer detail but blurs fast changes
+= Больше – тоньше детали, но размываются быстрые изменения
+
+Rec
+= Запись
+
+Record the receiver to a WAV file in the received folder
+= Записывать приём в WAV-файл в папке принятого
+
+Listen
+= Слушать
+
+Play the receiver through this computer's speakers. Muted while transmitting.
+= Воспроизводить приём через динамики компьютера. Отключается при передаче.
+
+Clean
+= Очистка
+
+voice noise reduction
+= речевое шумоподавление
+
+spectral noise reduction
+= спектральное шумоподавление
+
+Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is.
+= Шумоподавление на компьютере для того, что вы слышите: сейчас %s. Водопад, декодеры и записи получают звук трансивера без изменений.
+
+How the audio is cleaned up, and the equaliser (on)
+= Очистка звука и эквалайзер (вкл)
+
+How the audio is cleaned up, and the equaliser
+= Очистка звука и эквалайзер
+
+By mode
+= По режиму
+
+Voice
+= Голос
+
+Spectral
+= Спектр.
+
+Method
+= Метод
+
+Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\nSpectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data.
+= «Голос» – нейросеть, обученная на речи: лучше всего для SSB, AM и FM, но убирает CW и тоны цифровых видов.\n«Спектр.» отслеживает уровень шума и работает с любым сигналом.\n«По режиму» использует «Голос» для телефона и «Спектр.» для CW, RTTY и цифры.
+
+Strength
+= Сила
+
+Higher takes out more noise, and more of the signal with it
+= Чем выше, тем больше убирается шума – и сигнала вместе с ним
+
+Leveller
+= Выравниватель
+
+Evens out fading and quiet stations
+= Выравнивает замирания и тихие станции
+
+Equaliser
+= Эквалайзер
+
+Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers.
+= Формирует то, что вы слышите, независимо от того, включена ли «Очистка». RX EQ трансивера не действует на его USB-звук, поэтому для динамиков нужен этот.
+
+Low cut
+= Срез НЧ
+
+Takes out the boom and rumble below this
+= Убирает гул и рокот ниже этой частоты
+
+Below about 250 Hz
+= Ниже примерно 250 Гц
+
+Middle
+= Середина
+
+Around 1.2 kHz, where speech is easiest to follow
+= Около 1,2 кГц, где речь разборчивее всего
+
+Above about 2.2 kHz: crisper consonants, but more hiss
+= Выше примерно 2,2 кГц: чётче согласные, но больше шипения
+
+High cut
+= Срез ВЧ
+
+Takes out the hiss above this
+= Убирает шипение выше этой частоты
+
+Flat
+= Линейно
+
+Speech
+= Речь
+
+A starting point for SSB: less bass, more presence
+= Отправная точка для SSB: меньше низов, больше разборчивости
+
+Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level.
+= Уровень звука от трансивера: %.0f dBFS. Задаётся параметром USB AF Output Level трансивера.
+
+Decode
+= Декодер
+
+Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder
+= Декодировать приём в панели рядом с водопадом и сохранять декодированное в папке принятого
+
+Data mode: the dial stays put, so your digital program keeps its place
+= Режим данных: частота не меняется, и ваша цифровая программа остаётся на месте
+
+kept since %s, from %s
+= сохранено с %s, источник: %s
+
+Audio
+= Звук
+
+The audio waterfall, recording and decoders
+= Звуковой водопад, запись и декодеры
+
+Map
+= Карта
+
+Find a station by its callsign on a street or satellite map. The audio and decoders keep going.
+= Найти станцию по позывному на карте улиц или спутниковой карте. Звук и декодеры продолжают работать.
+
+Type a callsign first
+= Сначала введите позывной
+
+Couldn't save locations.csv in the data folder
+= Не удалось сохранить locations.csv в папке данных
+
+from your log
+= из вашего журнала
+
+Still looking up %s online
+= Ещё идёт поиск %s в интернете
+
+%s isn't in your log with a locator. Put a HamQTH or QRZ.com login in Settings to look it up there.
+= %s нет в вашем журнале с локатором. Укажите логин HamQTH или QRZ.com в настройках, чтобы искать там.
+
+Looking up %s on QRZ.com and HamQTH...
+= Поиск %s на QRZ.com и HamQTH...
+
+Looking up %s on QRZ.com...
+= Поиск %s на QRZ.com...
+
+Looking up %s on HamQTH...
+= Поиск %s на HamQTH...
+
+from %s
+= источник: %s
+
+Found %s on %s, and kept it
+= %s найден на %s и сохранён
+
+Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com and HamQTH.
+= Введите позывной и нажмите Enter: поиск идёт в вашем журнале, затем среди ранее сохранённых мест, затем на QRZ.com и HamQTH.
+
+%.0f km, %.0f miles, bearing %.0f degrees
+= %.0f км, миль: %.0f, азимут: %.0f град.
+
+Callsign
+= Позывной
+
+A callsign to find. Press Enter to look for it.
+= Позывной для поиска. Нажмите Enter, чтобы найти.
+
+Find
+= Найти
+
+Look it up on QRZ.com, then HamQTH, even if it's in your log or kept already, and keep what's found
+= Искать на QRZ.com, затем на HamQTH, даже если он есть в журнале или уже сохранён, и сохранить найденное
+
+Single
+= Один
+
+All
+= Все
+
+Locator
+= Локатор
+
+Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in.
+= Квадраты локатора Maidenhead, синим. «Один» показывает квадрат станции, например JO01en, и больший квадрат, в который он входит, например JO01. «Все» рисует сетку по всей карте, мельче при увеличении.
+
+OS grid
+= Сетка OS
+
+Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's 10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map.
+= Квадраты сетки Ordnance Survey National Grid, пурпурным, только для Великобритании. «Один» показывает 10-км квадрат станции, например TQ68, и 100-км квадрат, в который он входит, например TQ. «Все» рисует сетку по всей карте.
+
+Lat/Lon
+= Шир./долг.
+
+Show lines of latitude and longitude in yellow, closer together as you zoom in
+= Показывать линии широты и долготы жёлтым, чаще при увеличении
+
+Whole world
+= Весь мир
+
+Street View
+= Street View
+
+Open Google Street View in your web browser at the middle of the map, to look around at street level
+= Открыть Google Street View в браузере в центре карты, чтобы осмотреться на уровне улицы
+
+Your station, %s
+= Ваша станция, %s
+
+Some of the map couldn't be fetched: %s
+= Часть карты не загрузилась: %s
+
+Loading the map...
+= Загрузка карты...
+
+From %s
+= Источник: %s
+
+Click to choose it
+= Щёлкните, чтобы выбрать
+
+Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.
+= Щёлкните и вращайте, как ручку VFO. По часовой стрелке – вверх по частоте.\nМедленное вращение – точная настройка. Быстрое – дальше, а если отпустить, ручка продолжит вращение.\nShift: в десять раз быстрее. Колесо мыши сдвигает на шаг.
+
+1 turn = %s
+= 1 оборот = %s
+
+Or just type: %s
+= Или просто введите: %s
+
+ON %s
+= НА %s
+
+Between this band's blocks
+= Между участками этого диапазона
+
+Outside the amateur bands
+= Вне любительских диапазонов
+
+in the %s plan
+= в плане %s
+
+Name
+= Имя
+
+Save
+= Сохранить
+
+Filter
+= Фильтр
+
+Mode
+= Режим
+
+Click to tune, double-click to edit
+= Щелчок – настроиться, двойной щелчок – изменить
+
+Edit memory
+= Правка памяти
+
+Frequency
+= Частота
+
+e.g. 14.074 or 7030k
+= напр. 14.074 или 7030k
+
+Not a frequency the %s can tune
+= %s не настраивается на эту частоту
+
+Data mode
+= Режим данных
+
+Saved %s at %s
+= %s сохранено на %s
+
+Cancel
+= Отмена
+
+All callsigns
+= Все позывные
+
+No callsign set
+= Позывной не задан
+
+New callsign
+= Новый позывной
+
+Add
+= Добавить
+
+The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it.
+= Позывной, под которым вы работаете в эфире. Новые связи записываются под ним, а вкладка «Журнал» и отметки о прошлых связях показывают только его связи. «Все позывные» показывает здесь весь журнал, ничего в нём не меняя.
+
+Couldn't back up the log first, so nothing was imported
+= Не удалось сначала сделать резервную копию журнала, поэтому ничего не импортировано
+
+Imported %d new QSOs, updated %d, and %d were already up to date
+= Импортировано новых QSO: %d, обновлено: %d, уже актуальных: %d
+
+Some are under other callsigns: choose them in the log book
+= Некоторые записаны под другими позывными: выберите их в аппаратном журнале
+
+Couldn't save the log to %s
+= Не удалось сохранить журнал в %s
+
+The log is already in date order
+= Журнал уже упорядочен по дате
+
+Couldn't back up the log first, so it wasn't sorted
+= Не удалось сначала сделать резервную копию журнала, поэтому он не отсортирован
+
+Sorted %d QSOs into date order. The log as it was is in %s.bak
+= Отсортировано по дате QSO: %d. Прежний журнал сохранён в %s.bak
+
+There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead
+= В этой системе нет диалога выбора файлов (нужен zenity или kdialog), поэтому перетащите ADIF-файл на окно
+
+Changing a logged contact
+= Изменение записанной связи
+
+, last on %s
+= , последний раз %s
+
+Worked once%s: %s
+= Одна связь%s: %s
+
+Worked %d times%s: %s
+= Связей: %d%s: %s
+
+Already logged on this band and mode.
+= Уже есть в журнале на этом диапазоне и в этом режиме.
+
+Not worked before
+= Ранее не сработан
+
+RST sent
+= RST отпр.
+
+RST rcvd
+= RST прин.
+
+Power (W)
+= Мощн. (Вт)
+
+Left empty, it's what the rig's power is set to
+= Если пусто – мощность, установленная на трансивере
+
+Notes
+= Заметки
+
+Contest
+= Контест
+
+Contest, such as CQ-WW-SSB
+= Контест, например CQ-WW-SSB
+
+Exchange sent
+= Обмен отпр.
+
+Exchange rcvd
+= Обмен прин.
+
+An exchange sent that's only a number goes up by one with each contact
+= Отправляемый обмен, состоящий только из числа, увеличивается на единицу с каждой связью
+
+Began
+= Начало
+
+Ended
+= Конец
+
+Your callsign for this contact
+= Ваш позывной в этой связи
+
+Update
+= Обновить
+
+Really delete it?
+= Точно удалить?
+
+Couldn't back up the log first, so nothing was deleted
+= Не удалось сначала сделать резервную копию журнала, поэтому ничего не удалено
+
+Keep it
+= Оставить
+
+Delete
+= Удалить
+
+%s  %s  %s UTC
+= %s  %s  %s UTC
+
+Log it
+= Записать
+
+That frequency isn't a number of kHz
+= Частота должна быть числом в кГц
+
+Times need to look like 2026-10-31 19:05
+= Время нужно вводить в виде 2026-10-31 19:05
+
+Updated %s
+= Обновлено: %s
+
+Couldn't save the log entry to %s
+= Не удалось сохранить запись журнала в %s
+
+Log book...
+= Аппаратный журнал...
+
+Call
+= Позывной
+
+%s  %s  %s/%s  %s %s\nDouble-click to change it
+= %s  %s  %s/%s  %s %s\nДважды щёлкните, чтобы изменить
+
+%s km, %s miles
+= %s км, миль: %s
+
+%d contacts
+= Связей: %d
+
+and %d earlier. Search the Contacts tab for %s to see them all.
+= и ещё более ранних: %d. Найдите %s на вкладке «Связи», чтобы увидеть все.
+
+to
+= до
+
+Power
+= Мощность
+
+Confirmed by
+= Подтверждено
+
+Your callsign
+= Ваш позывной
+
+Exch sent
+= Обмен отпр.
+
+Exch rcvd
+= Обмен прин.
+
+Contacts: %d. Places: %d.
+= Связей: %d. Мест: %d.
+
+(%d with no locator aren't shown)
+= (без локатора, не показаны: %d)
+
+Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts
+= Прокрутка или двойной щелчок – увеличение, перетаскивание – сдвиг, наведите на метку, чтобы увидеть её связи
+
+Log book
+= Аппаратный журнал
+
+%d contacts, %d callsigns, %d countries, %d confirmed
+= Связей: %d, позывных: %d, стран: %d, подтверждено: %d
+
+Search
+= Поиск
+
+Export ADIF
+= Экспорт ADIF
+
+Exported %d QSOs to %s
+= Экспортировано QSO: %d, файл %s
+
+Couldn't write %s
+= Не удалось записать %s
+
+Import ADIF...
+= Импорт ADIF...
+
+Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak.
+= Выберите ADIF-файл или перетащите его на окно. Связь, которая уже есть в журнале, повторно не добавляется: её статус QSL обновляется, а пустые поля заполняются. Сначала журнал копируется в log.csv.bak.
+
+Sort
+= Сортировать
+
+Finish changing the contact on the Log tab first.
+= Сначала закончите изменение связи на вкладке «Журнал».
+
+Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.
+= Упорядочивает все связи в файле журнала по дате, от старых к новым, независимо от показанного позывного. Новые связи затем добавляются в конец. Сначала журнал копируется в log.csv.bak.
+
+Restore
+= Восстановить
+
+Maximise
+= Развернуть
+
+Contacts
+= Связи
+
+World map
+= Карта мира
+
+Station
+= Станция
+
+Band
+= Диапазон
+
+Confirmed
+= Подтв.
+
+Sent
+= Отпр.
+
+Rcvd
+= Прин.
+
+Distance (km)
+= Расст. (км)
+
+Country
+= Страна
+
+Double-click to change it on the Log tab
+= Дважды щёлкните, чтобы изменить на вкладке «Журнал»
+
+%s miles
+= миль: %s
+
+The dial isn't on a band in the %s plan. Tune to one, or scan a range.
+= Частота вне диапазонов плана %s. Перестройтесь на диапазон или сканируйте участок частот.
+
+Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say
+= Для сканирования нужны две частоты, доступные этому радио, в том виде, как вы их вводите: например, 14.0 и 14.35
+
+That's more than %d channels. Choose a bigger step or a smaller range.
+= Число каналов больше %d. Выберите больший шаг или меньший участок.
+
+There's nothing to scan there that the %s can tune
+= Там нет частот для сканирования, доступных %s
+
+Scan stopped: every channel has been locked out
+= Сканирование остановлено: все каналы исключены
+
+Scan stopped: the rig isn't answering
+= Сканирование остановлено: трансивер не отвечает
+
+Scan stopped: the rig is transmitting
+= Сканирование остановлено: трансивер на передаче
+
+Scan stopped: the rig refused every frequency in it
+= Сканирование остановлено: трансивер отверг все частоты
+
+Scan stopped: the dial was tuned
+= Сканирование остановлено: частота была изменена
+
+The band the dial is on
+= Текущий диапазон
+
+A range of frequencies
+= Участок частот
+
+Memories
+= Память
+
+Scan
+= Скан
+
+From
+= От
+
+To
+= До
+
+Names with
+= Имя содержит
+
+Empty for all of them
+= Пусто – все
+
+All those showing
+= Все показанные
+
+Service
+= Служба
+
+Broadcasters go by the Stations menu's "Only what's scheduled now", as of when the scan starts.
+= Вещательные станции отбираются по пункту «Только работающие по расписанию» меню «Станции» на момент начала сканирования.
+
+Each one for
+= Время на канал
+
+How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal.
+= Сколько времени слушать каждый канал. Лучше всего сканировать с быстрой AGC: медленная может ещё удерживать усиление после сильного сигнала.
+
+Stop at
+= Стоп при
+
+The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere.
+= Показание S-метра, которое считается сигналом. Установите его выше уровня шума диапазона, иначе сканирование будет останавливаться везде.
+
+Stay until I carry on
+= Ждать продолжения
+
+Carry on after 5 s
+= Продолжить через 5 с
+
+Carry on after 10 s
+= Продолжить через 10 с
+
+Carry on when it stops
+= Продолжить, когда сигнал пропадёт
+
+On a signal
+= На сигнале
+
+Next
+= Далее
+
+Carry on to the next channel
+= Перейти к следующему каналу
+
+Lock out
+= Исключить
+
+Leave this channel out until the scan is stopped, for a signal that's always there
+= Исключить этот канал до остановки сканирования – для постоянно присутствующего сигнала
+
+Signal at %s  %s
+= Сигнал на %s  %s
+
+Listening at %s
+= Прослушивание %s
+
+%s  %d of %d
+= %s  %d из %d
+
+%d locked out
+= Исключено: %d
+
+S meter now: %s. Tuning stops a scan.
+= S-метр сейчас: %s. Перестройка останавливает сканирование.
+
+HEARD
+= УСЛЫШАНО
+
+Where
+= Где
+
+What
+= Что
+
+Click to stop the scan and go back there
+= Щёлкните, чтобы остановить сканирование и вернуться туда
+
+A DX cluster logs you in by callsign. Put yours in Rig > Settings first.
+= DX-кластер требует входа по позывному. Сначала укажите свой в меню Трансивер > Настройки.
+
+Spotted by %s
+= Спот от %s
+
+Spotted by %s at %sZ
+= Спот от %s в %sZ
+
+DX SPOTS
+= DX-СПОТЫ
+
+Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign.
+= Споты в реальном времени от DX-кластера, заданного в Трансивер > Настройки. Подключение идёт, только пока это включено, вход – под вашим позывным.
+
+All bands
+= Все диапазоны
+
+This band
+= Этот диапазон
+
+All modes
+= Все режимы
+
+Data
+= Цифра
+
+No spots here yet.
+= Здесь пока нет спотов.
+
+Age
+= Возраст
+
+Worked on this band
+= Сработан на этом диапазоне
+
+Worked, but not on this band
+= Сработан, но не на этом диапазоне
+
+Click to tune there and put the call in the log
+= Щёлкните, чтобы настроиться и внести позывной в журнал
+
+Nothing to send
+= Нечего передавать
+
+Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit.
+= Break-in выключен, поэтому трансивер будет формировать только самоконтроль. Включите BK-IN для передачи.
+
+CW KEYER
+= CW-КЛЮЧ
+
+Mode must be CW. Sends through the rig's keyer.
+= Режим должен быть CW. Передача через ключ трансивера.
+
+Type and press Enter to send
+= Введите текст и нажмите Enter для передачи
+
+STOP SENDING
+= СТОП ПЕРЕДАЧИ
+
+{CALL} is your callsign, from Settings.
+= {CALL} – ваш позывной из настроек.
+
+VOICE MEMORY
+= ГОЛОСОВАЯ ПАМЯТЬ
+
+Plays what's recorded on the rig. Mode must be SSB, AM or FM.
+= Воспроизводит записанное в трансивере. Режим должен быть SSB, AM или FM.
+
+STOP PLAYING
+= СТОП ВОСПРОИЗВ.
+
+Couldn't save the net list to %s
+= Не удалось сохранить список круглого стола в %s
+
+Net
+= Круглый стол
+
+Started %s UTC
+= Начат в %s UTC
+
+Net control %s
+= Ведущий %s
+
+Checked in: %d. Still on at %s UTC: %d.
+= Отметились: %d. На связи в %s UTC: %d.
+
+Joined (UTC)
+= Вошёл (UTC)
+
+Left (UTC)
+= Вышел (UTC)
+
+Sent the net list to %s
+= Список отправлен на %s
+
+Print the net list
+= Печать списка круглого стола
+
+Printer
+= Принтер
+
+No printers are set up on this computer
+= На этом компьютере не настроено ни одного принтера
+
+Printing...
+= Печать...
+
+Print
+= Печать
+
+Net name, such as Sunday 80m net
+= Название, например «Воскресный круглый стол 80 м»
+
+Already on the net, since %s UTC
+= Уже в круглом столе с %s UTC
+
+Check in
+= Отметить
+
+Print list...
+= Печать списка...
+
+%d on the net, %d checked in
+= На связи: %d, отметились: %d
+
+Really clear it?
+= Точно очистить?
+
+New net
+= Новый стол
+
+Clears the list for the next net. Print it first to keep it.
+= Очищает список для следующего круглого стола. Чтобы сохранить его, сначала распечатайте.
+
+Type a callsign and press Enter as each station checks in.
+= Вводите позывной и нажимайте Enter, когда очередная станция отмечается.
+
+In
+= Вход
+
+Out
+= Выход
+
+Back
+= Вернулся
+
+Find on the map
+= Найти на карте
+
+Remove from the list
+= Удалить из списка
+
+Right-click to find them on the map, or to take them off if they went on by mistake.
+= Правый щелчок – найти станцию на карте или удалить её, если она внесена по ошибке.
+
+Left
+= Ушёл
+
+They're back: clears the time they left
+= Вернулся: стирает время выхода
+
+They've left the net: greys them out and notes the time
+= Покинул круглый стол: выделяется серым, время записывается
+
+Keypad
+= Клавиатура
+
+Log
+= Журнал
+
+CW / Voice
+= CW / Голос
+
+DEMO: a simulated radio. Nothing is connected.
+= ДЕМО: имитация радио. Ничего не подключено.
+
+Audio only: leaving the serial port alone
+= Только звук: последовательный порт не используется
+
+%s  %s  %d baud
+= %s  %s  %d бод
+
+. Close the other program: a port has one owner.
+= . Закройте другую программу: портом может владеть только одна.
+
+A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address.
+= Ответило радио по адресу %02Xh, сообщив %02Xh. Это не IC-7300, IC-9700 или IC-R8600: чтобы попробовать, укажите %02X как адрес CI-V в настройках.
+
+%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one.
+= %s открыт, но ответа нет: включён ли трансивер, на скорости %d бод? У 9700 два порта: используйте Enhanced.
+
+Connecting...
+= Подключение...
+
+. Is the SUB band on that band?
+= . Установлен ли SUB на этот диапазон?
+
+SCAN: signal. Next is on the Scan tab.
+= СКАН: сигнал. «Далее» – на вкладке «Скан».
+
+SCANNING. Tune to stop it.
+= СКАНИРОВАНИЕ. Перестройтесь, чтобы остановить.
+
+New version available, built %s
+= Доступна новая версия, сборка %s
+
+Click to open the download page on GitHub. You're on the build from %s UTC.
+= Щёлкните, чтобы открыть страницу загрузки на GitHub. У вас сборка от %s UTC.
+
+The radio's clock wasn't set.
+= Часы радио не установлены.
+
+The radio isn't connected, so its clock wasn't set.
+= Радио не подключено, поэтому его часы не установлены.
+
+This program doesn't know how to set this radio's clock.
+= Программа не умеет устанавливать часы этого радио.
+
+The radio's clock follows on the minute.
+= Часы радио будут установлены в начале минуты.
+
+Conditions
+= Прохождение
+
+Put your locator in Settings to see HF conditions from your square.
+= Укажите свой локатор в настройках, чтобы видеть прохождение на КВ из вашего квадрата.
+
+Opens HF conditions from %s on hf.dxview.org in your browser.
+= Открывает в браузере прохождение на КВ из %s на hf.dxview.org.
+
+Wait
+= Ждите
+
+Sync
+= Синхр.
+
+Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it.
+= Сверяет часы компьютера с интернет-временем (NTP).\nВ демо-режиме не меняет их.
+
+Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.
+= Устанавливает часы компьютера по интернет-времени (NTP) для FT8, FT4 и других режимов с привязкой ко времени.\nWindows может запросить разрешение.
+
+Then sets the radio's date, time and UTC offset from it, as the next minute starts.
+= Затем по ним устанавливает дату, время и смещение UTC радио в начале следующей минуты.
+
+Last time:
+= Последний раз:
+
+The radio stopped answering, so its clock wasn't set.
+= Радио перестало отвечать, поэтому его часы не установлены.
+
+Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+= Радио передано: %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+
+Rig
+= Трансивер
+
+Settings...
+= Настройки...
+
+Power on
+= Включить
+
+Power off...
+= Выключить...
+
+Open data folder
+= Открыть папку данных
+
+Open received folder
+= Открыть папку принятого
+
+Quit
+= Выход
+
+View
+= Вид
+
+Band scope
+= Панорама
+
+Audio waterfall
+= Звуковой водопад
+
+Band plan on the scope
+= План диапазонов на панораме
+
+DX spots panel
+= Панель DX-спотов
+
+DX spots on the scope
+= DX-споты на панораме
+
+Help
+= Справка
+
+Keys and rig set-up...
+= Клавиши и настройка трансивера...
+
+Built %s UTC
+= Сборка %s UTC
+
+Settings
+= Настройки
+
+THE RIG
+= ТРАНСИВЕР
+
+Port
+= Порт
+
+(choose)
+= (выбрать)
+
+Baud
+= Скорость
+
+Find out by asking it
+= Определить запросом
+
+Radio
+= Радио
+
+It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed.
+= Обычно определяется автоматически. Выберите вручную, если определено неверно, – так бывает, если адрес CI-V радио был изменён.
+
+CI-V address (hex)
+= Адрес CI-V (hex)
+
+Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address.
+= Пробуется первым. Если там никто не отвечает, пробуются 94h, A2h, 96h и широковещательный адрес.
+
+The scope stream needs 115200.
+= Для потока панорамы нужна скорость 115200.
+
+SOUND
+= ЗВУК
+
+From the rig
+= От трансивера
+
+(find the USB Audio CODEC)
+= (найти USB Audio CODEC)
+
+Listen on
+= Слушать через
+
+(system default)
+= (системное по умолчанию)
+
+YOU
+= ВЫ
+
+Your locator
+= Ваш локатор
+
+Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.
+= Ваш локатор Maidenhead, например IO91WM. Он записывается в экспортируемые журналы, а вкладка «Журнал» по нему вычисляет расстояние.
+
+QRZ.com username
+= Логин QRZ.com
+
+For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position.
+= Для поиска на карте станций, которых нет в вашем журнале. Чтобы получать их локатор или координаты, нужна подписка QRZ.com XML.
+
+QRZ.com password
+= Пароль QRZ.com
+
+Kept in settings.ini in the data folder, as plain text.
+= Хранится в settings.ini в папке данных в открытом виде.
+
+HamQTH username
+= Логин HamQTH
+
+For finding stations on the map, free: make an account at hamqth.com. Asked after QRZ.com, or alone if there's no QRZ.com login.
+= Для поиска станций на карте, бесплатно: заведите учётную запись на hamqth.com. Запрашивается после QRZ.com или самостоятельно, если логина QRZ.com нет.
+
+HamQTH password
+= Пароль HamQTH
+
+Log date format
+= Формат даты в журнале
+
+How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed.
+= Как показываются даты в журнале (в UTC). Вкладка «Журнал» опускает год для экономии места. Экспортируемые журналы и сам файл журнала не меняются.
+
+PTT time limit
+= Лимит PTT
+
+PTT from this program lets go by itself after this long
+= PTT из этой программы отпускается сам по истечении этого времени
+
+DX CLUSTER
+= DX-КЛАСТЕР
+
+Choose one
+= Выберите
+
+Fill in from a list
+= Заполнить из списка
+
+Server
+= Сервер
+
+Commands after login
+= Команды после входа
+
+Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty.
+= Отправляются после входа, разделяются символом ; . У каждого типа кластера свои команды: см. справку сервера. Обычно пусто.
+
+Keep spots for
+= Хранить споты
+
+Show robot spots (Reverse Beacon Network)
+= Показывать споты роботов (Reverse Beacon Network)
+
+Spots from automatic CW and data skimmers. There can be a great many.
+= Споты от автоматических скиммеров CW и цифровых видов. Их может быть очень много.
+
+BAND PLAN
+= ПЛАН ДИАПАЗОНОВ
+
+Country or region
+= Страна или регион
+
+This program has a newer copy of this plan (%s). Reset uses it.
+= В программе есть более новая версия этого плана (%s). «Сбросить план» применит её.
+
+Open plans folder
+= Открыть папку планов
+
+Each plan is a JSON file you can edit. README.txt there explains the format.
+= Каждый план – редактируемый JSON-файл. Формат описан в README.txt в той же папке.
+
+Reload
+= Перезагрузить
+
+Reads the files again, after you've edited one
+= Перечитывает файлы после их редактирования
+
+Reset this plan
+= Сбросить план
+
+Can't write to %s
+= Не удаётся записать в %s
+
+Puts the built-in copy back. Your file is kept as .json.bak
+= Восстанавливает встроенную копию. Ваш файл сохраняется как .json.bak
+
+STATIONS
+= СТАНЦИИ
+
+Shown on the scope whichever band plan is chosen. See the Stations menu.
+= Показываются на панораме при любом плане диапазонов. См. меню «Станции».
+
+%s (%d stations, revision %s). %s
+= %s (станций: %d, редакция %s). %s
+
+Open stations folder
+= Открыть папку станций
+
+Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.
+= Каждый список – редактируемый JSON-файл, можно добавить и свои. Формат описан в README.txt в той же папке. «Перезагрузить» выше перечитывает их.
+
+Reset station list
+= Сбросить станции
+
+Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak
+= Восстанавливает встроенные списки: всемирный и вещательный. Ваши файлы сохраняются как .json.bak
+
+Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak
+= Восстанавливает встроенные списки: всемирный, вещательный и для приёмника. Ваши файлы сохраняются как .json.bak
+
+Automatic (%s)
+= Автоматически (%s)
+
+Language
+= Язык
+
+Automatic follows the language this computer is set to. Choose one to keep to it whatever the computer uses. It changes straight away.
+= «Автоматически» – язык, на который настроен компьютер. Выберите язык, чтобы всегда использовать его, независимо от настроек компьютера. Меняется сразу.
+
+Check GitHub for a new version at start
+= Проверять новую версию на GitHub при запуске
+
+Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent.
+= При каждом запуске программа читает один небольшой файл с GitHub и сообщает в нижней строке, если есть более новая сборка. Никаких данных о вас или вашем радио не передаётся.
+
+Auto ON/OFF
+= Авто ВКЛ/ВЫКЛ
+
+Switches the rig on when the program starts, and off when it closes. The rig's USB must stay powered for it to wake.
+= Включает трансивер при запуске программы и выключает при её закрытии. Чтобы трансивер мог включиться, его USB должен оставаться под питанием.
+
+Apply and reconnect
+= Применить и переподключить
+
+Close
+= Закрыть
+
+Keys and rig set-up
+= Клавиши и настройка трансивера
+
+ON THE RIG  (MENU > SET > Connectors > CI-V)
+= НА ТРАНСИВЕРЕ  (MENU > SET > Connectors > CI-V)
+
+CI-V USB Port: Unlink from [REMOTE]
+= CI-V USB Port: Unlink from [REMOTE]
+
+CI-V USB Baud Rate: 115200
+= CI-V USB Baud Rate: 115200
+
+CI-V USB Echo Back: OFF  (ON works too)
+= CI-V USB Echo Back: OFF  (ON тоже работает)
+
+CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700
+= CI-V Address: оставьте по умолчанию, 94h на IC-7300 или A2h на IC-9700
+
+USB AF Output Level (Connectors): raise it until the level bar sits below red
+= USB AF Output Level (Connectors): увеличивайте, пока индикатор уровня не окажется чуть ниже красной зоны
+
+USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF
+= USB SEND и USB Keying (Connectors > USB SEND/Keying): OFF
+
+KEYS
+= КЛАВИШИ
+
+Digits
+= Цифры
+
+Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels.
+= Начать ввод частоты: 14.074, 14074, 7, 198k, +5. Enter – перейти, Esc – отмена.
+
+Left, Right
+= Влево, вправо
+
+Tune by the step. Hold Shift for ten times that.
+= Перестройка на шаг. С Shift – в десять раз больше.
+
+Up, Down
+= Вверх, вниз
+
+Change the step
+= Изменить шаг
+
+Page Up, Page Down
+= Page Up, Page Down
+
+Next or previous band
+= Следующий или предыдущий диапазон
+
+Find a station by name
+= Найти станцию по названию
+
+F1 to F8
+= F1 – F8
+
+Data mode, next filter
+= Режим данных, следующий фильтр
+
+Split, swap VFOs
+= Сплит, обмен VFO
+
+PTT on or off, once armed
+= PTT вкл/выкл, после разрешения передачи
+
+Tuning dial
+= Ручка настройки
+
+Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on.
+= Щёлкните и вращайте. Один оборот – десять шагов. Быстрое вращение – дальше; если отпустить, ручка продолжит вращение.
+
+Wheel
+= Колесо
+
+On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it.
+= Над цифрой – меняет эту цифру. Над водопадом или ручкой – на шаг. Над ползунком – двигает его.
+
+Click a digit
+= Щелчок по цифре
+
+Top half up, bottom half down
+= Верхняя половина – вверх, нижняя – вниз
+
+Click the band scope
+= Щелчок по панораме
+
+Tune there. Right-click for split and memories.
+= Настроиться туда. Правый щелчок – сплит и память.
+
+< and > above the band scope
+= < и > над панорамой
+
+Move the dial one whole page of the scope, in Centre mode.
+= Сдвинуть частоту на целую страницу панорамы, в режиме «Центр».
+
+Click the audio waterfall
+= Щелчок по звуковому водопаду
+
+Moves that signal to the pitch (not in data modes)
+= Переносит этот сигнал на тон CW (не в режимах данных)
+
+Right-click a band
+= Правый щелчок по диапазону
+
+CW, FT8, FT4, WSPR, SSB frequencies
+= Частоты CW, FT8, FT4, WSPR, SSB
+
+Click a DX spot
+= Щелчок по DX-споту
+
+Tune there, and put the call in the log. Red flags and green calls aren't worked yet.
+= Настроиться и внести позывной в журнал. Красные флажки и зелёные позывные – ещё не сработанные.
+
+Double-click a log entry
+= Двойной щелчок по записи журнала
+
+Bring it back to the Log tab, to change it and log it again
+= Вернуть её на вкладку «Журнал», чтобы изменить и записать снова
+
+Power off the rig?
+= Выключить трансивер?
+
+The rig will switch off. Rig > Power on brings it back while its USB stays powered.
+= Трансивер выключится. Трансивер > Включить включит его снова, пока его USB под питанием.
+
+Power off
+= Выключить
+
+This is an %s
+= Это %s
+
+This is an %s, a receiver: it can't transmit
+= Это %s, приёмник: передача невозможна
+
+Only ADIF files can be dropped here, to import them into the log
+= Сюда можно перетаскивать только ADIF-файлы, чтобы импортировать их в журнал
+
+The band plan is set to %s. Choose your country in Settings.
+= Выбран план диапазонов %s. Выберите свою страну в настройках.
+
+The audio system didn't start
+= Звуковая система не запустилась
+
+Can't list the sound devices
+= Не удаётся получить список звуковых устройств
+
+"%s" isn't there (radio off or unplugged?)
+= «%s» не найдено (радио выключено или отсоединено?)
+
+Can't open "%s"
+= Не удаётся открыть «%s»
+
+Can't start "%s"
+= Не удаётся запустить «%s»
+
+The rig's USB sound card is the system default output, and the monitor won't feed it. Choose your speakers in Settings.
+= Звуковая карта USB трансивера выбрана системным выходом по умолчанию, и монитор не будет на неё выводить. Выберите динамики в настройках.
+
+No default output device
+= Нет устройства вывода по умолчанию
+
+"%s" isn't there
+= «%s» не найдено
+
+Can't open the output device
+= Не удаётся открыть устройство вывода
+
+Can't start the output device
+= Не удаётся запустить устройство вывода
+
+Commercial
+= Коммерческие
+
+Government
+= Государственные
+
+Naval and maritime
+= ВМФ и морские
+
+Military
+= Военные
+
+Broadcast
+= Вещание
+
+Amateur satellites and beacons
+= Любительские спутники и маяки
+
+Aviation
+= Авиация
+
+Satellites and navigation
+= Спутники и навигация
+
+Land mobile and licence-free
+= Подвижная связь и безлицензионные
+
+Numbers and mystery stations
+= Номерные и загадочные станции
+
+Beacons
+= Маяки
+
+Satellite
+= Спутник
+
+Maritime
+= Морская
+
+Mobile
+= Подвижная
+
+Navigation
+= Навигация
+
+Other
+= Прочее
+
+Can't read the chart %s
+= Не удаётся прочитать метеокарту %s
+
+There's no overlay to save
+= Нет наложения для сохранения
+
+No time server answered. Is this computer online, and is UDP port 123 open?
+= Ни один сервер времени не ответил. Есть ли у компьютера интернет и открыт ли UDP-порт 123?
+
+The time servers disagree, so the clock was left alone. Try again in a minute.
+= Серверы времени расходятся, поэтому часы не тронуты. Попробуйте через минуту.
+
+%.3f s slow
+= отстают на %.3f с
+
+%.3f s fast
+= спешат на %.3f с
+
+The clock is %s, too far out to trust. Check its date and time in your system settings.
+= Часы %s – это слишком много, чтобы доверять. Проверьте дату и время в настройках системы.
+
+The clock is right: %s, to within %s. Left it alone.
+= Часы в порядке: %s, с точностью до %s. Не изменялись.
+
+The clock is %s. Demo: left it alone.
+= Часы %s. Демо: не изменялись.
+
+The clock is still %s: Windows wasn't given permission to set it.
+= Часы всё ещё %s: Windows не получила разрешения их установить.
+
+The clock is %s. Setting it needs root: run this program once with sudo and --sync-clock.
+= Часы %s. Для установки нужен root: запустите программу один раз с sudo и --sync-clock.
+
+The clock is still %s: it couldn't be set.
+= Часы всё ещё %s: установить их не удалось.
+
+The clock was %s and has been set, but the servers didn't answer to confirm it.
+= Было: часы %s. Они установлены, но серверы не ответили для подтверждения.
+
+The clock was %s and was set, but is now %s.
+= Было: часы %s. Они установлены, но теперь %s.
+
+The clock was %s. It's now %s, to within %s.
+= Было: часы %s. Теперь %s, с точностью до %s.
+
+Connected to %s
+= Подключено к %s
+
+Nothing heard for ten minutes
+= Десять минут ничего не принято
+
+Connecting to %s
+= Подключение к %s
+
+Couldn't reach %s. Trying again in a minute.
+= Не удалось связаться с %s. Повтор через минуту.
+
+Lost %s. Trying again in a minute.
+= Связь с %s потеряна. Повтор через минуту.
+
+Lost %s (it said: %s). Trying again in a minute.
+= Связь с %s потеряна (ответ: %s). Повтор через минуту.
+
+Made-up spots, as this is the demo. Nothing is connected.
+= Вымышленные споты: это демо. Ничего не подключено.
+
+position set by the operator on QRZ
+= координаты, указанные оператором на QRZ
+
+street address
+= адрес
+
+post code
+= почтовый индекс
+
+state or county
+= штат или округ
+
+country only
+= только страна
+
+worked out from QRZ's bearing and distance, to about 100 m
+= вычислено по азимуту и расстоянию с QRZ, точность около 100 м
+
+worked out from QRZ's bearing and distance from your locator, to a few km
+= вычислено по азимуту и расстоянию с QRZ от вашего локатора, точность несколько км
+
+6-character locator, about 5 km by 4
+= 6-значный локатор, около 5 на 4 км
+
+4-character locator, about 150 km by 110
+= 4-значный локатор, около 150 на 110 км
+
+QRZ.com wouldn't log in.
+= Не удалось войти на QRZ.com.
+
+QRZ.com wouldn't log in: %s
+= Не удалось войти на QRZ.com: %s
+
+the session ended
+= сессия завершилась
+
+QRZ.com has %s but gives no locator or position.
+= На QRZ.com есть %s, но без локатора и координат.
+
+QRZ.com has %s but gives no locator or position (%s)
+= На QRZ.com есть %s, но без локатора и координат (%s)
+
+QRZ.com's sign-in page: %s
+= Страница входа QRZ.com: %s
+
+QRZ.com's sign-in page has changed, so this can't sign in any more
+= Страница входа QRZ.com изменилась, поэтому войти больше не получается
+
+Your QRZ.com account asks for a two-factor code to sign in, which this can't give
+= Ваша учётная запись QRZ.com требует код двухфакторной аутентификации, который программа ввести не может
+
+QRZ.com's page for %s: %s
+= Страница QRZ.com для %s: %s
+
+QRZ.com's page for %s gives no locator.
+= На странице QRZ.com для %s нет локатора.
+
+QRZ.com has no %s
+= На QRZ.com нет %s
+
+QRZ.com's page for %s gives no locator. It's in qrz-page.html in the data folder.
+= На странице QRZ.com для %s нет локатора. Она сохранена в qrz-page.html в папке данных.
+
+Put your QRZ.com username and password in Settings to look callsigns up there
+= Укажите логин и пароль QRZ.com в настройках, чтобы искать там позывные
+
+HamQTH wouldn't log in.
+= Не удалось войти на HamQTH.
+
+HamQTH wouldn't log in: %s
+= Не удалось войти на HamQTH: %s
+
+HamQTH has no %s
+= На HamQTH нет %s
+
+it gave an answer this can't read
+= получен ответ, который не удаётся прочитать
+
+HamQTH has %s but gives no locator or position.
+= На HamQTH есть %s, но без локатора и координат.
+
+Put your HamQTH username and password in Settings to look callsigns up there
+= Укажите логин и пароль HamQTH в настройках, чтобы искать там позывные
+
+your log
+= ваш журнал
+
+Not a web address: %s
+= Это не веб-адрес: %s
+
+Windows couldn't start a web session
+= Windows не удалось открыть веб-сессию
+
+The answer was too long
+= Слишком длинный ответ
+
+The server answered %d
+= Сервер ответил %d
+
+Couldn't reach the server (error %lu)
+= Не удалось связаться с сервером (ошибка %lu)
+
+Couldn't write a temporary file
+= Не удалось записать временный файл
+
+Couldn't run curl
+= Не удалось запустить curl
+
+Couldn't fetch it (is curl installed?)
+= Не удалось загрузить (установлен ли curl?)
+
+Couldn't open the printer %s
+= Не удалось открыть принтер %s
+
+Printing was cancelled
+= Печать отменена
+
+The printer %s wouldn't take the job
+= Принтер %s не принял задание
+
+The printer %s stopped part way through
+= Принтер %s остановился на середине
+
+The printer %s wouldn't start a page
+= Принтер %s не смог начать страницу
+
+Couldn't write the page to print
+= Не удалось сформировать страницу для печати
+
+set that frequency
+= установить эту частоту
+
+set the other VFO
+= установить другой VFO
+
+set that mode
+= установить этот режим
+
+set data mode
+= включить режим данных
+
+set the other VFO's mode
+= установить режим другого VFO
+
+set that level
+= установить этот уровень
+
+change that setting
+= изменить эту настройку
+
+set that EQ level
+= установить этот уровень EQ
+
+set its time
+= установить время
+
+set its date
+= установить дату
+
+set its UTC offset
+= установить смещение UTC
+
+set the attenuator
+= установить аттенюатор
+
+change antenna
+= сменить антенну
+
+set IP+
+= включить IP+
+
+set split
+= включить сплит
+
+set the filter width
+= установить ширину фильтра
+
+set the RIT offset
+= установить сдвиг RIT
+
+set RIT
+= включить RIT
+
+set XIT
+= включить XIT
+
+copy the VFO
+= скопировать VFO
+
+swap the VFOs
+= поменять VFO местами
+
+set the tuner
+= переключить тюнер
+
+power off
+= выключиться
+
+power on
+= включиться
+
+turn the scope on
+= включить панораму
+
+start the scope data
+= запустить поток данных панорамы
+
+set the span
+= установить полосу обзора
+
+set the scope mode
+= установить режим панорамы
+
+set the scope reference
+= установить опорный уровень панорамы
+
+set the sweep speed
+= установить скорость развёртки
+
+transmit
+= перейти на передачу
+
+start the tuner
+= запустить тюнер
+
+send CW
+= передать CW
+
+stop CW
+= остановить CW
+
+play that voice memory
+= воспроизвести эту голосовую память
+
+Writing to the port failed (unplugged?)
+= Ошибка записи в порт (отсоединён?)
+
+Transmit time limit reached: PTT released
+= Достигнут лимит времени передачи: PTT отпущен
+
+The port has gone (unplugged?)
+= Порт пропал (отсоединён?)
+
+No serial port chosen
+= Последовательный порт не выбран
+
+The simulated port is unplugged
+= Имитируемый порт отсоединён
+
+Couldn't open %s
+= Не удалось открыть %s
+
+There are no ADIF records in %s
+= В %s нет записей ADIF
+
+Street
+= Улицы
+
+Topo
+= Рельеф
+
+Hybrid
+= Гибрид
+
+OpenStreetMap: streets, footpaths and buildings, for finding your way on foot
+= OpenStreetMap: улицы, тропинки и здания, для пешей навигации
+
+Esri's topographic map: terrain, contours and trails
+= Топографическая карта Esri: рельеф, горизонтали и тропы
+
+Esri's satellite and aerial photographs
+= Спутниковые и аэрофотоснимки Esri
+
+The photographs with roads and place names over them
+= Снимки с наложенными дорогами и названиями
+
+a tile that wouldn't decode
+= фрагмент карты, который не декодировался
+
+Classic
+= Классика
+
+Thermal
+= Тепловая
+
+Ice
+= Лёд
+
+Grey
+= Серая
+
+Amateur
+= Любительские
+
+Shortwave utility
+= КВ служебные
+
+Land mobile
+= Сухопутная подвижная
+
+Shortwave broadcast
+= КВ радиовещание
+
+Mobile phones and data
+= Мобильная связь и данные
+
+Long and medium wave
+= ДВ и СВ
+
+FM and TV broadcast
+= FM и ТВ вещание

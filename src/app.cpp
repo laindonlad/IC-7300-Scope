@@ -30,6 +30,7 @@
 #include "demo_audio.h"
 #include "dsp.h"
 #include "dxcluster.h"
+#include "i18n.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -205,9 +206,30 @@ ImU32 segmentColour(bands::Use use, int alpha) {
   return (c & 0x00FFFFFF) | ((ImU32)alpha << IM_COL32_A_SHIFT);
 }
 // What a portion of a band is for, in plain words. "Other" has no plain word, so it uses its own label.
-std::string portionName(const bands::Segment& s) { return s.use == bands::U_OTHER ? s.label : bands::useName(s.use); }
+std::string portionName(const bands::Segment& s) { return s.use == bands::U_OTHER ? s.label : tr(bands::useName(s.use)); }
 
 constexpr double kMilesPerKm = 0.621371;
+
+// The rig's and the serial port's messages are made in English, which the window looks for words in, so they're
+// translated where they're shown.
+std::string rigMessage(const std::string& e) {
+  static const struct {
+    const char* suffix;
+    const char* fmt;
+  } kPort[] = {
+      {" is in use by another program", N_("%s is in use by another program")},
+      {" isn't there (radio off or unplugged?)", N_("%s isn't there (radio off or unplugged?)")},
+      {" permission denied (on Linux, join the dialout group)", N_("%s: permission denied (on Linux, join the dialout group)")},
+      {" can't be opened", N_("%s can't be opened")},
+  };
+  for (const auto& p : kPort) {
+    const size_t n = strlen(p.suffix);
+    if (e.size() > n && e.compare(e.size() - n, n, p.suffix) == 0) return trf(p.fmt, e.substr(0, e.size() - n).c_str());
+  }
+  static const char kWouldnt[] = "The rig wouldn't ";
+  if (e.compare(0, sizeof kWouldnt - 1, kWouldnt) == 0) return trf("The rig wouldn't %s", tr(e.c_str() + sizeof kWouldnt - 1));
+  return tr(e.c_str());
+}
 
 struct LogPin {
   float x = 0, y = 0;         // in the map's units
@@ -217,6 +239,13 @@ struct LogPin {
 template <size_t N>
 void setBuf(char (&b)[N], const std::string& s) {
   snprintf(b, N, "%s", s.c_str());
+}
+
+// ImGui::Combo with its label and items in the chosen language.
+bool comboTr(const char* label, int* v, const char* const items[], int n) {
+  std::vector<const char*> shown(items, items + n);
+  for (const char*& s : shown) s = tr(s);
+  return ImGui::Combo(trId(label), v, shown.data(), n);
 }
 
 // What scanning offers. The level is S1 to S9 and then 10 dB steps over S9.
@@ -557,10 +586,14 @@ class App {
   std::string mapMessage_;   // why the last search found nothing
   char qrzUser_[48] = "", qrzPassword_[64] = "";
   std::string qrzKey_;  // QRZ.com's session, kept between lookups
-  // A QRZ lookup waits on the network on a thread of its own, left to finish alone if the window closes.
+  char hamqthUser_[48] = "", hamqthPassword_[64] = "";
+  std::string hamqthKey_;  // HamQTH's session, kept between lookups
+  // An online lookup waits on the network on a thread of its own, left to finish alone if the window closes. QRZ.com
+  // is asked first, then HamQTH if QRZ has no place for it.
   struct QrzJob {
     std::atomic<bool> done{false};
     std::string call, user, password, key, error;
+    std::string hqUser, hqPassword, hqKey, home;
     bool ok = false;
     locations::Location found;
   };
@@ -718,6 +751,12 @@ class App {
   std::shared_ptr<UpdateCheck> updateCheck_;
   std::string newerBuild_;
   bool checkUpdates_ = true;
+  bool autoPower_ = false;  // switch the rig on at start and off at exit
+  // The interface's language: "auto" follows the system's, or one of i18n's codes. Changing it rebuilds the
+  // fonts between frames, as Greek and Cyrillic need letters the others don't.
+  std::string language_ = "auto";
+  bool languageChanged_ = false;
+  void applyLanguage();
 
   // self-test
   std::map<std::string, ImRect> rects_;
@@ -776,16 +815,28 @@ void App::setupStyle(float scale) {
   ImFontConfig cfg;
   cfg.FontDataOwnedByAtlas = false;
   cfg.OversampleH = 2;
+  // The letters the text needs: western and central European always, as names and places in the log can have
+  // them, and Greek or Cyrillic in the other sizes only for those languages, as every letter costs room in the
+  // font texture.
+  // Quotes, dashes, the ellipsis and the euro sign as well. The frequency fonts show only digits.
+  static const ImWchar kLatin[] = {0x20, 0x17F, 0x2013, 0x2026, 0x20AC, 0x20AC, 0};
+  static const ImWchar kGreek[] = {0x20, 0x17F, 0x370, 0x3FF, 0x2013, 0x2026, 0x20AC, 0x20AC, 0};
+  static const ImWchar kCyrillic[] = {0x20, 0x17F, 0x400, 0x4FF, 0x2013, 0x2026, 0x20AC, 0x20AC, 0};
+  static const ImWchar kAll[] = {0x20, 0x17F, 0x370, 0x3FF, 0x400, 0x4FF, 0x2013, 0x2026, 0x20AC, 0x20AC, 0};
+  ImFontConfig textCfg = cfg, allCfg = cfg;
+  textCfg.GlyphRanges = i18n::needsGreek() ? kGreek : i18n::needsCyrillic() ? kCyrillic : kLatin;
+  // The everyday text font has them all, for the list of languages and for names in the log, whatever the language.
+  allCfg.GlyphRanges = kAll;
   void* roboto = const_cast<unsigned char*>(kRobotoMedium);
   void* cousine = const_cast<unsigned char*>(kCousine);
   auto fonts = [&](float k) {
     FontSet f;
-    f.text = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 15.f * k, &cfg);
-    f.small = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 12.5f * k, &cfg);
-    f.mid = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 19.f * k, &cfg);
+    f.text = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 15.f * k, &allCfg);
+    f.small = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 12.5f * k, &textCfg);
+    f.mid = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 19.f * k, &textCfg);
     f.freq = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 56.f * k, &cfg);
     f.freqSmall = io.Fonts->AddFontFromMemoryTTF(cousine, sizeof kCousine, 21.f * k, &cfg);
-    f.logBig = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 30.f * k, &cfg);  // twice text
+    f.logBig = io.Fonts->AddFontFromMemoryTTF(roboto, sizeof kRobotoMedium, 30.f * k, &textCfg);  // twice text
     return f;
   };
   FontSet main = fonts(scale);  // first, so that its text font is ImGui's default
@@ -869,6 +920,19 @@ void App::followMonitor() {
   lastWinX_ = nx, lastWinY_ = ny;
 }
 
+// A new language from Settings, between frames as it replaces the fonts. It's kept straight away, as Close in
+// Settings doesn't save.
+void App::applyLanguage() {
+  languageChanged_ = false;
+  i18n::use(language_);
+  setupStyle(scale_);
+  ImGui_ImplOpenGL3_DestroyFontsTexture();  // the next frame makes a new one from the new fonts
+  searchSizeStale_ = true;
+  glfwSetWindowTitle(win_, windowTitle().c_str());
+  cfg_.set("language", language_);
+  cfg_.save(cfgPath_);
+}
+
 // The same for the log book in a window of its own, which only changes its own scale. Runs between frames too.
 void App::followLogBookMonitor() {
   if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND || !openLogBook_ || !logBookViewport_) return;
@@ -920,6 +984,9 @@ void App::loadSettings() {
   logPath_ = dir + prefix + "log.csv";
   netPath_ = dir + prefix + "net.csv";
   cfg_.load(cfgPath_);
+  language_ = cfg_.get("language", "auto");
+  // The self-test finds its controls by their English names.
+  i18n::use(opt_.selfTest.empty() ? language_ : "en");
   port_ = cfg_.get("port");
   baud_ = cfg_.getInt("baud", 115200);
   addr_ = cfg_.getInt("addr", 0x94);
@@ -930,6 +997,7 @@ void App::loadSettings() {
   audioOut_ = cfg_.get("audio_out");
   monitor_ = cfg_.getInt("monitor", 0) != 0;
   checkUpdates_ = cfg_.getInt("check_updates", 1) != 0;
+  autoPower_ = cfg_.getInt("auto_power", 0) != 0;
   monitorGain_ = (float)cfg_.getDouble("monitor_gain", 0.7);
   nrOn_ = cfg_.getInt("nr_on", 0) != 0;
   nrMethod_ = std::max(0, std::min(2, cfg_.getInt("nr_method", 0)));
@@ -971,6 +1039,8 @@ void App::loadSettings() {
   setBuf(mapCall_, cfg_.get("map_call"));
   setBuf(qrzUser_, cfg_.get("qrz_user"));
   setBuf(qrzPassword_, cfg_.get("qrz_password"));
+  setBuf(hamqthUser_, cfg_.get("hamqth_user"));
+  setBuf(hamqthPassword_, cfg_.get("hamqth_password"));
   places_.load(dir + prefix + "locations.csv");
   map_.setCacheDir(dir + "tiles/");
   splitFrac_ = (float)cfg_.getDouble("split", 0.5);
@@ -1084,9 +1154,9 @@ void App::reloadPlans() {
   choosePlan(plan_.id);
   bands::installStations(stationsDir_);
   useStations(bands::loadStations(stationsDir_));
-  say(!plans_.errors.empty()      ? "A band plan has a problem: " + plans_.errors[0]
-      : !stations_.errors.empty() ? "A station list has a problem: " + stations_.errors[0]
-                                  : "Band plans and stations reloaded");
+  say(!plans_.errors.empty()      ? trf("A band plan has a problem: %s", plans_.errors[0].c_str())
+      : !stations_.errors.empty() ? trf("A station list has a problem: %s", stations_.errors[0].c_str())
+                                  : std::string(tr("Band plans and stations reloaded")));
 }
 
 void App::saveSettings() {
@@ -1099,6 +1169,8 @@ void App::saveSettings() {
   cfg_.set("audio_out", audioOut_);
   cfg_.setInt("monitor", monitor_);
   cfg_.setInt("check_updates", checkUpdates_);
+  cfg_.setInt("auto_power", autoPower_);
+  cfg_.set("language", language_);
   cfg_.setDouble("monitor_gain", monitorGain_);
   cfg_.setInt("nr_on", nrOn_);
   cfg_.setInt("nr_method", nrMethod_);
@@ -1139,6 +1211,8 @@ void App::saveSettings() {
   cfg_.set("map_call", mapCall_);
   cfg_.set("qrz_user", qrzUser_);
   cfg_.set("qrz_password", qrzPassword_);
+  cfg_.set("hamqth_user", hamqthUser_);
+  cfg_.set("hamqth_password", hamqthPassword_);
   cfg_.setDouble("split", splitFrac_);
   cfg_.setInt("tx_limit", txLimit_);
   cfg_.set("callsign", callsign_);
@@ -1210,12 +1284,15 @@ void App::connect() {
   int baud = baud_;
   const civ::Radio* forced = radioChoice_ == 1 ? &civ::kRadio7300 : radioChoice_ == 2 ? &civ::kRadio9700 : radioChoice_ == 3 ? &civ::kRadioR8600 : nullptr;
   rig_.start([port, baud] { return newSerialTransport(port, baud); }, (uint8_t)addr_, forced, seenRadio_);
+  // Waking a rig that's already on does nothing, so it's sent without knowing.
+  bool automated = !opt_.selfTest.empty() || !opt_.screenshot.empty();
+  if (autoPower_ && !automated) rig_.powerOn();
 }
 
 std::string App::windowTitle() const {
   // The name covers all the radios now, so only the brackets say which this is.
   std::string name = std::string(APP_NAME "  ") + std::string(update::kBuildStamp).substr(0, 10);
-  if (opt_.demo) return name + "  [DEMO: simulated " + seenRadio_->name + "]";
+  if (opt_.demo) return name + "  [" + trf("DEMO: simulated %s", seenRadio_->name) + "]";
   return name + "  [" + seenRadio_->name + "]";
 }
 
@@ -1244,7 +1321,7 @@ void App::keepAudioOpen() {
   if (audio_.capturing()) audio_.stopCapture();
   std::string in = audioIn_.empty() ? audio_.guessRigInput() : audioIn_;
   if (in.empty()) {
-    audioError_ = "The rig's USB audio isn't there (radio off?). Choose a device in Settings.";
+    audioError_ = tr("The rig's USB audio isn't there (radio off?). Choose a device in Settings.");
     return;
   }
   std::string err;
@@ -1342,7 +1419,7 @@ void App::pumpDecoder() {
   if (decodeStatus_.mode == Decoder::WEFAX) {
     bool wasImage = faxWasState_ == Decoder::FAX_IMAGE, isImage = decodeStatus_.faxState == Decoder::FAX_IMAGE;
     if (wasImage && !isImage) {
-      if (!decodeStatus_.file.empty()) say("Saved " + decodeStatus_.file);
+      if (!decodeStatus_.file.empty()) say(trf("Saved %s", decodeStatus_.file.c_str()));
       // The slant it measured is this sound card's clock, so it's where the next chart should start from.
       if (decodeStatus_.faxMeasured) {
         faxPpm_ = std::max(-500.f, std::min(500.f, decodeStatus_.faxPpm));
@@ -1421,7 +1498,7 @@ bool App::tuneTo(long long hz) {
   // A click just past an edge means the edge. Further off, it's a frequency this radio doesn't have, such as
   // an HF memory on a 9700, and going to whichever band happens to be closest would only surprise.
   if (llabs(radio().clamp(hz) - hz) > 1000000) {
-    say(tuning::formatHz(hz) + " isn't on the " + radio().name + ", which tunes " + radio().rangeText);
+    say(trf("%s isn't on the %s, which tunes %s", tuning::formatHz(hz).c_str(), radio().name, radio().rangeText));
     return false;
   }
   rig_.setFreq(hz);
@@ -1474,7 +1551,7 @@ void App::goRange(const bands::StationRange& r) {
 void App::commitEntry() {
   long long hz = tuning::parseFreq(entry_, st_.hz, radio());
   if (hz < 0) {
-    say("\"" + entry_ + "\" isn't a frequency the " + radio().name + " can tune (" + radio().rangeText + ")");
+    say(trf("\"%s\" isn't a frequency the %s can tune (%s)", entry_.c_str(), radio().name, radio().rangeText));
     entryErrorUntil_ = glfwGetTime() + 1.5;
     return;
   }
@@ -1506,8 +1583,8 @@ void App::handleKeys() {
   bool ctrl = io.KeyCtrl, shift = io.KeyShift;
   if (ctrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) stationSearchOpen_ = stationSearchFocus_ = true;
   if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Space, false)) {
-    if (!radio().hasTransmit) say(std::string("The ") + radio().name + " is a receiver: it can't transmit.");
-    else if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
+    if (!radio().hasTransmit) say(trf("The %s is a receiver: it can't transmit.", radio().name));
+    else if (!st_.txArmed) say(tr("Transmit isn't armed. Press ARM TX first."));
     else rig_.ptt(!st_.tx);
   }
   if (!st_.connected) return;
@@ -1559,6 +1636,7 @@ static void gradientRect(ImDrawList* dl, ImVec2 a, ImVec2 b, const ImVec4& top, 
 bool App::panelButton(const char* label, const ImVec2& sizeArg, ImGuiButtonFlags flags) {
   ImGuiWindow* window = ImGui::GetCurrentWindow();
   if (window->SkipItems) return false;
+  label = trId(label);
   const ImGuiStyle& style = ImGui::GetStyle();
   ImGuiID id = window->GetID(label);
   ImVec2 textSize = ImGui::CalcTextSize(label, nullptr, true);
@@ -1643,7 +1721,7 @@ void App::flow(float nextWidth) {
 void App::levelRow(const char* label, int level, const char* fmtOverride) {
   ImGui::PushID(label);
   ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted(label);
+  ImGui::TextUnformatted(tr(label));
   ImGui::SameLine(S(84));
   int v = std::max(0, st_.level[level]);
   char fmt[32];
@@ -1675,7 +1753,7 @@ void App::switchLevelRow(const char* label, int sw, int level) {
 void App::radioRow(const char* label, int sw, const std::vector<std::pair<const char*, int>>& opts) {
   ImGui::PushID(label);
   ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted(label);
+  ImGui::TextUnformatted(tr(label));
   ImGui::SameLine(S(84));
   float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * (float)(opts.size() - 1)) / (float)opts.size();
   bool first = true;
@@ -1741,8 +1819,8 @@ void App::drawVfo() {
     ImGui::TextColored(ImColor(bad ? C_RED : C_ACCENT), "%s_", entry_.c_str());
     ImGui::PopFont();
     ImGui::PushFont(fMid_);
-    if (hz >= 0) ImGui::TextColored(ImColor(C_GREEN), "Enter: %s MHz", tuning::formatHz(hz).c_str());
-    else ImGui::TextColored(ImColor(C_DIM), "keep typing, or Esc to cancel");
+    if (hz >= 0) ImGui::TextColored(ImColor(C_GREEN), tr("Enter: %s MHz"), tuning::formatHz(hz).c_str());
+    else ImGui::TextColored(ImColor(C_DIM), "%s", tr("keep typing, or Esc to cancel"));
     ImGui::PopFont();
   } else {
     drawFreqDigits(st_.hz, st_.tx);
@@ -1770,7 +1848,7 @@ void App::drawVfo() {
   }
   if (radio().hasOtherVfo) {
     // The other VFO, always in view: it's where a split transmits.
-    ImGui::TextDisabled("Other VFO");
+    ImGui::TextDisabled("%s", tr("Other VFO"));
     ImGui::SameLine();
     ImGui::PushFont(fFreqSmall_);
     ImGui::TextUnformatted(tuning::formatHz(st_.otherHz).c_str());
@@ -1779,7 +1857,7 @@ void App::drawVfo() {
     ImGui::TextDisabled("%s", modeLabel(st_.otherMode, st_.otherData).c_str());
   } else {
     // A receiver has the one VFO, so what's worth seeing here is what it's listening with.
-    ImGui::TextDisabled("Listening on");
+    ImGui::TextDisabled("%s", tr("Listening on"));
     ImGui::SameLine();
     ImGui::PushFont(fFreqSmall_);
     bool hf = st_.hz < radio().antennaSwitchBelowHz;
@@ -1801,7 +1879,7 @@ void App::drawMeters() {
   if (ImGui::InvisibleButton("meterswap", ImVec2(w, panelH))) needleMeter_ = !needleMeter_;
   note("meters");
   if (ImGui::IsItemHovered()) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-  ImGui::SetItemTooltip(needleMeter_ ? "Click for the bar meter" : "Click for the needle meter");
+  ImGui::SetItemTooltip("%s", needleMeter_ ? tr("Click for the bar meter") : tr("Click for the needle meter"));
   if (needleMeter_) {
     drawNeedleMeter(org, w, panelH);
     ImGui::EndChild();
@@ -1849,8 +1927,8 @@ void App::drawMeters() {
     if (!radio().hasTransmit) {
       // Nothing to show for power or SWR. What matters on a receiver is whether it's overloaded.
       float ty = y + S(6);
-      dl->AddText(ImVec2(org.x, ty), st_.squelchOpen == 1 ? C_GREEN : C_DIM, st_.squelchOpen == 1 ? "Squelch open" : "Squelch closed");
-      const char* over = st_.overflow == 1 ? "OVERLOAD" : "No overload";
+      dl->AddText(ImVec2(org.x, ty), st_.squelchOpen == 1 ? C_GREEN : C_DIM, st_.squelchOpen == 1 ? tr("Squelch open") : tr("Squelch closed"));
+      const char* over = st_.overflow == 1 ? tr("OVERLOAD") : tr("No overload");
       float ow = ImGui::CalcTextSize(over).x;
       dl->AddText(ImVec2(org.x + w - ow, ty), st_.overflow == 1 ? C_RED : C_DIM, over);
       ImGui::EndChild();
@@ -1930,8 +2008,8 @@ void App::drawNeedleMeter(ImVec2 org, float w, float h) {
   if (!radio().hasTransmit) {
     // Nothing to show for power or SWR. What matters on a receiver is whether it's overloaded.
     bool open = st_.squelchOpen == 1, over = st_.overflow == 1;
-    dl->AddText(fSmall_, S(12.5f), ImVec2(x0, y + rowH * 0.5f), open ? C_GREEN : C_DIM, open ? "Squelch open" : "Squelch closed");
-    dl->AddText(fSmall_, S(12.5f), ImVec2(x0, y + rowH * 1.5f), over ? C_RED : C_DIM, over ? "OVERLOAD" : "No overload");
+    dl->AddText(fSmall_, S(12.5f), ImVec2(x0, y + rowH * 0.5f), open ? C_GREEN : C_DIM, open ? tr("Squelch open") : tr("Squelch closed"));
+    dl->AddText(fSmall_, S(12.5f), ImVec2(x0, y + rowH * 1.5f), over ? C_RED : C_DIM, over ? tr("OVERLOAD") : tr("No overload"));
     return;
   }
   for (const MeterRow& r : lowerMeters()) {
@@ -2033,7 +2111,7 @@ void App::drawNeedleFace(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float reading) {
     }
     label(at(-0.13f, kR2 - 3 * k), S(10.5f), ink, "Po %");
   } else {
-    label(ImVec2(cx, pivotY - kR2), S(10.5f), ink, "SIGNAL");
+    label(ImVec2(cx, pivotY - kR2), S(10.5f), ink, tr("SIGNAL"));
   }
 
   // The transmit lamp, in the corner of the card.
@@ -2069,7 +2147,7 @@ void App::saveMemoryHere() {
   m.name = utcNow("%H%MZ");
   memories_.push_back(m);
   store::saveMemories(memPath_, memories_);
-  say("Saved " + tuning::formatHz(m.hz) + " to memories");
+  say(trf("Saved %s to memories", tuning::formatHz(m.hz).c_str()));
 }
 
 // Where a transceiver has its transmit buttons, a receiver has its antennas.
@@ -2079,7 +2157,7 @@ void App::drawReceiverPanel() {
   int count = radio().antennas;
   float w = (ImGui::GetContentRegionAvail().x - gap * (float)(count - 1)) / (float)count;
   bool hf = st_.hz < radio().antennaSwitchBelowHz;
-  static const char* const kPorts[] = {"Type-N, 50 ohms: 10 kHz to 3 GHz", "SO-239, 50 ohms: 10 kHz to 30 MHz", "RCA, 500 ohms: 10 kHz to 30 MHz"};
+  static const char* const kPorts[] = {N_("Type-N, 50 ohms: 10 kHz to 3 GHz"), N_("SO-239, 50 ohms: 10 kHz to 30 MHz"), N_("RCA, 500 ohms: 10 kHz to 30 MHz")};
   ImGui::BeginDisabled(!st_.connected);
   for (int i = 0; i < count; i++) {
     char label[8], name[8];
@@ -2089,14 +2167,14 @@ void App::drawReceiverPanel() {
     ImGui::BeginDisabled(i > 0 && !hf);
     bool on = hf ? st_.ant == i : i == 0;
     if (toggle(label, on, ImVec2(w, S(52)), name)) rig_.setAntenna(i);
-    ImGui::SetItemTooltip("%s", kPorts[std::min(i, 2)]);
+    ImGui::SetItemTooltip("%s", tr(kPorts[std::min(i, 2)]));
     ImGui::EndDisabled();
   }
   if (panelButton("Save to memories", ImVec2(-1, 0))) saveMemoryHere();
   note("quickmem");
-  ImGui::SetItemTooltip("Save this frequency and mode to memories");
+  ImGui::SetItemTooltip("%s", tr("Save this frequency and mode to memories"));
   ImGui::EndDisabled();
-  ImGui::TextDisabled(hf ? "Receive only. Hold the mouse over an antenna for its port." : "Receive only. Above 30 MHz it can only use ANT1.");
+  ImGui::TextDisabled("%s", hf ? tr("Receive only. Hold the mouse over an antenna for its port.") : tr("Receive only. Above 30 MHz it can only use ANT1."));
   ImGui::EndChild();
 }
 
@@ -2110,34 +2188,34 @@ void App::drawTxPanel() {
   if (actionButton(armed ? "ARMED" : "ARM TX", ImVec2(w, h), armed ? V_AMBER : ImGui::GetStyle().Colors[ImGuiCol_Button],
                    armed ? V_AMBER_HI : ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered], "arm"))
     rig_.armTx(!armed);
-  ImGui::SetItemTooltip("Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT.");
+  ImGui::SetItemTooltip("%s", tr("Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT."));
   ImGui::SameLine();
   if (actionButton(st_.tx ? "TX ON" : "PTT", ImVec2(w, h), st_.tx ? V_RED_HI : (armed ? V_RED : ImGui::GetStyle().Colors[ImGuiCol_Button]), V_RED_HI, "ptt")) {
-    if (!armed) say("Transmit isn't armed. Press ARM TX first.");
-    else if (!st_.connected) say("The rig isn't connected");
+    if (!armed) say(tr("Transmit isn't armed. Press ARM TX first."));
+    else if (!st_.connected) say(tr("The rig isn't connected"));
     else rig_.ptt(!st_.tx);
   }
-  ImGui::SetItemTooltip("Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).", st_.txLimit);
+  ImGui::SetItemTooltip(tr("Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings)."), st_.txLimit);
   if (tuner) {
     ImGui::SameLine();
     if (actionButton(st_.atu == 2 ? "TUNING" : "TUNE", ImVec2(w, h), st_.atu == 2 ? V_RED_HI : ImGui::GetStyle().Colors[ImGuiCol_Button], V_RED_HI, "tune")) {
-      if (!armed) say("Transmit isn't armed. Press ARM TX first.");
+      if (!armed) say(tr("Transmit isn't armed. Press ARM TX first."));
       else rig_.tuneAtu();
     }
-    ImGui::SetItemTooltip("Starts the rig's antenna tuner. This transmits a carrier.");
+    ImGui::SetItemTooltip("%s", tr("Starts the rig's antenna tuner. This transmits a carrier."));
     ImGui::SameLine();
     if (toggle("ATU", st_.atu >= 1, ImVec2(w, h))) rig_.setAtu(st_.atu < 1);
-    ImGui::SetItemTooltip("The antenna tuner in or out of line");
+    ImGui::SetItemTooltip("%s", tr("The antenna tuner in or out of line"));
   }
 
   float w5 = (ImGui::GetContentRegionAvail().x - gap * 3) / 4;
   ImGui::BeginDisabled(!st_.connected);
   if (toggle("SPLIT", st_.split == 1, ImVec2(w5, 0))) rig_.setSplit(st_.split != 1);
-  ImGui::SetItemTooltip("Receive on this VFO, transmit on the other. Right-click for a quick offset.");
+  ImGui::SetItemTooltip("%s", tr("Receive on this VFO, transmit on the other. Right-click for a quick offset."));
   if (ImGui::BeginPopupContextItem("splitmenu")) {
     for (int k : {1, 2, 5, 10, -1, -2, -5}) {
       char b[32];
-      snprintf(b, sizeof b, "Split %+d kHz", k);
+      snprintf(b, sizeof b, tr("Split %+d kHz"), k);
       if (ImGui::MenuItem(b)) {
         rig_.setOtherFreq(st_.hz + k * 1000);
         rig_.setOtherMode(st_.mode, st_.data, st_.filter ? st_.filter : 1);
@@ -2149,26 +2227,26 @@ void App::drawTxPanel() {
   ImGui::SameLine();
   if (panelButton("A/B", ImVec2(w5, 0))) rig_.vfoSwap();
   note("swap");
-  ImGui::SetItemTooltip("Swap the two VFOs");
+  ImGui::SetItemTooltip("%s", tr("Swap the two VFOs"));
   ImGui::SameLine();
   if (panelButton("A=B", ImVec2(w5, 0))) rig_.vfoEqual();
-  ImGui::SetItemTooltip("Copy this VFO to the other");
+  ImGui::SetItemTooltip("%s", tr("Copy this VFO to the other"));
   ImGui::SameLine();
   if (panelButton("Mem", ImVec2(w5, 0))) saveMemoryHere();
   note("quickmem");
-  ImGui::SetItemTooltip("Save this frequency and mode to memories");
+  ImGui::SetItemTooltip("%s", tr("Save this frequency and mode to memories"));
   ImGui::EndDisabled();
 
   if (st_.tx) {
-    ImGui::TextColored(ImColor(C_RED), "TRANSMITTING");
+    ImGui::TextColored(ImColor(C_RED), "%s", tr("TRANSMITTING"));
     if (st_.txSeconds > 0) {
       ImGui::SameLine();
-      ImGui::Text("%d s of %d s", st_.txSeconds, st_.txLimit);
+      ImGui::Text(tr("%d s of %d s"), st_.txSeconds, st_.txLimit);
     }
   } else if (armed) {
-    ImGui::TextColored(ImColor(C_AMBER), "Armed: the buttons above will transmit");
+    ImGui::TextColored(ImColor(C_AMBER), "%s", tr("Armed: the buttons above will transmit"));
   } else {
-    ImGui::TextDisabled("Transmit locked");
+    ImGui::TextDisabled("%s", tr("Transmit locked"));
   }
   ImGui::EndChild();
 }
@@ -2187,17 +2265,20 @@ void App::drawHeader() {
 // A receiver's coverage runs to far too many bands for a row of buttons, so they go on a menu by what they're for.
 void App::drawBandMenu() {
   int here = plan_.bandOf(st_.hz);
-  std::string label = (here >= 0 ? plan_.bands[(size_t)here].title() : std::string("Bands")) + "##bandmenu";
+  std::string label = (here >= 0 ? plan_.bands[(size_t)here].title() : std::string(tr("Bands"))) + "##bandmenu";
   if (panelButton(label.c_str(), ImVec2(S(150), S(30)))) ImGui::OpenPopup("bandmenu");
   note("bandmenu");
-  ImGui::SetItemTooltip("The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order.");
+  ImGui::SetItemTooltip("%s", tr("The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order."));
   if (!ImGui::BeginPopup("bandmenu")) return;
   std::vector<std::string> groups;
-  auto groupOf = [](const bands::Band& b) { return b.group.empty() ? std::string("Amateur") : b.group; };
+  auto groupOf = [](const bands::Band& b) { return b.group.empty() ? std::string(N_("Amateur")) : b.group; };
+  // The groups the built-in plans use, which the menu translates as it shows them.
+  [[maybe_unused]] static const char* const kGroups[] = {N_("Shortwave utility"), N_("Land mobile"), N_("Shortwave broadcast"), N_("Mobile phones and data"),
+                                                          N_("Long and medium wave"), N_("FM and TV broadcast")};
   for (const bands::Band& b : plan_.bands)
     if (std::find(groups.begin(), groups.end(), groupOf(b)) == groups.end()) groups.push_back(groupOf(b));
   for (const std::string& g : groups) {
-    bool open = ImGui::BeginMenu(g.c_str());
+    bool open = ImGui::BeginMenu(trId(g.c_str()));
     note("bandgroup:" + g);
     if (!open) continue;
     for (int i = 0; i < (int)plan_.bands.size(); i++) {
@@ -2210,7 +2291,7 @@ void App::drawBandMenu() {
         if (ImGui::MenuItem(band.title().c_str(), nullptr, here == i)) goBand(i);
         note("band:" + band.name);
       } else if (ImGui::BeginMenu(band.title().c_str())) {
-        if (ImGui::MenuItem("Go to the band", nullptr, here == i)) goBand(i);
+        if (ImGui::MenuItem(trId("Go to the band"), nullptr, here == i)) goBand(i);
         note("band:" + band.name);
         ImGui::Separator();
         for (const bands::Marker& p : band.markers)
@@ -2232,7 +2313,7 @@ void App::drawBandMenu() {
 // WFM, and the modes a transceiver hasn't got. Most of these are for one service or another, so they're on menus.
 void App::drawReceiverModes(int filter) {
   if (toggle("WFM", st_.mode == civ::WFM, ImVec2(S(46), S(30)), "mode:WFM")) rig_.setMode(civ::WFM, false, filter);
-  ImGui::SetItemTooltip("Wide FM, for FM broadcast and other wide signals");
+  ImGui::SetItemTooltip("%s", tr("Wide FM, for FM broadcast and other wide signals"));
   ImGui::SameLine();
   auto menu = [&](const char* button, const char* id, const std::vector<std::pair<const char*, int>>& modes, const char* tip) {
     bool on = false;
@@ -2240,7 +2321,7 @@ void App::drawReceiverModes(int filter) {
     for (const auto& m : modes)
       if (st_.mode == m.second) on = true, shown = m.first;
     if (toggle((std::string(shown) + "##" + id).c_str(), on, ImVec2(S(72), S(30)), id)) ImGui::OpenPopup(id);
-    ImGui::SetItemTooltip("%s", tip);
+    ImGui::SetItemTooltip("%s", tr(tip));
     if (ImGui::BeginPopup(id)) {
       for (const auto& m : modes) {
         if (ImGui::MenuItem(m.first, nullptr, st_.mode == m.second)) rig_.setMode(m.second, false, filter);
@@ -2251,9 +2332,9 @@ void App::drawReceiverModes(int filter) {
     ImGui::SameLine();
   };
   menu("S-AM", "modes:sam", {{"S-AM", civ::S_AM}, {"S-AM(L)", civ::S_AM_L}, {"S-AM(U)", civ::S_AM_U}},
-       "Synchronous AM: both sidebands, or just the lower or upper one to dodge interference");
-  menu("Digital", "modes:digital", {{"DV", civ::DV}, {"P25", civ::P25}, {"dPMR", civ::DPMR}, {"NXDN-VN", civ::NXDN_VN}, {"NXDN-N", civ::NXDN_N}, {"DCR", civ::DCR}},
-       "D-STAR, P25, dPMR, NXDN and DCR digital voice");
+       N_("Synchronous AM: both sidebands, or just the lower or upper one to dodge interference"));
+  menu(N_("Digital"), "modes:digital", {{"DV", civ::DV}, {"P25", civ::P25}, {"dPMR", civ::DPMR}, {"NXDN-VN", civ::NXDN_VN}, {"NXDN-N", civ::NXDN_N}, {"DCR", civ::DCR}},
+       N_("D-STAR, P25, dPMR, NXDN and DCR digital voice"));
 }
 
 // The rig keeps a bass and a treble for each of SSB, AM and FM, so this shows whichever pair is in use now.
@@ -2263,23 +2344,23 @@ void App::drawEqButton(const char* label, bool tx) {
   ImGui::BeginDisabled(!usable);
   if (panelButton(label, ImVec2(S(52), S(30)))) ImGui::OpenPopup(label);
   note(label);
-  if (usable) ImGui::SetItemTooltip("%s bass and treble", tx ? "Transmit" : "Receive");
-  else if (bass < 0) ImGui::SetItemTooltip("The rig has no bass or treble setting for %s", civ::modeName(st_.mode));
-  else ImGui::SetItemTooltip("Not available: this radio hasn't said it's an IC-7300%s", tx ? " (SSB only on an MK2)" : "");
+  if (usable) ImGui::SetItemTooltip("%s", tx ? tr("Transmit bass and treble") : tr("Receive bass and treble"));
+  else if (bass < 0) ImGui::SetItemTooltip(tr("The rig has no bass or treble setting for %s"), civ::modeName(st_.mode));
+  else ImGui::SetItemTooltip("%s", tx ? tr("Not available: this radio hasn't said it's an IC-7300 (SSB only on an MK2)") : tr("Not available: this radio hasn't said it's an IC-7300"));
   ImGui::EndDisabled();
   if (!ImGui::BeginPopup(label)) return;
   // The mode can change while this is open, from the rig or a key.
   if (!usable) {
-    ImGui::TextDisabled("Not available in %s", civ::modeName(st_.mode));
+    ImGui::TextDisabled(tr("Not available in %s"), civ::modeName(st_.mode));
   } else {
-    ImGui::TextDisabled("%s audio", tx ? "Transmit" : "Receive");
-    static const char* const kNames[] = {"Bass", "Treble"};
+    ImGui::TextDisabled("%s", tx ? tr("Transmit audio") : tr("Receive audio"));
+    static const char* const kNames[] = {N_("Bass"), N_("Treble")};
     for (int i = 0; i < 2; i++) {
       const int row = bass + i, known = st_.tone[row];
       int v = known - 5;
       ImGui::BeginDisabled(known < 0);
       ImGui::SetNextItemWidth(S(160));
-      if (ImGui::SliderInt(kNames[i], &v, -5, 5, known < 0 ? "--" : v == 0 ? "0" : "%+d", ImGuiSliderFlags_AlwaysClamp)) rig_.setTone(row, v + 5);
+      if (ImGui::SliderInt(trId(kNames[i]), &v, -5, 5, known < 0 ? "--" : v == 0 ? "0" : "%+d", ImGuiSliderFlags_AlwaysClamp)) rig_.setTone(row, v + 5);
       note(std::string(label) + ":" + kNames[i]);
       if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.f) rig_.setTone(row, known + (int)ImGui::GetIO().MouseWheel);
       ImGui::EndDisabled();
@@ -2304,7 +2385,7 @@ void App::drawBandRow() {
     anyBand = true;
     ImGui::PushID(i);
     if (toggle(band.name.c_str(), here == i, ImVec2(bw, S(30)), ("band:" + band.name).c_str())) goBand(i);
-    ImGui::SetItemTooltip("%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.", band.title().c_str());
+    ImGui::SetItemTooltip(tr("%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on."), band.title().c_str());
     if (ImGui::BeginPopupContextItem("presets")) {
       ImGui::TextDisabled("%s", band.title().c_str());
       for (const bands::Marker& p : band.markers)
@@ -2320,7 +2401,7 @@ void App::drawBandRow() {
   }
   if (!anyBand) {
     ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("The %s plan has no bands for the %s", plan_.name.c_str(), radio().name);
+    ImGui::TextDisabled(tr("The %s plan has no bands for the %s"), plan_.name.c_str(), radio().name);
   }
   ImGui::SameLine(0, S(14));
   static const struct {
@@ -2335,11 +2416,11 @@ void App::drawBandRow() {
   }
   if (radio().hasDigitalVoice) {
     if (toggle("DV", st_.mode == civ::DV, ImVec2(S(38), S(30)), "mode:DV")) rig_.setMode(civ::DV, false, filter);
-    ImGui::SetItemTooltip("D-STAR digital voice");
+    ImGui::SetItemTooltip("%s", tr("D-STAR digital voice"));
     ImGui::SameLine();
     ImGui::BeginDisabled(st_.hz < 1240000000);  // only the 1200 MHz band has it
     if (toggle("DD", st_.mode == civ::DD, ImVec2(S(38), S(30)), "mode:DD")) rig_.setMode(civ::DD, false, filter);
-    ImGui::SetItemTooltip("D-STAR high-speed data, on 23 cm only");
+    ImGui::SetItemTooltip("%s", tr("D-STAR high-speed data, on 23 cm only"));
     ImGui::EndDisabled();
     ImGui::SameLine();
   }
@@ -2347,7 +2428,7 @@ void App::drawBandRow() {
   if (radio().hasDataMode) {
     ImGui::BeginDisabled(!civ::hasData(st_.mode));
     if (toggle("DATA", st_.data, ImVec2(S(46), S(30)), "data")) rig_.setMode(st_.mode, !st_.data, filter);
-    ImGui::SetItemTooltip("Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)");
+    ImGui::SetItemTooltip("%s", tr("Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)"));
     ImGui::EndDisabled();
   }
   ImGui::SameLine(0, S(14));
@@ -2368,7 +2449,7 @@ void App::drawBandRow() {
   ImGui::EndDisabled();
   flow(S(125));
   ImGui::AlignTextToFramePadding();
-  ImGui::TextDisabled("Step");
+  ImGui::TextDisabled("%s", tr("Step"));
   ImGui::SameLine();
   ImGui::SetNextItemWidth(S(80));
   if (ImGui::BeginCombo("##step", kStepNames[stepIdx_])) {
@@ -2376,7 +2457,7 @@ void App::drawBandRow() {
       if (ImGui::Selectable(kStepNames[i], i == stepIdx_)) stepIdx_ = i;
     ImGui::EndCombo();
   }
-  ImGui::SetItemTooltip("Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too.");
+  ImGui::SetItemTooltip("%s", tr("Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too."));
 }
 
 // ---------------------------------------------------------------- the left-hand controls
@@ -2386,7 +2467,7 @@ void App::drawControls() {
   ImGui::BeginDisabled(!st_.connected);
   auto heading = [&](const char* t) {
     ImGui::Spacing();
-    ImGui::TextColored(ImColor(C_ACCENT), "%s", t);
+    ImGui::TextColored(ImColor(C_ACCENT), "%s", tr(t));
     ImGui::Separator();
   };
   heading("RECEIVE");
@@ -2395,7 +2476,7 @@ void App::drawControls() {
   levelRow("Squelch", civ::L_SQL);
   if (radio().hasExtPreamp) {
     radioRow("Preamp", civ::S_PREAMP, {{"OFF", 0}, {"ON", 1}, {"EXT", 2}, {"BOTH", 3}});
-    ImGui::SetItemTooltip("The internal preamp, and any external one the rig powers (set up in its menu)");
+    ImGui::SetItemTooltip("%s", tr("The internal preamp, and any external one the rig powers (set up in its menu)"));
   } else if (radio().singlePreamp) {
     radioRow("Preamp", civ::S_PREAMP, {{"OFF", 0}, {"ON", 1}});
   } else {
@@ -2406,10 +2487,10 @@ void App::drawControls() {
     ImGui::TextUnformatted("IP+");
     ImGui::SameLine(S(84));
     if (toggle(st_.ipPlus == 1 ? "ON##ipplus" : "OFF##ipplus", st_.ipPlus == 1, ImVec2(-1, 0), "ipplus")) rig_.setIpPlus(st_.ipPlus != 1);
-    ImGui::SetItemTooltip("Improves how it copes with strong signals, at some cost in sensitivity");
+    ImGui::SetItemTooltip("%s", tr("Improves how it copes with strong signals, at some cost in sensitivity"));
   }
   ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted("Attenuator");
+  ImGui::TextUnformatted(tr("Attenuator"));
   ImGui::SameLine(S(84));
   if (radio().attSteps > 1) {
     int steps = radio().attSteps + 1;
@@ -2433,7 +2514,7 @@ void App::drawControls() {
   {
     int maxCode = civ::widthCodeMax(st_.mode);
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Width");
+    ImGui::TextUnformatted(tr("Width"));
     ImGui::SameLine(S(84));
     ImGui::SetNextItemWidth(-1);
     if (maxCode > 0) {
@@ -2445,7 +2526,7 @@ void App::drawControls() {
       if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.f)
         rig_.setWidth(std::max(0, std::min(maxCode, v + (int)ImGui::GetIO().MouseWheel)));
     } else {
-      ImGui::TextDisabled("fixed by the mode");
+      ImGui::TextDisabled("%s", tr("fixed by the mode"));
     }
   }
   radioRow("Shape", civ::S_DSP_FILTER, {{"SHARP", 0}, {"SOFT", 1}});
@@ -2469,7 +2550,7 @@ void App::drawControls() {
   switchLevelRow("Notch", civ::S_MN, civ::L_NOTCH);
   radioRow("Notch width", civ::S_NOTCH_WIDTH, {{"WIDE", 0}, {"MID", 1}, {"NAR", 2}});
   ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted("Auto notch");
+  ImGui::TextUnformatted(tr("Auto notch"));
   ImGui::SameLine(S(84));
   if (toggle("AN", st_.sw[civ::S_AN] == 1, ImVec2(-1, 0), "an")) rig_.setSwitch(civ::S_AN, st_.sw[civ::S_AN] == 1 ? 0 : 1);
 
@@ -2624,8 +2705,8 @@ void App::drawBandMap(double viewLo, double viewHi) {
 
   int here = plan_.bandOf(st_.hz);
   if (here < 0) {
-    std::string t = st_.hz > 0 ? "Not on a band in the " + plan_.name + " plan" : "";
-    if (const bands::StationRange* r = rangeHere(st_.hz)) t += ".  In the " + r->label + " band";
+    std::string t = st_.hz > 0 ? trf("Not on a band in the %s plan", plan_.name.c_str()) : "";
+    if (const bands::StationRange* r = rangeHere(st_.hz)) t += ".  " + trf("In the %s band", r->label.c_str());
     dl->AddText(fSmall_, S(12.5f), ImVec2(p0.x + S(6), textY), C_DIM, t.c_str());
     return;
   }
@@ -2663,8 +2744,8 @@ void App::drawBandMap(double viewLo, double viewHi) {
 
   if (hovered && mx >= x0 && mx <= x1) {
     double f = (double)band.lo + (double)((mx - x0) / (x1 - x0)) * (double)(band.hi - band.lo);
-    if (over) ImGui::SetTooltip("%s: %s\n%s to %s MHz\nClick to tune here", portionName(*over).c_str(), over->label.c_str(), edge(over->lo).c_str(), edge(over->hi).c_str());
-    else ImGui::SetTooltip("Out of band under the %s plan", plan_.name.c_str());
+    if (over) ImGui::SetTooltip(tr("%s: %s\n%s to %s MHz\nClick to tune here"), portionName(*over).c_str(), over->label.c_str(), edge(over->lo).c_str(), edge(over->hi).c_str());
+    else ImGui::SetTooltip(tr("Out of band under the %s plan"), plan_.name.c_str());
     if (clicked && over && st_.connected) tuneTo(std::max(over->lo, std::min(over->hi, llround(f / 1000) * 1000)));
   }
 }
@@ -2782,7 +2863,7 @@ void App::drawPlanOverlay(const PlotArea& a, double lo, double hi, float stripH,
     dl->AddRectFilled(ImVec2(x0, a.p0.y), ImVec2(x1, specBottom), IM_COL32(0, 0, 0, 150));
     dl->AddRectFilled(ImVec2(x0, a.w0.y), ImVec2(x1, a.p1.y), IM_COL32(0, 0, 0, 150));
     dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(70, 18, 18, 255));
-    const char* t = "Out of band";
+    const char* t = tr("Out of band");
     float tw = widthOf(t);
     if (tw + S(6) < x1 - x0) dl->AddText(fSmall_, S(12.5f), ImVec2((x0 + x1 - tw) / 2, textY), IM_COL32(255, 170, 160, 255), t);
     if (from > lo) dl->AddLine(ImVec2(x0, a.p0.y), ImVec2(x0, a.p1.y), edgeCol, 1.5f);
@@ -2813,9 +2894,9 @@ void App::drawPlanOverlay(const PlotArea& a, double lo, double hi, float stripH,
   };
   for (const bands::Band& band : plan_.bands) {
     char b[64];
-    snprintf(b, sizeof b, "%s begins %s", band.title().c_str(), tuning::formatHz(band.lo).c_str());
+    snprintf(b, sizeof b, tr("%s begins %s"), band.title().c_str(), tuning::formatHz(band.lo).c_str());
     edgeLabel((double)band.lo, b, true);
-    snprintf(b, sizeof b, "%s ends %s", band.title().c_str(), tuning::formatHz(band.hi).c_str());
+    snprintf(b, sizeof b, tr("%s ends %s"), band.title().c_str(), tuning::formatHz(band.hi).c_str());
     edgeLabel((double)band.hi, b, false);
   }
 
@@ -2832,11 +2913,11 @@ void App::drawPlanOverlay(const PlotArea& a, double lo, double hi, float stripH,
 }
 
 void App::drawStationsMenu() {
-  if (!ImGui::BeginMenu("Stations")) return;
-  if (ImGui::MenuItem("Find a station...", "Ctrl+F")) stationSearchOpen_ = stationSearchFocus_ = true;
-  ImGui::MenuItem("Show on the scope", nullptr, &showStations_);
-  ImGui::MenuItem("Only what's scheduled now", nullptr, &onAirOnly_);
-  ImGui::SetItemTooltip("Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it.");
+  if (!ImGui::BeginMenu(trId("Stations"))) return;
+  if (ImGui::MenuItem(trId("Find a station..."), "Ctrl+F")) stationSearchOpen_ = stationSearchFocus_ = true;
+  ImGui::MenuItem(trId("Show on the scope"), nullptr, &showStations_);
+  ImGui::MenuItem(trId("Only what's scheduled now"), nullptr, &onAirOnly_);
+  ImGui::SetItemTooltip("%s", tr("Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it."));
   ImGui::Separator();
   auto item =[&](const std::string& text, const std::string& tip, long long hz) {
     bool chosen = ImGui::MenuItem(text.c_str(), nullptr, false, st_.connected && radio().canTune(hz));
@@ -2845,8 +2926,8 @@ void App::drawStationsMenu() {
   };
   for (int i = 0; i < bands::S_COUNT; i++) {
     bands::Service service = (bands::Service)i;
-    if (!ImGui::BeginMenu(bands::serviceName(service))) continue;
-    ImGui::MenuItem("Show on the scope", nullptr, &showService_[i]);
+    if (!ImGui::BeginMenu(trId(bands::serviceName(service)))) continue;
+    ImGui::MenuItem(trId("Show on the scope"), nullptr, &showService_[i]);
     ImGui::Separator();
     for (const bands::StationFile& f : stations_.files) {
       // The stations in a group are next to each other in the file.
@@ -2865,9 +2946,9 @@ void App::drawStationsMenu() {
       }
       bool any = false;
       for (const bands::StationRange& r : f.ranges) any = any || r.service == service;
-      if (any && ImGui::BeginMenu(("Bands##" + f.id).c_str())) {
+      if (any && ImGui::BeginMenu((std::string(tr("Bands")) + "##" + f.id).c_str())) {
         for (const bands::StationRange& r : f.ranges)
-          if (r.service == service && item(r.label + "   " + tuning::formatHz(r.lo) + " to " + tuning::formatHz(r.hi), r.note, (r.lo + r.hi) / 2)) goRange(r);
+          if (r.service == service && item(r.label + "   " + trf("%s to %s", tuning::formatHz(r.lo).c_str(), tuning::formatHz(r.hi).c_str()), r.note, (r.lo + r.hi) / 2)) goRange(r);
         ImGui::EndMenu();
       }
     }
@@ -2881,14 +2962,14 @@ void App::drawStationSearch() {
   ImGui::SetNextWindowSize(ImVec2(S(560), S(420)), searchSizeStale_ ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
   searchSizeStale_ = false;
   if (stationSearchFocus_) ImGui::SetNextWindowFocus();
-  if (!ImGui::Begin("Find a station", &stationSearchOpen_, ImGuiWindowFlags_NoCollapse)) {
+  if (!ImGui::Begin(trId("Find a station"), &stationSearchOpen_, ImGuiWindowFlags_NoCollapse)) {
     ImGui::End();
     return;
   }
   if (stationSearchFocus_) ImGui::SetKeyboardFocusHere();
   stationSearchFocus_ = false;
   ImGui::SetNextItemWidth(-1);
-  bool enter = ImGui::InputTextWithHint("##stationquery", "Name, type, place or frequency in kHz", stationQuery_, sizeof stationQuery_, ImGuiInputTextFlags_EnterReturnsTrue);
+  bool enter = ImGui::InputTextWithHint("##stationquery", tr("Name, type, place or frequency in kHz"), stationQuery_, sizeof stationQuery_, ImGuiInputTextFlags_EnterReturnsTrue);
   note("stationquery");
   if (stationHitsStale_ || stationHitsFor_ != stationQuery_) {
     stationHits_ = stations_.search(stationQuery_);
@@ -2897,7 +2978,7 @@ void App::drawStationSearch() {
   }
   const std::vector<bands::StationHit>& hits = stationHits_;
   stationHitCount_ = hits.size();
-  ImGui::TextDisabled(st_.connected ? "%d found. Click one to go there, or press Enter for the first." : "%d found. Connect the rig to go there.", (int)hits.size());
+  ImGui::TextDisabled(st_.connected ? tr("%d found. Click one to go there, or press Enter for the first.") : tr("%d found. Connect the rig to go there."), (int)hits.size());
   ImGui::BeginChild("stationhits", ImVec2(0, 0), ImGuiChildFlags_Borders);
   ImGui::BeginDisabled(!st_.connected);
   auto go = [&](const bands::StationHit& h) {
@@ -2944,7 +3025,7 @@ void App::drawScopePane() {
     scopeEnabled_ = !on;
     rig_.setScope(scopeEnabled_);
   }
-  ImGui::SetItemTooltip("Streams the rig's own spectrum scope over CI-V");
+  ImGui::SetItemTooltip("%s", tr("Streams the rig's own spectrum scope over CI-V"));
   int spanIdx = 4;
   for (int i = 0; i < radio().scopeSpans; i++)
     if (st_.scopeSpan == civ::kScopeSpans[i]) spanIdx = i;
@@ -2955,41 +3036,41 @@ void App::drawScopePane() {
       if (ImGui::Selectable(kSpanNames[i], i == spanIdx)) rig_.setScopeSpan(civ::kScopeSpans[i]);
     ImGui::EndCombo();
   }
-  ImGui::SetItemTooltip("Span, in Centre mode");
+  ImGui::SetItemTooltip("%s", tr("Span, in Centre mode"));
   flow(S(120));
   if (toggle("Centre", st_.scopeMode == civ::SCOPE_CENTER, ImVec2(S(52), 0), "scopecentre")) rig_.setScopeMode(civ::SCOPE_CENTER);
   ImGui::SameLine();
   if (toggle("Fixed", st_.scopeMode == civ::SCOPE_FIXED, ImVec2(S(46), 0), "scopefixed")) rig_.setScopeMode(civ::SCOPE_FIXED);
-  ImGui::SetItemTooltip("Centre follows the dial. Fixed uses the band edges set on the rig.");
+  ImGui::SetItemTooltip("%s", tr("Centre follows the dial. Fixed uses the band edges set on the rig."));
   flow(S(130));
-  ImGui::TextDisabled("Ref");
+  ImGui::TextDisabled("%s", tr("Ref"));
   ImGui::SameLine();
   float ref = (float)st_.scopeRef;
   ImGui::SetNextItemWidth(S(90));
   if (ImGui::SliderFloat("##ref", &ref, -20.f, 20.f, "%+.1f dB")) rig_.setScopeRef(roundf(ref * 2) / 2);
-  ImGui::SetItemTooltip("The rig's scope reference level");
+  ImGui::SetItemTooltip("%s", tr("The rig's scope reference level"));
   flow(S(90));
-  static const char* speedNames[] = {"Fast", "Mid", "Slow"};
+  static const char* speedNames[] = {N_("Fast"), N_("Mid"), N_("Slow")};
   ImGui::SetNextItemWidth(S(64));
-  if (ImGui::BeginCombo("##speed", st_.scopeSpeed >= 0 && st_.scopeSpeed <= 2 ? speedNames[st_.scopeSpeed] : "Speed")) {
+  if (ImGui::BeginCombo("##speed", tr(st_.scopeSpeed >= 0 && st_.scopeSpeed <= 2 ? speedNames[st_.scopeSpeed] : "Speed"))) {
     for (int i = 0; i < 3; i++)
       if (ImGui::Selectable(speedNames[i], i == st_.scopeSpeed)) rig_.setScopeSpeed(i);
     ImGui::EndCombo();
   }
-  ImGui::SetItemTooltip("Sweep speed");
+  ImGui::SetItemTooltip("%s", tr("Sweep speed"));
   ImGui::EndDisabled();
   flow(S(50));
   if (panelButton("Auto##s")) autoScopeLevels();
-  ImGui::SetItemTooltip("Set the colours from the noise floor");
+  ImGui::SetItemTooltip("%s", tr("Set the colours from the noise floor"));
   flow(S(60));
   if (panelButton("Display##s")) ImGui::OpenPopup("scopedisplay");
   if (ImGui::BeginPopup("scopedisplay")) {
     ImGui::SetNextItemWidth(S(160));
-    ImGui::SliderFloat("Floor", &scopeFloor_, 0.f, 120.f, "%.0f");
+    ImGui::SliderFloat(trId("Floor"), &scopeFloor_, 0.f, 120.f, "%.0f");
     ImGui::SetNextItemWidth(S(160));
-    ImGui::SliderFloat("Range", &scopeRange_, 20.f, 160.f, "%.0f");
+    ImGui::SliderFloat(trId("Range"), &scopeRange_, 20.f, 160.f, "%.0f");
     ImGui::SetNextItemWidth(S(160));
-    ImGui::Combo("Colours", &palette_, kPaletteNames, PAL_COUNT);
+    comboTr("Colours", &palette_, kPaletteNames, PAL_COUNT);
     ImGui::EndPopup();
   }
   // Against the right-hand edge. A page is the width on show, so one page ends where the next begins. Only
@@ -3001,11 +3082,11 @@ void App::drawScopePane() {
   ImGui::BeginDisabled(!st_.connected || st_.scopeMode != civ::SCOPE_CENTER || st_.tx || st_.hz <= 0 || page <= 0);
   if (panelButton("<##page", ImVec2(S(24), 0))) tuneBy(-page);
   note("scopepageprev");
-  ImGui::SetItemTooltip("Back one page of the scope. Centre mode only.");
+  ImGui::SetItemTooltip("%s", tr("Back one page of the scope. Centre mode only."));
   ImGui::SameLine();
   if (panelButton(">##page", ImVec2(S(24), 0))) tuneBy(page);
   note("scopepagenext");
-  ImGui::SetItemTooltip("On one page of the scope. Centre mode only.");
+  ImGui::SetItemTooltip("%s", tr("On one page of the scope. Centre mode only."));
   ImGui::EndDisabled();
 
   float k = 255.f / civ::kScopeLevelMax;
@@ -3045,9 +3126,10 @@ void App::drawScopePane() {
   if (marker) {
     std::string t = marker->label + "   " + tuning::formatHz(marker->hz);
     if (!marker->note.empty()) t += "\n" + marker->note;
-    if (!marker->preset()) t += "\nClick to tune there";
-    else if (marker->tuneHz() != marker->hz) t += std::string("\nClick to tune ") + civ::modeName(marker->mode) + (marker->data ? "-D" : "") + " at " + tuning::formatHz(marker->tuneHz());
-    else t += std::string("\nClick to go there in ") + civ::modeName(marker->mode) + (marker->data ? "-D" : "");
+    std::string mode = std::string(civ::modeName(marker->mode)) + (marker->data ? "-D" : "");
+    if (!marker->preset()) t += std::string("\n") + tr("Click to tune there");
+    else if (marker->tuneHz() != marker->hz) t += "\n" + trf("Click to tune %s at %s", mode.c_str(), tuning::formatHz(marker->tuneHz()).c_str());
+    else t += "\n" + trf("Click to go there in %s", mode.c_str());
     ImGui::SetTooltip("%s", t.c_str());
   }
   // The passband and the dial.
@@ -3065,10 +3147,10 @@ void App::drawScopePane() {
     }
   }
   const char* banner = nullptr;
-  if (!st_.connected) banner = "The rig isn't connected";
-  else if (!scopeEnabled_) banner = "Scope data is off";
-  else if (glfwGetTime() - scopeLastAt_ > 3.0) banner = "No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200";
-  else if (scopeOor_) banner = "Out of the scope's range";
+  if (!st_.connected) banner = tr("The rig isn't connected");
+  else if (!scopeEnabled_) banner = tr("Scope data is off");
+  else if (glfwGetTime() - scopeLastAt_ > 3.0) banner = tr("No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200");
+  else if (scopeOor_) banner = tr("Out of the scope's range");
   if (banner) {
     ImVec2 ts = ImGui::CalcTextSize(banner);
     ImVec2 c((a.p0.x + a.p1.x - ts.x) / 2, (a.w0.y + a.w1.y - ts.y) / 2);
@@ -3082,7 +3164,7 @@ void App::drawScopePane() {
     if (showBandPlan_) {
       const bands::Segment* seg = plan_.segmentAt(llround(a.x));
       if (seg) t += "  " + portionName(*seg);
-      else if (radio().hasTransmit) t += "  Out of band";
+      else if (radio().hasTransmit) t += std::string("  ") + tr("Out of band");
     }
     if (const bands::StationRange* r = rangeHere(llround(a.x))) t += "  " + r->label;
     float tw = ImGui::CalcTextSize(t.c_str()).x;
@@ -3115,13 +3197,13 @@ void App::drawScopePane() {
   if (ImGui::BeginPopup("scopemenu")) {
     long long lastHz = scopeMenuHz_;
     ImGui::TextDisabled("%s", tuning::formatHz(lastHz).c_str());
-    if (ImGui::MenuItem("Tune here")) tuneTo(lastHz);
-    if (radio().hasTransmit && ImGui::MenuItem("Transmit here (split)")) {
+    if (ImGui::MenuItem(trId("Tune here"))) tuneTo(lastHz);
+    if (radio().hasTransmit && ImGui::MenuItem(trId("Transmit here (split)"))) {
       rig_.setOtherFreq(lastHz);
       rig_.setOtherMode(st_.mode, st_.data, st_.filter ? st_.filter : 1);
       rig_.setSplit(true);
     }
-    if (ImGui::MenuItem("Save to memories")) {
+    if (ImGui::MenuItem(trId("Save to memories"))) {
       store::Memory m;
       m.hz = lastHz, m.mode = st_.mode, m.data = st_.data, m.filter = st_.filter ? st_.filter : 1;
       m.name = utcNow("%H%MZ");
@@ -3135,8 +3217,8 @@ void App::drawScopePane() {
 
 void App::startRecording() {
   std::string path = store::receivedDir() + "rx-" + utcNow("%Y%m%d-%H%M%S") + "-" + std::to_string(st_.hz > 0 ? st_.hz : 0) + ".wav";
-  if (rec_.open(path, AudioEngine::kRate)) say("Recording to " + path);
-  else say("Can't write " + path);
+  if (rec_.open(path, AudioEngine::kRate)) say(trf("Recording to %s", path.c_str()));
+  else say(trf("Can't write %s", path.c_str()));
 }
 
 // From the sweep itself: the rig's levels vary a lot with band and Ref (a quiet 40m peaked at 29 of 160).
@@ -3162,23 +3244,23 @@ void App::drawDecodeText() {
   const Decoder::Status& d = decodeStatus_;
   ImGui::SameLine();
   ImGui::TextDisabled("%s", d.heading.c_str());
-  float clearW = ImGui::CalcTextSize("Clear").x + ImGui::GetStyle().FramePadding.x * 2;
+  float clearW = ImGui::CalcTextSize(tr("Clear")).x + ImGui::GetStyle().FramePadding.x * 2;
   ImGui::SameLine();
   ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - clearW));
   if (panelButton("Clear##decode")) decodeText_.clear();
-  ImGui::SetItemTooltip("Clear this panel. What's in the file stays there.");
+  ImGui::SetItemTooltip("%s", tr("Clear this panel. What's in the file stays there."));
   if (decodeMode_ == Decoder::CW) {
-    ImGui::TextDisabled("Hearing:");
+    ImGui::TextDisabled("%s", tr("Hearing:"));
     ImGui::SameLine();
     ImGui::TextUnformatted(d.live.c_str());
-    ImGui::SetItemTooltip("CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing");
+    ImGui::SetItemTooltip("%s", tr("CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing"));
   }
   bool showFile = !d.error.empty() || !d.file.empty();
   float footer = showFile ? ImGui::GetTextLineHeightWithSpacing() : 0;
   ImGui::BeginChild("decodetext", ImVec2(0, -footer), ImGuiChildFlags_None);
   bool atEnd = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - S(4);
   if (decodeText_.empty()) {
-    ImGui::TextDisabled("Nothing decoded yet");
+    ImGui::TextDisabled("%s", tr("Nothing decoded yet"));
   } else {
     ImGui::PushTextWrapPos(0);
     ImGui::TextUnformatted(decodeText_.data(), decodeText_.data() + decodeText_.size());
@@ -3189,7 +3271,7 @@ void App::drawDecodeText() {
   if (!d.error.empty()) {
     ImGui::TextColored(ImColor(C_RED), "%s", d.error.c_str());
   } else if (!d.file.empty()) {
-    ImGui::TextDisabled("Saving to %s", d.file.substr(d.file.find_last_of("\\/") + 1).c_str());
+    ImGui::TextDisabled(tr("Saving to %s"), d.file.substr(d.file.find_last_of("\\/") + 1).c_str());
     ImGui::SetItemTooltip("%s", d.file.c_str());
   }
 }
@@ -3199,7 +3281,7 @@ void App::chooseFaxOverlay(const std::string& file) {
   faxOverlayFile_.clear();
   if (file.empty()) return;
   if (!chart_overlay::load(store::overlaysDir() + file, faxOverlay_)) {
-    say("Can't read the overlay " + file);
+    say(trf("Can't read the overlay %s", file.c_str()));
     return;
   }
   chart_overlay::Image shown = faxOverlay_;
@@ -3220,45 +3302,45 @@ void App::chooseFaxOverlay(const std::string& file) {
 // At the right of the toolbar, above the chart.
 void App::drawFaxOverlayControls(bool receiving) {
   const float gap = ImGui::GetStyle().ItemSpacing.x, comboW = S(170);
-  float width = ImGui::CalcTextSize("Overlay").x + gap + comboW;
+  float width = ImGui::CalcTextSize(tr("Overlay")).x + gap + comboW;
   flow(width);
   ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.f, ImGui::GetContentRegionAvail().x - width));
   ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted("Overlay");
+  ImGui::TextUnformatted(tr("Overlay"));
   ImGui::SameLine();
   ImGui::SetNextItemWidth(comboW);
-  if (ImGui::BeginCombo("##faxoverlay", faxOverlayFile_.empty() ? "None" : chart_overlay::title(faxOverlayFile_).c_str())) {
+  if (ImGui::BeginCombo("##faxoverlay", faxOverlayFile_.empty() ? tr("None") : chart_overlay::title(faxOverlayFile_).c_str())) {
     if (ImGui::IsWindowAppearing()) faxOverlayFiles_ = chart_overlay::list(store::overlaysDir());  // so a new file shows without a restart
-    if (ImGui::Selectable("None", faxOverlayFile_.empty())) chooseFaxOverlay("");
+    if (ImGui::Selectable(trId("None"), faxOverlayFile_.empty())) chooseFaxOverlay("");
     for (const std::string& f : faxOverlayFiles_)
       if (ImGui::Selectable(chart_overlay::title(f).c_str(), f == faxOverlayFile_)) chooseFaxOverlay(f);
     ImGui::Separator();
-    if (ImGui::Selectable("Open the overlays folder")) store::openFolder(store::overlaysDir());
+    if (ImGui::Selectable(trId("Open the overlays folder"))) store::openFolder(store::overlaysDir());
     ImGui::EndCombo();
   }
-  ImGui::SetItemTooltip("Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts");
+  ImGui::SetItemTooltip("%s", tr("Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts"));
   if (faxOverlayFile_.empty()) return;
 
-  const char* saveLabel = "Save a copy";
+  const char* saveLabel = tr("Save a copy");
   const float dragW = S(62);
   width = dragW * 2 + gap * 2 + ImGui::CalcTextSize(saveLabel).x + ImGui::GetStyle().FramePadding.x * 2;
   ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.f, ImGui::GetContentRegionAvail().x - width));
   ImGui::SetNextItemWidth(dragW);
   ImGui::DragInt("##faxoverlayx", &faxOverlayX_, 1.f, -3000, 3000, "X %+d");
-  ImGui::SetItemTooltip("Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type");
+  ImGui::SetItemTooltip("%s", tr("Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type"));
   ImGui::SameLine();
   ImGui::SetNextItemWidth(dragW);
   ImGui::DragInt("##faxoverlayy", &faxOverlayY_, 1.f, -3000, 3000, "Y %+d");
-  ImGui::SetItemTooltip("Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type");
+  ImGui::SetItemTooltip("%s", tr("Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type"));
   ImGui::SameLine();
   ImGui::BeginDisabled(receiving || decodeStatus_.file.empty());
   if (panelButton(saveLabel)) {
     std::string saved, error;
-    if (chart_overlay::save(decodeStatus_.file, faxOverlay_, faxOverlayFile_, faxOverlayX_, faxOverlayY_, saved, error)) say("Saved " + saved);
+    if (chart_overlay::save(decodeStatus_.file, faxOverlay_, faxOverlayFile_, faxOverlayX_, faxOverlayY_, saved, error)) say(trf("Saved %s", saved.c_str()));
     else say(error);
   }
   ImGui::EndDisabled();
-  ImGui::SetItemTooltip(receiving ? "Once the chart has finished" : "Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was.");
+  ImGui::SetItemTooltip("%s", receiving ? tr("Once the chart has finished") : tr("Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was."));
 }
 
 void App::drawDecodeFax() {
@@ -3269,25 +3351,25 @@ void App::drawDecodeFax() {
     faxOverlayPending_.clear();
   }
   ImGui::SameLine();
-  if (image) ImGui::TextDisabled("Receiving: %u lines, IOC %d, %+.0f ppm%s", d.faxLines, d.faxIoc, d.faxPpm, d.faxMeasured ? " (measured)" : "");
-  else if (d.faxState == Decoder::FAX_PHASING) ImGui::TextDisabled("Phasing: %d lines", d.faxPhasing);
-  else if (d.faxState == Decoder::FAX_STARTING) ImGui::TextDisabled("Start tone heard");
-  else ImGui::TextDisabled("Waiting for a chart to start");
+  if (image) ImGui::TextDisabled(d.faxMeasured ? tr("Receiving: %u lines, IOC %d, %+.0f ppm (measured)") : tr("Receiving: %u lines, IOC %d, %+.0f ppm"), d.faxLines, d.faxIoc, d.faxPpm);
+  else if (d.faxState == Decoder::FAX_PHASING) ImGui::TextDisabled(tr("Phasing: %d lines"), d.faxPhasing);
+  else if (d.faxState == Decoder::FAX_STARTING) ImGui::TextDisabled("%s", tr("Start tone heard"));
+  else ImGui::TextDisabled("%s", tr("Waiting for a chart to start"));
 
   if (image) {
     if (panelButton("Stop and save")) decoder_->faxStop();
   } else {
     if (panelButton("Start now")) decoder_->faxStart();
-    ImGui::SetItemTooltip("Start a chart from here, for one that's already under way. Set the slant by hand if it leans.");
+    ImGui::SetItemTooltip("%s", tr("Start a chart from here, for one that's already under way. Set the slant by hand if it leans."));
   }
   flow(S(130));
   ImGui::SetNextItemWidth(S(130));
-  if (ImGui::SliderFloat("##faxcentre", &faxCentre_, 1500.f, 2300.f, "Centre %.0f Hz")) decoder_->faxCentre(faxCentre_);
-  ImGui::SetItemTooltip("Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz");
+  if (ImGui::SliderFloat("##faxcentre", &faxCentre_, 1500.f, 2300.f, tr("Centre %.0f Hz"))) decoder_->faxCentre(faxCentre_);
+  ImGui::SetItemTooltip("%s", tr("Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz"));
   flow(S(130));
   ImGui::SetNextItemWidth(S(130));
-  if (ImGui::SliderFloat("##faxslant", &faxPpm_, -500.f, 500.f, "Slant %+.0f ppm")) decoder_->faxSlant(faxPpm_);
-  ImGui::SetItemTooltip("Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself.");
+  if (ImGui::SliderFloat("##faxslant", &faxPpm_, -500.f, 500.f, tr("Slant %+.0f ppm"))) decoder_->faxSlant(faxPpm_);
+  ImGui::SetItemTooltip("%s", tr("Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself."));
   drawFaxOverlayControls(image);
 
   bool showFile = !d.error.empty() || !d.file.empty();
@@ -3312,14 +3394,14 @@ void App::drawDecodeFax() {
     if (atEnd) ImGui::SetScrollHereY(1.f);
   } else {
     ImGui::PushTextWrapPos(0);
-    ImGui::TextDisabled("No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard.");
+    ImGui::TextDisabled("%s", tr("No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard."));
     ImGui::PopTextWrapPos();
   }
   ImGui::EndChild();
   if (!d.error.empty()) {
     ImGui::TextColored(ImColor(C_RED), "%s", d.error.c_str());
   } else if (!d.file.empty()) {
-    ImGui::TextDisabled("%s %s", image ? "Saving to" : "Saved", d.file.substr(d.file.find_last_of("\\/") + 1).c_str());
+    ImGui::TextDisabled(image ? tr("Saving to %s") : tr("Saved %s"), d.file.substr(d.file.find_last_of("\\/") + 1).c_str());
     ImGui::SetItemTooltip("%s", d.file.c_str());
   }
 }
@@ -3348,20 +3430,20 @@ void App::drawAudioPane() {
   }
   flow(S(50));
   if (panelButton("Auto##a")) autoAudioLevels();
-  ImGui::SetItemTooltip("Set the colours from the noise floor");
+  ImGui::SetItemTooltip("%s", tr("Set the colours from the noise floor"));
   flow(S(60));
   if (panelButton("Display##a")) ImGui::OpenPopup("audiodisplay");
   if (ImGui::BeginPopup("audiodisplay")) {
     ImGui::SetNextItemWidth(S(160));
-    ImGui::SliderFloat("Floor", &audioFloorDb_, -140.f, -30.f, "%.0f dB");
+    ImGui::SliderFloat(trId("Floor"), &audioFloorDb_, -140.f, -30.f, "%.0f dB");
     ImGui::SetNextItemWidth(S(160));
-    ImGui::SliderFloat("Range", &audioRangeDb_, 20.f, 110.f, "%.0f dB");
+    ImGui::SliderFloat(trId("Range"), &audioRangeDb_, 20.f, 110.f, "%.0f dB");
     ImGui::SetNextItemWidth(S(160));
-    ImGui::Combo("Colours", &palette_, kPaletteNames, PAL_COUNT);
+    comboTr("Colours", &palette_, kPaletteNames, PAL_COUNT);
     ImGui::SetNextItemWidth(S(160));
-    ImGui::SliderInt("Speed", &audioLinesPerSec_, 5, 60, "%d lines/s");
+    ImGui::SliderInt(trId("Speed"), &audioLinesPerSec_, 5, 60, tr("%d lines/s"));
     ImGui::SetNextItemWidth(S(160));
-    if (ImGui::BeginCombo("FFT size", kFftNames[fftIdx_])) {
+    if (ImGui::BeginCombo(trId("FFT size"), kFftNames[fftIdx_])) {
       for (int i = 0; i < 4; i++)
         if (ImGui::Selectable(kFftNames[i], i == fftIdx_) && i != fftIdx_) {
           fftIdx_ = i;
@@ -3369,7 +3451,7 @@ void App::drawAudioPane() {
         }
       ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("Larger shows finer detail but blurs fast changes");
+    ImGui::SetItemTooltip("%s", tr("Larger shows finer detail but blurs fast changes"));
     ImGui::EndPopup();
   }
   flow(S(40));
@@ -3377,13 +3459,13 @@ void App::drawAudioPane() {
     char b[32];
     snprintf(b, sizeof b, "REC %.0fs", rec_.seconds());
     if (actionButton(b, ImVec2(0, 0), V_RED, V_RED_HI, "rec")) {
-      say("Saved " + rec_.path());
+      say(trf("Saved %s", rec_.path().c_str()));
       rec_.close();
     }
   } else if (panelButton("Rec")) {
     startRecording();
   }
-  ImGui::SetItemTooltip("Record the receiver to a WAV file in the received folder");
+  ImGui::SetItemTooltip("%s", tr("Record the receiver to a WAV file in the received folder"));
   flow(S(120));
   bool mon = audio_.monitoring();
   if (toggle("Listen", mon, ImVec2(0, 0), "listen")) {
@@ -3396,55 +3478,55 @@ void App::drawAudioPane() {
       else say(err);
     }
   }
-  ImGui::SetItemTooltip("Play the receiver through this computer's speakers. Muted while transmitting.");
+  ImGui::SetItemTooltip("%s", tr("Play the receiver through this computer's speakers. Muted while transmitting."));
   ImGui::SameLine();
   ImGui::SetNextItemWidth(S(60));
   if (ImGui::SliderFloat("##mon", &monitorGain_, 0.f, 1.5f, "%.1f")) audio_.setMonitorGain(monitorGain_);
   flow(S(80));
   if (toggle("Clean", nrOn_, ImVec2(0, 0), "clean")) nrOn_ = !nrOn_;
   {
-    static const char* kHow[] = {"", "voice noise reduction", "spectral noise reduction"};
-    ImGui::SetItemTooltip("Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is.",
-                          kHow[nrMethodFor(st_.mode)]);
+    static const char* kHow[] = {"", N_("voice noise reduction"), N_("spectral noise reduction")};
+    ImGui::SetItemTooltip(tr("Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is."),
+                          tr(kHow[nrMethodFor(st_.mode)]));
   }
   ImGui::SameLine(0, S(2));
   if (toggle("...##clean", eqOn_, ImVec2(0, 0), "cleanset")) ImGui::OpenPopup("cleanset");
-  ImGui::SetItemTooltip(eqOn_ ? "How the audio is cleaned up, and the equaliser (on)" : "How the audio is cleaned up, and the equaliser");
+  ImGui::SetItemTooltip("%s", eqOn_ ? tr("How the audio is cleaned up, and the equaliser (on)") : tr("How the audio is cleaned up, and the equaliser"));
   if (ImGui::BeginPopup("cleanset")) {
-    static const char* kMethods[] = {"By mode", "Voice", "Spectral"};
+    static const char* kMethods[] = {N_("By mode"), N_("Voice"), N_("Spectral")};
     ImGui::SetNextItemWidth(S(160));
-    ImGui::Combo("Method", &nrMethod_, kMethods, 3);
-    ImGui::SetItemTooltip("Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\n"
-                          "Spectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data.");
+    comboTr("Method", &nrMethod_, kMethods, 3);
+    ImGui::SetItemTooltip("%s", tr("Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\n"
+                                   "Spectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data."));
     ImGui::SetNextItemWidth(S(160));
     int pct = (int)lround(nrStrength_ * 100);
-    if (ImGui::SliderInt("Strength", &pct, 0, 100, "%d%%")) nrStrength_ = pct / 100.f;
-    ImGui::SetItemTooltip("Higher takes out more noise, and more of the signal with it");
-    ImGui::Checkbox("Leveller", &nrLeveller_);
-    ImGui::SetItemTooltip("Evens out fading and quiet stations");
+    if (ImGui::SliderInt(trId("Strength"), &pct, 0, 100, "%d%%")) nrStrength_ = pct / 100.f;
+    ImGui::SetItemTooltip("%s", tr("Higher takes out more noise, and more of the signal with it"));
+    ImGui::Checkbox(trId("Leveller"), &nrLeveller_);
+    ImGui::SetItemTooltip("%s", tr("Evens out fading and quiet stations"));
     ImGui::Separator();
-    ImGui::Checkbox("Equaliser", &eqOn_);
-    ImGui::SetItemTooltip("Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers.");
+    ImGui::Checkbox(trId("Equaliser"), &eqOn_);
+    ImGui::SetItemTooltip("%s", tr("Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers."));
     ImGui::BeginDisabled(!eqOn_);
     ImGui::SetNextItemWidth(S(160));
-    ImGui::Combo("Low cut", &eqLowIdx_, kEqLowNames, kEqLowCount);
-    ImGui::SetItemTooltip("Takes out the boom and rumble below this");
+    comboTr("Low cut", &eqLowIdx_, kEqLowNames, kEqLowCount);
+    ImGui::SetItemTooltip("%s", tr("Takes out the boom and rumble below this"));
     ImGui::SetNextItemWidth(S(160));
-    ImGui::SliderFloat("Bass", &eqBass_, -12.f, 12.f, "%+.0f dB");
-    ImGui::SetItemTooltip("Below about 250 Hz");
+    ImGui::SliderFloat(trId("Bass"), &eqBass_, -12.f, 12.f, "%+.0f dB");
+    ImGui::SetItemTooltip("%s", tr("Below about 250 Hz"));
     ImGui::SetNextItemWidth(S(160));
-    ImGui::SliderFloat("Middle", &eqMid_, -12.f, 12.f, "%+.0f dB");
-    ImGui::SetItemTooltip("Around 1.2 kHz, where speech is easiest to follow");
+    ImGui::SliderFloat(trId("Middle"), &eqMid_, -12.f, 12.f, "%+.0f dB");
+    ImGui::SetItemTooltip("%s", tr("Around 1.2 kHz, where speech is easiest to follow"));
     ImGui::SetNextItemWidth(S(160));
-    ImGui::SliderFloat("Treble", &eqTreble_, -12.f, 12.f, "%+.0f dB");
-    ImGui::SetItemTooltip("Above about 2.2 kHz: crisper consonants, but more hiss");
+    ImGui::SliderFloat(trId("Treble"), &eqTreble_, -12.f, 12.f, "%+.0f dB");
+    ImGui::SetItemTooltip("%s", tr("Above about 2.2 kHz: crisper consonants, but more hiss"));
     ImGui::SetNextItemWidth(S(160));
-    ImGui::Combo("High cut", &eqHighIdx_, kEqHighNames, kEqHighCount);
-    ImGui::SetItemTooltip("Takes out the hiss above this");
+    comboTr("High cut", &eqHighIdx_, kEqHighNames, kEqHighCount);
+    ImGui::SetItemTooltip("%s", tr("Takes out the hiss above this"));
     if (panelButton("Flat##eq")) eqLowIdx_ = 0, eqHighIdx_ = 0, eqBass_ = eqMid_ = eqTreble_ = 0;
     ImGui::SameLine();
     if (panelButton("Speech##eq")) eqLowIdx_ = 3, eqHighIdx_ = 2, eqBass_ = -3, eqMid_ = 3, eqTreble_ = 2;
-    ImGui::SetItemTooltip("A starting point for SSB: less bass, more presence");
+    ImGui::SetItemTooltip("%s", tr("A starting point for SSB: less bass, more presence"));
     ImGui::EndDisabled();
     ImGui::EndPopup();
   }
@@ -3454,7 +3536,7 @@ void App::drawAudioPane() {
     ImVec2 p = ImGui::GetCursorScreenPos();
     float w = S(70), h = ImGui::GetFrameHeight();
     ImGui::Dummy(ImVec2(w, h));
-    ImGui::SetItemTooltip("Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level.", peakDb_);
+    ImGui::SetItemTooltip(tr("Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level."), peakDb_);
     ImDrawList* dl = ImGui::GetWindowDrawList();
     float y0 = p.y + h * 0.3f, y1 = p.y + h * 0.7f;
     dl->AddRectFilled(ImVec2(p.x, y0), ImVec2(p.x + w, y1), IM_COL32(10, 12, 15, 255), 2);
@@ -3463,15 +3545,15 @@ void App::drawAudioPane() {
   }
   flow(S(138));
   ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted("Decode");
+  ImGui::TextUnformatted(tr("Decode"));
   ImGui::SameLine();
   ImGui::SetNextItemWidth(S(86));
-  if (ImGui::BeginCombo("##decode", Decoder::modeName(decodeMode_))) {
+  if (ImGui::BeginCombo("##decode", tr(Decoder::modeName(decodeMode_)))) {
     for (int i = 0; i < Decoder::MODE_COUNT; i++)
       if (ImGui::Selectable(Decoder::modeName(i), i == decodeMode_)) openDecoder(i);
     ImGui::EndCombo();
   }
-  ImGui::SetItemTooltip("Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder");
+  ImGui::SetItemTooltip("%s", tr("Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder"));
 
   wfAudio_.setDisplay((audioFloorDb_ + 140.f) * (255.f / 140.f), (audioFloorDb_ + audioRangeDb_ + 140.f) * (255.f / 140.f), palette_);
   double top = kAudioRanges[audioRangeIdx_];
@@ -3536,7 +3618,7 @@ void App::drawAudioPane() {
   dl->PopClipRect();
   if (a.hovered && st_.connected) {
     if (a.clicked && target > 0) tuneTo(tuning::dialToCentre(st_.hz, st_.mode, a.x, target));
-    else if (a.clicked && st_.data) say("Data mode: the dial stays put, so your digital program keeps its place");
+    else if (a.clicked && st_.data) say(tr("Data mode: the dial stays put, so your digital program keeps its place"));
     if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1, radio()));
   }
   ImGui::EndChild();
@@ -3566,16 +3648,16 @@ static void greatCircle(double lat1, double lon1, double lat2, double lon2, doub
 }
 
 static std::string keptHow(const locations::Location& l) {
-  return "kept since " + l.updated.substr(0, 10) + (l.source == "QRZ" ? ", from QRZ.com" : ", from your log");
+  return trf("kept since %s, from %s", l.updated.substr(0, 10).c_str(), tr(locations::sourceName(l).c_str()));
 }
 
 // The audio pane and the map take turns in the bottom half.
 void App::drawPaneSwitch() {
   if (toggle("Audio", !showMap_, ImVec2(0, 0), "pane_audio")) showMap_ = false;
-  ImGui::SetItemTooltip("The audio waterfall, recording and decoders");
+  ImGui::SetItemTooltip("%s", tr("The audio waterfall, recording and decoders"));
   ImGui::SameLine(0, S(2));
   if (toggle("Map", showMap_, ImVec2(0, 0), "pane_map")) showMap_ = true;
-  ImGui::SetItemTooltip("Find a station by its callsign on a street or satellite map. The audio and decoders keep going.");
+  ImGui::SetItemTooltip("%s", tr("Find a station by its callsign on a street or satellite map. The audio and decoders keep going."));
 }
 
 void App::showOnMap(const locations::Location& l, const std::string& how) {
@@ -3587,12 +3669,12 @@ void App::showOnMap(const locations::Location& l, const std::string& how) {
   setBuf(mapCall_, l.call);
 }
 
-// The log first, then what's been kept, then QRZ.com. A place kept from QRZ is usually closer than a locator in the
-// log, so it stands until QRZ is asked again; one kept from the log gives way to a newer locator there.
+// The log first, then what's been kept, then QRZ.com and HamQTH. A place kept from those is usually closer than a
+// locator in the log, so it stands until they're asked again; one kept from the log gives way to a newer locator there.
 void App::findOnMap(const std::string& callIn, bool askQrz) {
   const std::string call = locations::normalCall(callIn);
   if (call.empty()) {
-    mapMessage_ = "Type a callsign first";
+    mapMessage_ = tr("Type a callsign first");
     return;
   }
   setBuf(mapCall_, call);
@@ -3601,30 +3683,46 @@ void App::findOnMap(const std::string& callIn, bool askQrz) {
     locations::Location fromLog;
     const bool inLog = locations::fromLog(log_, call, fromLog);
     const locations::Location* kept = places_.find(call);
-    if (kept && (kept->source == "QRZ" || !inLog || locations::normalCall(kept->locator) == locations::normalCall(fromLog.locator))) {
+    if (kept && (kept->source != "Log" || !inLog || locations::normalCall(kept->locator) == locations::normalCall(fromLog.locator))) {
       showOnMap(*kept, keptHow(*kept));
       return;
     }
     if (inLog) {
-      if (!places_.put(fromLog)) say("Couldn't save locations.csv in the data folder");
-      showOnMap(fromLog, "from your log");
+      if (!places_.put(fromLog)) say(tr("Couldn't save locations.csv in the data folder"));
+      showOnMap(fromLog, tr("from your log"));
       return;
     }
   }
   if (qrzJob_) {
-    mapMessage_ = "Still looking up " + qrzJob_->call + " on QRZ.com";
+    mapMessage_ = trf("Still looking up %s online", qrzJob_->call.c_str());
     return;
   }
-  if (!qrzUser_[0] || !qrzPassword_[0]) {
-    mapMessage_ = call + " isn't in your log with a locator. Put your QRZ.com login in Settings to look it up there.";
+  const bool useQrz = qrzUser_[0] && qrzPassword_[0], useHamqth = hamqthUser_[0] && hamqthPassword_[0];
+  if (!useQrz && !useHamqth) {
+    mapMessage_ = trf("%s isn't in your log with a locator. Put a HamQTH or QRZ.com login in Settings to look it up there.", call.c_str());
     return;
   }
   auto job = std::make_shared<QrzJob>();
   job->call = call, job->user = qrzUser_, job->password = qrzPassword_, job->key = qrzKey_;
+  job->hqUser = hamqthUser_, job->hqPassword = hamqthPassword_, job->hqKey = hamqthKey_, job->home = locator_;
   qrzJob_ = job;
-  mapMessage_ = "Looking up " + call + " on QRZ.com...";
-  std::thread([job] {
-    job->ok = locations::qrzLookup(job->user, job->password, job->call, job->key, job->found, job->error);
+  mapMessage_ = useQrz ? useHamqth ? trf("Looking up %s on QRZ.com and HamQTH...", call.c_str()) : trf("Looking up %s on QRZ.com...", call.c_str()) : trf("Looking up %s on HamQTH...", call.c_str());
+  std::thread([job, useQrz, useHamqth] {
+    std::string qrzError;
+    locations::Location estimate;
+    bool haveEstimate = false;
+    if (useQrz) job->ok = locations::qrzLookup(job->user, job->password, job->call, job->home, job->key, job->found, estimate, haveEstimate, qrzError);
+    if (!job->ok && useHamqth) {
+      job->ok = locations::hamqthLookup(job->hqUser, job->hqPassword, job->call, job->hqKey, job->found, job->error);
+      if (!job->ok && useQrz) job->error = qrzError + " " + job->error;
+    } else {
+      job->error = qrzError;
+    }
+    // Failing all else, where QRZ.com's bearing and distance put it.
+    if (!job->ok && haveEstimate) {
+      job->found = estimate;
+      job->ok = true;
+    }
     job->done = true;
   }).detach();
 }
@@ -3633,16 +3731,19 @@ void App::pumpQrz() {
   if (!qrzJob_ || !qrzJob_->done) return;
   std::shared_ptr<QrzJob> job = qrzJob_;
   qrzJob_.reset();
-  if (job->user == qrzUser_ && job->password == qrzPassword_) qrzKey_ = job->key;  // not if the login changed meanwhile
+  // Not if the login changed meanwhile.
+  if (job->user == qrzUser_ && job->password == qrzPassword_) qrzKey_ = job->key;
+  if (job->hqUser == hamqthUser_ && job->hqPassword == hamqthPassword_) hamqthKey_ = job->hqKey;
   const bool current = locations::normalCall(mapCall_) == job->call;
   if (!job->ok) {
     if (current) mapMessage_ = job->error;
     else say(job->error);
     return;
   }
-  if (!places_.put(job->found)) say("Couldn't save locations.csv in the data folder");
-  if (current) showOnMap(job->found, "from QRZ.com");
-  else say("Found " + job->call + " on QRZ.com, and kept it");
+  if (!places_.put(job->found)) say(tr("Couldn't save locations.csv in the data folder"));
+  const std::string where = tr(locations::sourceName(job->found).c_str());
+  if (current) showOnMap(job->found, trf("from %s", where.c_str()));
+  else say(trf("Found %s on %s, and kept it", job->call.c_str(), where.c_str()));
 }
 
 void App::drawMapInfo() {
@@ -3653,7 +3754,7 @@ void App::drawMapInfo() {
   }
   if (!haveMapTarget_) {
     ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com.");
+    ImGui::TextDisabled("%s", tr("Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com and HamQTH."));
     return;
   }
   const locations::Location& t = mapTarget_;
@@ -3673,10 +3774,11 @@ void App::drawMapInfo() {
     double km, bearing;
     greatCircle(homeLat, homeLon, t.lat, t.lon, km, bearing);
     char b[96];
-    snprintf(b, sizeof b, "%.0f km, %.0f miles, bearing %.0f degrees   ", km, km * kMilesPerKm, bearing);
+    snprintf(b, sizeof b, tr("%.0f km, %.0f miles, bearing %.0f degrees"), km, km * kMilesPerKm, bearing);
+    strncat(b, "   ", sizeof b - strlen(b) - 1);
     more = b;
   }
-  more += mapFoundHow_ + "; " + locations::accuracyName(t);
+  more += mapFoundHow_ + "; " + tr(locations::accuracyName(t).c_str());
   flow(ImGui::CalcTextSize(more.c_str()).x);
   ImGui::TextDisabled("%s", more.c_str());
 }
@@ -3686,10 +3788,10 @@ void App::drawMapPane() {
   drawPaneSwitch();
   ImGui::SameLine(0, S(12));
   ImGui::SetNextItemWidth(S(110));
-  bool go = ImGui::InputTextWithHint("##mapcall", "Callsign", mapCall_, sizeof mapCall_,
+  bool go = ImGui::InputTextWithHint("##mapcall", tr("Callsign"), mapCall_, sizeof mapCall_,
                                      ImGuiInputTextFlags_CharsUppercase | ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
   note("mapcall");
-  ImGui::SetItemTooltip("A callsign to find. Press Enter to look for it.");
+  ImGui::SetItemTooltip("%s", tr("A callsign to find. Press Enter to look for it."));
   ImGui::SameLine();
   if (panelButton("Find")) go = true;
   if (go) findOnMap(mapCall_, false);
@@ -3697,42 +3799,42 @@ void App::drawMapPane() {
   ImGui::BeginDisabled(qrzJob_ != nullptr);
   if (panelButton("QRZ")) findOnMap(mapCall_, true);
   ImGui::EndDisabled();
-  ImGui::SetItemTooltip("Look it up on QRZ.com even if it's in your log or kept already, and keep what's found");
+  ImGui::SetItemTooltip("%s", tr("Look it up on QRZ.com, then HamQTH, even if it's in your log or kept already, and keep what's found"));
   flow(S(270));
   for (int i = 0; i < tilemap::LAYER_COUNT; i++) {
     if (i) ImGui::SameLine(0, S(2));
     if (toggle(tilemap::kLayerNames[i], mapLayer_ == i)) mapLayer_ = i;
-    ImGui::SetItemTooltip("%s", tilemap::kLayerTips[i]);
+    ImGui::SetItemTooltip("%s", tr(tilemap::kLayerTips[i]));
   }
   flow(S(310));
   auto overlayCombo = [&](const char* id, const char* name, int& mode, const char* tip) {
-    static const char* const kModes[] = {"Off", "Single", "All"};
-    char preview[40];
-    snprintf(preview, sizeof preview, "%s: %s", name, kModes[mode]);
+    static const char* const kModes[] = {N_("Off"), N_("Single"), N_("All")};
+    char preview[64];
+    snprintf(preview, sizeof preview, "%s: %s", tr(name), tr(kModes[mode]));
     ImGui::SetNextItemWidth(S(112));
     if (ImGui::BeginCombo(id, preview)) {
       for (int i = 0; i < 3; i++)
-        if (ImGui::Selectable(kModes[i], mode == i)) mode = i;
+        if (ImGui::Selectable(trId(kModes[i]), mode == i)) mode = i;
       ImGui::EndCombo();
     }
     note(id);
-    ImGui::SetItemTooltip("%s", tip);
+    ImGui::SetItemTooltip("%s", tr(tip));
   };
-  overlayCombo("##map_loc_square", "Locator", mapLocSquare_,
-               "Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger "
-               "one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in.");
+  overlayCombo("##map_loc_square", N_("Locator"), mapLocSquare_,
+               N_("Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger "
+                  "one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in."));
   ImGui::SameLine(0, S(2));
-  overlayCombo("##map_os_square", "OS grid", mapOsSquare_,
-               "Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's "
-               "10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map.");
+  overlayCombo("##map_os_square", N_("OS grid"), mapOsSquare_,
+               N_("Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's "
+                  "10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map."));
   ImGui::SameLine(0, S(2));
   if (toggle("Lat/Lon", mapLatLon_, ImVec2(0, 0), "map_lat_lon")) mapLatLon_ = !mapLatLon_;
-  ImGui::SetItemTooltip("Show lines of latitude and longitude in yellow, closer together as you zoom in");
+  ImGui::SetItemTooltip("%s", tr("Show lines of latitude and longitude in yellow, closer together as you zoom in"));
   flow(S(190));
   if (panelButton("Whole world")) mapView_ = tilemap::View();
   ImGui::SameLine();
   const bool streetView = panelButton("Street View");
-  ImGui::SetItemTooltip("Open Google Street View in your web browser at the middle of the map, to look around at street level");
+  ImGui::SetItemTooltip("%s", tr("Open Google Street View in your web browser at the middle of the map, to look around at street level"));
   drawMapInfo();
 
   ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -4057,7 +4159,7 @@ void App::drawMapPane() {
     const float r = S(7), e = r + S(1.5f);
     dl->AddQuadFilled(ImVec2(c.x, c.y - e), ImVec2(c.x + e, c.y), ImVec2(c.x, c.y + e), ImVec2(c.x - e, c.y), kEdge);
     dl->AddQuadFilled(ImVec2(c.x, c.y - r), ImVec2(c.x + r, c.y), ImVec2(c.x, c.y + r), ImVec2(c.x - r, c.y), C_GREEN);
-    if (near(c, e) && !hotPlace) ImGui::SetTooltip("Your station, %s", locator_);
+    if (near(c, e) && !hotPlace) ImGui::SetTooltip(tr("Your station, %s"), locator_);
   }
 
   bool hotTarget = false;
@@ -4115,8 +4217,8 @@ void App::drawMapPane() {
   // Whether tiles are on their way, or can't be had.
   {
     std::string state;
-    if (map_.failing()) state = "Some of the map couldn't be fetched: " + map_.lastError();
-    else if (map_.pending() > 0) state = "Loading the map...";
+    if (map_.failing()) state = trf("Some of the map couldn't be fetched: %s", map_.lastError().c_str());
+    else if (map_.pending() > 0) state = tr("Loading the map...");
     if (!state.empty()) {
       const ImVec2 ts = ImGui::CalcTextSize(state.c_str());
       const ImVec2 o(p0.x + S(8), p0.y + S(6));
@@ -4139,10 +4241,10 @@ void App::drawMapPane() {
     if (haveHome) {
       double km, bearing;
       greatCircle(homeLat, homeLon, l.lat, l.lon, km, bearing);
-      ImGui::Text("%.0f km, %.0f miles, bearing %.0f degrees", km, km * kMilesPerKm, bearing);
+      ImGui::Text(tr("%.0f km, %.0f miles, bearing %.0f degrees"), km, km * kMilesPerKm, bearing);
     }
-    ImGui::TextDisabled("%s, %s", l.source == "QRZ" ? "From QRZ.com" : "From your log", locations::accuracyName(l).c_str());
-    if (!target) ImGui::TextDisabled("Click to choose it");
+    ImGui::TextDisabled("%s, %s", trf("From %s", tr(locations::sourceName(l).c_str())).c_str(), tr(locations::accuracyName(l).c_str()));
+    if (!target) ImGui::TextDisabled("%s", tr("Click to choose it"));
     ImGui::EndTooltip();
   };
   if (hotPlace) {
@@ -4247,7 +4349,7 @@ void App::drawDial() {
     tuneTo(tuning::stepFreq(st_.hz, step, notch, radio()));
   }
   if ((hovered || active) && live) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-  ImGui::SetItemTooltip("Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.");
+  ImGui::SetItemTooltip("%s", tr("Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step."));
 
   // Lit from the top left, and that light stays put as the knob turns: only the flutes and dimple move.
   ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -4296,7 +4398,7 @@ void App::drawDial() {
   if (!live) dl->AddCircleFilled(c, r, IM_COL32(16, 18, 23, 150), 96);
   else if (active) dl->AddCircleFilled(c, cap, IM_COL32(0, 0, 0, 26), 96);
 
-  std::string rate = "1 turn = " + hzName(step * tuning::Dial::kClicksPerStep);
+  std::string rate = trf("1 turn = %s", hzName(step * tuning::Dial::kClicksPerStep).c_str());
   ImVec2 ts = ImGui::CalcTextSize(rate.c_str());
   ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetContentRegionAvail().x - ts.x) / 2);
   ImGui::TextDisabled("%s", rate.c_str());
@@ -4304,7 +4406,7 @@ void App::drawDial() {
 
 void App::drawKeypad() {
   drawDial();
-  ImGui::TextDisabled(radio().topHz() > 1000000000 ? "Or just type: 145.5  433.5  1296.2  +5" : "Or just type: 14.074  7  198k  +5");
+  ImGui::TextDisabled(tr("Or just type: %s"), radio().topHz() > 1000000000 ? "145.5  433.5  1296.2  +5" : "14.074  7  198k  +5");
   ImGui::PushFont(fMid_);
   float gap = ImGui::GetStyle().ItemSpacing.x;
   float w = (ImGui::GetContentRegionAvail().x - gap * 3) / 4, h = S(28);
@@ -4347,13 +4449,13 @@ void App::drawKeypad() {
   int here = plan_.bandOf(st_.hz);
   if (here >= 0) {
     const bands::Band& band = plan_.bands[(size_t)here];
-    ImGui::TextColored(ImColor(C_ACCENT), "ON %s", band.title().c_str());
+    ImGui::TextColored(ImColor(C_ACCENT), tr("ON %s"), band.title().c_str());
     if (const bands::Segment* seg = band.segmentAt(st_.hz)) {
       ImGui::SameLine();
       ImGui::TextColored(ImColor(segmentColour(seg->use, 255)), "%s", portionName(*seg).c_str());
       if (seg->label != portionName(*seg)) ImGui::TextDisabled("%s", seg->label.c_str());
     } else {
-      ImGui::TextColored(ImColor(C_RED), "Between this band's blocks");
+      ImGui::TextColored(ImColor(C_RED), "%s", tr("Between this band's blocks"));
     }
     ImGui::Separator();
     ImGui::BeginDisabled(!st_.connected);
@@ -4365,14 +4467,14 @@ void App::drawKeypad() {
       }
     ImGui::EndDisabled();
   } else if (st_.hz > 0) {
-    ImGui::TextDisabled("Outside the amateur bands");
-    ImGui::TextDisabled("in the %s plan", plan_.name.c_str());
+    ImGui::TextDisabled("%s", tr("Outside the amateur bands"));
+    ImGui::TextDisabled(tr("in the %s plan"), plan_.name.c_str());
   }
 }
 
 void App::drawMemories() {
   ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - S(56));
-  ImGui::InputTextWithHint("##memname", "Name", memName_, sizeof memName_);
+  ImGui::InputTextWithHint("##memname", tr("Name"), memName_, sizeof memName_);
   note("memname");
   ImGui::SameLine();
   ImGui::BeginDisabled(!st_.connected);
@@ -4387,12 +4489,12 @@ void App::drawMemories() {
   note("memsave");
   ImGui::EndDisabled();
   ImGui::SetNextItemWidth(-1);
-  ImGui::InputTextWithHint("##memfilter", "Filter", memFilter_, sizeof memFilter_);
+  ImGui::InputTextWithHint("##memfilter", tr("Filter"), memFilter_, sizeof memFilter_);
   int del = -1, edit = -1;
   if (ImGui::BeginTable("mems", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
-    ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn(trId("Name"), ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("MHz", ImGuiTableColumnFlags_WidthFixed, S(72));
-    ImGui::TableSetupColumn("Mode", ImGuiTableColumnFlags_WidthFixed, S(44));
+    ImGui::TableSetupColumn(trId("Mode"), ImGuiTableColumnFlags_WidthFixed, S(44));
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, S(14));
     ImGui::TableSetupScrollFreeze(0, 1);
     ImGui::TableHeadersRow();
@@ -4412,7 +4514,7 @@ void App::drawMemories() {
         if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) edit = i;
         else if (st_.connected && tuneTo(m.hz)) rig_.setMode(m.mode, m.data, m.filter);
       }
-      ImGui::SetItemTooltip("Click to tune, double-click to edit");
+      ImGui::SetItemTooltip("%s", tr("Click to tune, double-click to edit"));
       note("mem:" + std::to_string(i));
       ImGui::TableNextColumn();
       ImGui::TextUnformatted(tuning::formatHz(m.hz).c_str());
@@ -4437,7 +4539,7 @@ void App::drawMemories() {
     memEdit_ = memories_[(size_t)edit];
     snprintf(memEditName_, sizeof memEditName_, "%s", memEdit_.name.c_str());
     snprintf(memEditFreq_, sizeof memEditFreq_, "%s", tuning::formatHz(memEdit_.hz).c_str());
-    ImGui::OpenPopup("Edit memory");
+    ImGui::OpenPopup(trId("Edit memory"));
   }
   drawMemoryEditor();
 }
@@ -4445,7 +4547,7 @@ void App::drawMemories() {
 // The memory a double-click opened: its name, frequency, mode and filter, saved back over the old one.
 void App::drawMemoryEditor() {
   ImGui::SetNextWindowSize(ImVec2(S(340), 0));
-  if (!ImGui::BeginPopupModal("Edit memory", nullptr, ImGuiWindowFlags_NoResize)) return;
+  if (!ImGui::BeginPopupModal(trId("Edit memory"), nullptr, ImGuiWindowFlags_NoResize)) return;
   if (memEditing_ < 0 || memEditing_ >= (int)memories_.size()) {
     memEditing_ = -1;
     ImGui::CloseCurrentPopup();
@@ -4455,7 +4557,7 @@ void App::drawMemoryEditor() {
   const float labelW = S(80);
   auto label = [&](const char* text) {
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(text);
+    ImGui::TextUnformatted(tr(text));
     ImGui::SameLine(labelW);
     ImGui::SetNextItemWidth(-1);
   };
@@ -4465,7 +4567,7 @@ void App::drawMemoryEditor() {
   ImGui::InputText("##editname", memEditName_, sizeof memEditName_);
 
   label("Frequency");
-  ImGui::InputTextWithHint("##editfreq", "e.g. 14.074 or 7030k", memEditFreq_, sizeof memEditFreq_);
+  ImGui::InputTextWithHint("##editfreq", tr("e.g. 14.074 or 7030k"), memEditFreq_, sizeof memEditFreq_);
   // "+5" is 5 kHz up from the memory, not from the dial.
   const long long hz = tuning::parseFreq(memEditFreq_, memories_[(size_t)memEditing_].hz, radio());
   if (hz > 0) {
@@ -4473,7 +4575,7 @@ void App::drawMemoryEditor() {
     ImGui::TextDisabled("%s MHz", tuning::formatHz(hz).c_str());
   } else {
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + labelW);
-    ImGui::TextColored(ImColor(C_RED), "Not a frequency the %s can tune", radio().name);
+    ImGui::TextColored(ImColor(C_RED), tr("Not a frequency the %s can tune"), radio().name);
   }
 
   // The modes this radio has, and whatever the memory already holds in case it came from another radio.
@@ -4493,7 +4595,7 @@ void App::drawMemoryEditor() {
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + labelW);
     ImGui::BeginDisabled(!civ::hasData(memEdit_.mode));
     bool data = memEdit_.data && civ::hasData(memEdit_.mode);
-    if (ImGui::Checkbox("Data mode", &data)) memEdit_.data = data;
+    if (ImGui::Checkbox(trId("Data mode"), &data)) memEdit_.data = data;
     ImGui::EndDisabled();
   }
 
@@ -4518,7 +4620,7 @@ void App::drawMemoryEditor() {
     if (!civ::hasData(memEdit_.mode)) memEdit_.data = false;
     memories_[(size_t)memEditing_] = memEdit_;
     store::saveMemories(memPath_, memories_);
-    say("Saved " + memEdit_.name + " at " + tuning::formatHz(hz));
+    say(trf("Saved %s at %s", memEdit_.name.c_str(), tuning::formatHz(hz).c_str()));
     memEditing_ = -1;
     ImGui::CloseCurrentPopup();
   }
@@ -4563,15 +4665,15 @@ void App::useStation(const std::string& call) {
 // Which of the operator's callsigns is in use, and adding another: a special event station, say.
 void App::drawStationPicker() {
   ImGui::SetNextItemWidth(S(150));
-  if (ImGui::BeginCombo("##station", logBookAll_ ? "All callsigns" : callsign_[0] ? callsign_ : "No callsign set")) {
-    if (ImGui::Selectable("All callsigns", logBookAll_)) logBookAll_ = true;
+  if (ImGui::BeginCombo("##station", logBookAll_ ? tr("All callsigns") : callsign_[0] ? callsign_ : tr("No callsign set"))) {
+    if (ImGui::Selectable(trId("All callsigns"), logBookAll_)) logBookAll_ = true;
     std::set<std::string> calls = stationCalls_;
     if (callsign_[0]) calls.insert(callsign_);
     for (const std::string& call : calls)
       if (ImGui::Selectable(call.c_str(), !logBookAll_ && call == callsign_)) useStation(call);
     ImGui::Separator();
     ImGui::SetNextItemWidth(S(110));
-    bool add = ImGui::InputTextWithHint("##newstation", "New callsign", newStation_, sizeof newStation_, ImGuiInputTextFlags_CharsUppercase | ImGuiInputTextFlags_EnterReturnsTrue);
+    bool add = ImGui::InputTextWithHint("##newstation", tr("New callsign"), newStation_, sizeof newStation_, ImGuiInputTextFlags_CharsUppercase | ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::SameLine();
     add |= panelButton("Add");
     if (add && newStation_[0]) {
@@ -4582,7 +4684,7 @@ void App::drawStationPicker() {
     }
     ImGui::EndCombo();
   }
-  ImGui::SetItemTooltip("The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it.");
+  ImGui::SetItemTooltip("%s", tr("The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it."));
 }
 
 // Brings a logged contact back to the form, to be changed and logged again. Whatever was being typed is put by
@@ -4634,7 +4736,7 @@ void App::importLog(const std::string& path) {
   int added = 0, updated = 0, skipped = 0;
   std::string error;
   if (!store::backupFile(logPath_)) {
-    say("Couldn't back up the log first, so nothing was imported");
+    say(tr("Couldn't back up the log first, so nothing was imported"));
     return;
   }
   if (!store::importAdif(path, log_, callsign_, added, updated, skipped, error)) {
@@ -4647,9 +4749,9 @@ void App::importLog(const std::string& path) {
   }
   const size_t shownBefore = logActive_.size();
   indexLog();
-  std::string msg = "Imported " + std::to_string(added) + " new QSOs, updated " + std::to_string(updated) + ", and " + std::to_string(skipped) + " were already up to date";
-  if (logActive_.size() - shownBefore < (size_t)added) msg += ". Some are under other callsigns: choose them in the log book";
-  if ((added || updated) && !store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
+  std::string msg = trf("Imported %d new QSOs, updated %d, and %d were already up to date", (int)added, (int)updated, (int)skipped);
+  if (logActive_.size() - shownBefore < (size_t)added) msg += std::string(". ") + tr("Some are under other callsigns: choose them in the log book");
+  if ((added || updated) && !store::saveLog(logPath_, log_)) say(trf("Couldn't save the log to %s", logPath_.c_str()));
   else say(msg);
 }
 
@@ -4657,22 +4759,22 @@ void App::importLog(const std::string& path) {
 void App::sortLogFile() {
   const auto earlier = [](const store::LogEntry& a, const store::LogEntry& b) { return a.utc < b.utc; };
   if (std::is_sorted(log_.begin(), log_.end(), earlier)) {
-    say("The log is already in date order");
+    say(tr("The log is already in date order"));
     return;
   }
   if (!store::backupFile(logPath_)) {
-    say("Couldn't back up the log first, so it wasn't sorted");
+    say(tr("Couldn't back up the log first, so it wasn't sorted"));
     return;
   }
   std::vector<store::LogEntry> sorted = log_;
   std::stable_sort(sorted.begin(), sorted.end(), earlier);
   if (!store::saveLog(logPath_, sorted)) {
-    say("Couldn't save the log to " + logPath_);
+    say(trf("Couldn't save the log to %s", logPath_.c_str()));
     return;
   }
   log_ = std::move(sorted);
   indexLog();
-  say("Sorted " + std::to_string(log_.size()) + " QSOs into date order. The log as it was is in " + logPath_ + ".bak");
+  say(trf("Sorted %d QSOs into date order. The log as it was is in %s.bak", (int)log_.size(), logPath_.c_str()));
 }
 
 void App::pickLogToImport() {
@@ -4690,7 +4792,7 @@ void App::pumpLogPick() {
   if (!logPick_ || !logPick_->done) return;
   std::shared_ptr<LogPick> pick = logPick_;
   logPick_.reset();
-  if (!pick->available) say("There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead");
+  if (!pick->available) say(tr("There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead"));
   else if (!pick->path.empty()) importLog(pick->path);
 }
 
@@ -4703,13 +4805,13 @@ void App::drawLog() {
     if (!f.call[0]) logStarted_.clear();
     else if (logStarted_.empty()) logStarted_ = utcNow("%Y-%m-%d %H:%M");
   }
-  if (editing) ImGui::TextColored(ImColor(C_AMBER), "Changing a logged contact");
+  if (editing) ImGui::TextColored(ImColor(C_AMBER), "%s", tr("Changing a logged contact"));
   // The fields that matter most during a contact: double height, and capitals whatever is typed.
   auto bigField = [&](const char* id, const char* hint, char* buf, size_t n, float width, ImGuiInputTextFlags flags) {
     ImGui::PushFont(fLogBig_);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, ImGui::GetStyle().FramePadding.y * 2));
     ImGui::SetNextItemWidth(width);
-    bool done = ImGui::InputTextWithHint(id, hint, buf, n, flags | ImGuiInputTextFlags_CharsUppercase);
+    bool done = ImGui::InputTextWithHint(id, tr(hint), buf, n, flags | ImGuiInputTextFlags_CharsUppercase);
     ImGui::PopStyleVar();
     ImGui::PopFont();
     return done;
@@ -4718,7 +4820,7 @@ void App::drawLog() {
     ImGui::SetKeyboardFocusHere();
     logFocusCall_ = false;
   }
-  bool enter = bigField("##call", "Callsign", f.call, sizeof f.call, -1, ImGuiInputTextFlags_EnterReturnsTrue);
+  bool enter = bigField("##call", N_("Callsign"), f.call, sizeof f.call, -1, ImGuiInputTextFlags_EnterReturnsTrue);
   note("logcall");
   // Which country, and what's been worked before. Leaves out the contact being changed.
   std::string band = bands::adifBand(editing ? llround(atof(f.khz) * 1000) : st_.hz);
@@ -4743,46 +4845,48 @@ void App::drawLog() {
       std::string list;
       for (const std::string& w : where) list += (list.empty() ? "" : ", ") + w;
       ImGui::PushStyleColor(ImGuiCol_Text, dupe ? C_RED : C_AMBER);
-      std::string lastDate = last.empty() ? "" : ", last on " + store::displayDate(last.substr(0, 10), dateFormat_);
-      ImGui::TextWrapped("%s%d time%s%s: %s", dupe ? "Already logged on this band and mode. " : "Worked ", worked, worked == 1 ? "" : "s", lastDate.c_str(), list.c_str());
+      std::string lastDate = last.empty() ? "" : trf(", last on %s", store::displayDate(last.substr(0, 10), dateFormat_).c_str());
+      std::string times = worked == 1 ? trf("Worked once%s: %s", lastDate.c_str(), list.c_str()) : trf("Worked %d times%s: %s", worked, lastDate.c_str(), list.c_str());
+      if (dupe) times = std::string(tr("Already logged on this band and mode.")) + " " + times;
+      ImGui::TextWrapped("%s", times.c_str());
       ImGui::PopStyleColor();
     } else {
-      ImGui::TextColored(ImColor(C_GREEN), "Not worked before");
+      ImGui::TextColored(ImColor(C_GREEN), "%s", tr("Not worked before"));
     }
   }
   float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) / 2;
   auto pair = [&](const char* idA, const char* hintA, char* a, size_t na, const char* idB, const char* hintB, char* b, size_t nb) {
     ImGui::SetNextItemWidth(w);
-    ImGui::InputTextWithHint(idA, hintA, a, na);
+    ImGui::InputTextWithHint(idA, tr(hintA), a, na);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(w);
-    ImGui::InputTextWithHint(idB, hintB, b, nb);
+    ImGui::InputTextWithHint(idB, tr(hintB), b, nb);
   };
-  bigField("##sent", "RST sent", f.sent, sizeof f.sent, w, 0);
+  bigField("##sent", N_("RST sent"), f.sent, sizeof f.sent, w, 0);
   ImGui::SameLine();
-  bigField("##rcvd", "RST rcvd", f.rcvd, sizeof f.rcvd, w, 0);
-  pair("##lname", "Name", f.name, sizeof f.name, "##lqth", "QTH", f.qth, sizeof f.qth);
-  pair("##lgrid", "Locator", f.locator, sizeof f.locator, "##lpower", "Power (W)", f.power, sizeof f.power);
-  if (!editing && !f.power[0] && ImGui::IsItemHovered()) ImGui::SetTooltip("Left empty, it's what the rig's power is set to");
+  bigField("##rcvd", N_("RST rcvd"), f.rcvd, sizeof f.rcvd, w, 0);
+  pair("##lname", N_("Name"), f.name, sizeof f.name, "##lqth", "QTH", f.qth, sizeof f.qth);
+  pair("##lgrid", N_("Locator"), f.locator, sizeof f.locator, "##lpower", N_("Power (W)"), f.power, sizeof f.power);
+  if (!editing && !f.power[0] && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tr("Left empty, it's what the rig's power is set to"));
   double km, bearing;
-  if (locator_[0] && f.locator[0] && dx::pathBetween(locator_, f.locator, km, bearing)) ImGui::TextDisabled("%.0f km, %.0f miles, bearing %.0f degrees", km, km * kMilesPerKm, bearing);
+  if (locator_[0] && f.locator[0] && dx::pathBetween(locator_, f.locator, km, bearing)) ImGui::TextDisabled(tr("%.0f km, %.0f miles, bearing %.0f degrees"), km, km * kMilesPerKm, bearing);
   ImGui::SetNextItemWidth(-1);
-  enter |= ImGui::InputTextWithHint("##lnotes", "Notes", f.notes, sizeof f.notes, ImGuiInputTextFlags_EnterReturnsTrue);
+  enter |= ImGui::InputTextWithHint("##lnotes", tr("Notes"), f.notes, sizeof f.notes, ImGuiInputTextFlags_EnterReturnsTrue);
   if (f.contest[0] || f.exchSent[0] || f.exchRcvd[0]) ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-  if (ImGui::CollapsingHeader("Contest")) {
+  if (ImGui::CollapsingHeader(trId("Contest"))) {
     ImGui::SetNextItemWidth(-1);
-    ImGui::InputTextWithHint("##lcontest", "Contest, such as CQ-WW-SSB", f.contest, sizeof f.contest);
-    pair("##lstx", "Exchange sent", f.exchSent, sizeof f.exchSent, "##lsrx", "Exchange rcvd", f.exchRcvd, sizeof f.exchRcvd);
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("An exchange sent that's only a number goes up by one with each contact");
+    ImGui::InputTextWithHint("##lcontest", tr("Contest, such as CQ-WW-SSB"), f.contest, sizeof f.contest);
+    pair("##lstx", N_("Exchange sent"), f.exchSent, sizeof f.exchSent, "##lsrx", N_("Exchange rcvd"), f.exchRcvd, sizeof f.exchRcvd);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tr("An exchange sent that's only a number goes up by one with each contact"));
   }
 
   auto validTime = [](const char* t) { return strlen(t) == 16 && t[4] == '-' && t[7] == '-' && t[10] == ' ' && t[13] == ':'; };
   bool commit = false;
   if (editing) {
-    pair("##lon", "Began", f.on, sizeof f.on, "##loff", "Ended", f.off, sizeof f.off);
-    pair("##lkhz", "kHz", f.khz, sizeof f.khz, "##lmode", "Mode", f.mode, sizeof f.mode);
+    pair("##lon", N_("Began"), f.on, sizeof f.on, "##loff", N_("Ended"), f.off, sizeof f.off);
+    pair("##lkhz", "kHz", f.khz, sizeof f.khz, "##lmode", N_("Mode"), f.mode, sizeof f.mode);
     ImGui::SetNextItemWidth(-1);
-    ImGui::InputTextWithHint("##lstation", "Your callsign for this contact", f.station, sizeof f.station, ImGuiInputTextFlags_CharsUppercase);
+    ImGui::InputTextWithHint("##lstation", tr("Your callsign for this contact"), f.station, sizeof f.station, ImGuiInputTextFlags_CharsUppercase);
     ImGui::BeginDisabled(!f.call[0]);
     commit = panelButton("Update", ImVec2(w, 0));
     ImGui::EndDisabled();
@@ -4798,10 +4902,10 @@ void App::drawLog() {
             logEditing_ = -1;
             logForm_ = logDraft_;
             logDeleting_ = false;
-            if (!store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
+            if (!store::saveLog(logPath_, log_)) say(trf("Couldn't save the log to %s", logPath_.c_str()));
             indexLog();
           } else {
-            say("Couldn't back up the log first, so nothing was deleted");
+            say(tr("Couldn't back up the log first, so nothing was deleted"));
           }
         }
         ImGui::SameLine();
@@ -4811,7 +4915,7 @@ void App::drawLog() {
       }
     }
   } else {
-    ImGui::TextDisabled("%s  %s  %s UTC", tuning::formatHz(st_.hz).c_str(), modeLabel(st_.mode, st_.data).c_str(), utcNow("%H:%M").c_str());
+    ImGui::TextDisabled(tr("%s  %s  %s UTC"), tuning::formatHz(st_.hz).c_str(), modeLabel(st_.mode, st_.data).c_str(), utcNow("%H:%M").c_str());
     ImGui::BeginDisabled(!f.call[0]);
     commit = panelButton("Log it", ImVec2(w, 0));
     ImGui::EndDisabled();
@@ -4823,10 +4927,10 @@ void App::drawLog() {
     if (editing) {
       double khz = atof(f.khz);
       if (!(khz > 0)) {
-        say("That frequency isn't a number of kHz");
+        say(tr("That frequency isn't a number of kHz"));
         ok = false;
       } else if (!validTime(f.on) || (f.off[0] && !validTime(f.off))) {
-        say("Times need to look like 2026-10-31 19:05");
+        say(tr("Times need to look like 2026-10-31 19:05"));
         ok = false;
       } else {
         if (e.call != f.call) e.country = dx::countryOf(f.call);
@@ -4846,14 +4950,14 @@ void App::drawLog() {
       fillDistance(e);
       if (editing) {
         log_[(size_t)logEditing_] = e;
-        if (!store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
-        else say("Updated " + e.call);
+        if (!store::saveLog(logPath_, log_)) say(trf("Couldn't save the log to %s", logPath_.c_str()));
+        else say(trf("Updated %s", e.call.c_str()));
         endLogEdit();
       } else {
         if (e.power.empty() && radio().hasTransmit && st_.level[civ::L_POWER] >= 0)
           e.power = std::to_string((int)lround(st_.level[civ::L_POWER] / 255.0 * radio().maxWattsAt(st_.hz)));
         log_.push_back(e);
-        if (!store::appendLog(logPath_, e)) say("Couldn't save the log entry to " + logPath_);
+        if (!store::appendLog(logPath_, e)) say(trf("Couldn't save the log entry to %s", logPath_.c_str()));
         f.call[0] = f.name[0] = f.qth[0] = f.locator[0] = f.notes[0] = f.exchRcvd[0] = 0;
         logStarted_.clear();
         // A serial number goes up by itself, keeping its leading zeros.
@@ -4876,7 +4980,7 @@ void App::drawLog() {
   // The newest are at the top, and there can be a great many once a log has been imported.
   if (ImGui::BeginTable("log", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
     ImGui::TableSetupColumn("UTC", ImGuiTableColumnFlags_WidthFixed, S(92));
-    ImGui::TableSetupColumn("Call", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn(trId("Call"), ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("kHz", ImGuiTableColumnFlags_WidthFixed, S(62));
     ImGui::TableSetupScrollFreeze(0, 1);
     ImGui::TableHeadersRow();
@@ -4893,7 +4997,7 @@ void App::drawLog() {
         ImGui::TableNextColumn();
         if (ImGui::Selectable(store::displayDate(e.utc, dateFormat_, false).c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
         note("logrow:" + std::to_string(i));
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s  %s  %s/%s  %s %s\nDouble-click to change it", e.call.c_str(), e.mode.c_str(), e.rstSent.c_str(), e.rstRcvd.c_str(), e.name.c_str(), e.notes.c_str());
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip(tr("%s  %s  %s/%s  %s %s\nDouble-click to change it"), e.call.c_str(), e.mode.c_str(), e.rstSent.c_str(), e.rstRcvd.c_str(), e.name.c_str(), e.notes.c_str());
         ImGui::TableNextColumn();
         ImGui::TextUnformatted(e.call.c_str());
         ImGui::TableNextColumn();
@@ -4953,15 +5057,15 @@ void App::drawPinBubble(const LogPin& pin) {
   const store::LogEntry& newest = log_[(size_t)pin.contacts[0]];
   std::string place = newest.locator;
   for (char& c : place) c = (char)toupper((unsigned char)c);
-  if (!newest.distKm.empty()) place += "   " + newest.distKm + " km, " + newest.distMiles + " miles";
-  if (pin.contacts.size() > 1) place += "   " + std::to_string(pin.contacts.size()) + " contacts";
+  if (!newest.distKm.empty()) place += "   " + trf("%s km, %s miles", newest.distKm.c_str(), newest.distMiles.c_str());
+  if (pin.contacts.size() > 1) place += "   " + trf("%d contacts", (int)pin.contacts.size());
   ImGui::TextDisabled("%s", place.c_str());
 
   const float room = ImGui::GetMainViewport()->Size.y * 0.75f;
   for (size_t n = 0; n < pin.contacts.size(); n++) {
     if (ImGui::GetCursorPosY() > room) {
       ImGui::Separator();
-      ImGui::TextDisabled("and %d earlier. Search the Contacts tab for %s to see them all.", (int)(pin.contacts.size() - n), place.substr(0, place.find(' ')).c_str());
+      ImGui::TextDisabled(tr("and %d earlier. Search the Contacts tab for %s to see them all."), (int)(pin.contacts.size() - n), place.substr(0, place.find(' ')).c_str());
       break;
     }
     const store::LogEntry& e = log_[(size_t)pin.contacts[n]];
@@ -4971,7 +5075,7 @@ void App::drawPinBubble(const LogPin& pin) {
     ImGui::PopFont();
     std::string when = store::displayDate(e.utc, dateFormat_);
     // The end needs no date of its own if it's the same day.
-    if (!e.utcOff.empty() && e.utcOff != e.utc) when += " to " + (e.utcOff.compare(0, 10, e.utc, 0, 10) == 0 && e.utcOff.size() > 11 ? e.utcOff.substr(11) : store::displayDate(e.utcOff, dateFormat_));
+    if (!e.utcOff.empty() && e.utcOff != e.utc) when += std::string(" ") + tr("to") + " " + (e.utcOff.compare(0, 10, e.utc, 0, 10) == 0 && e.utcOff.size() > 11 ? e.utcOff.substr(11) : store::displayDate(e.utcOff, dateFormat_));
     ImGui::TextColored(ImColor(C_AMBER), "%s UTC", when.c_str());
     auto line = [](std::initializer_list<std::string> parts) {
       std::string out;
@@ -4979,14 +5083,14 @@ void App::drawPinBubble(const LogPin& pin) {
         if (!p.empty()) out += (out.empty() ? "" : "   ") + p;
       if (!out.empty()) ImGui::TextUnformatted(out.c_str());
     };
-    auto labelled = [](const char* label, const std::string& v) { return v.empty() ? std::string() : std::string(label) + " " + v; };
+    auto labelled = [](const char* label, const std::string& v) { return v.empty() ? std::string() : std::string(tr(label)) + " " + v; };
     char khz[32];
     snprintf(khz, sizeof khz, "%.1f kHz", (double)e.hz / 1000.0);
     line({e.name, e.qth, e.country.empty() ? dx::countryOf(e.call) : e.country});
-    line({khz, bands::adifBand(e.hz), e.mode, labelled("Power", e.power.empty() ? e.power : e.power + " W")});
-    line({labelled("RST sent", e.rstSent), labelled("RST rcvd", e.rstRcvd), labelled("Confirmed by", store::confirmedBy(e))});
-    line({labelled("Your callsign", e.station), e.locator != newest.locator ? labelled("Locator", e.locator) : std::string()});
-    line({labelled("Contest", e.contest), labelled("Exch sent", e.exchSent), labelled("Exch rcvd", e.exchRcvd)});
+    line({khz, bands::adifBand(e.hz), e.mode, labelled(N_("Power"), e.power.empty() ? e.power : e.power + " W")});
+    line({labelled(N_("RST sent"), e.rstSent), labelled(N_("RST rcvd"), e.rstRcvd), labelled(N_("Confirmed by"), store::confirmedBy(e))});
+    line({labelled(N_("Your callsign"), e.station), e.locator != newest.locator ? labelled(N_("Locator"), e.locator) : std::string()});
+    line({labelled(N_("Contest"), e.contest), labelled(N_("Exch sent"), e.exchSent), labelled(N_("Exch rcvd"), e.exchRcvd)});
     line({e.notes});
   }
   ImGui::PopTextWrapPos();
@@ -4995,15 +5099,15 @@ void App::drawPinBubble(const LogPin& pin) {
 
 void App::drawLogMap() {
   ImGui::AlignTextToFramePadding();
-  ImGui::Text("%d contact%s at %d place%s", logPinned_, logPinned_ == 1 ? "" : "s", (int)logPins_.size(), logPins_.size() == 1 ? "" : "s");
+  ImGui::Text(tr("Contacts: %d. Places: %d."), logPinned_, (int)logPins_.size());
   if (logUnpinned_) {
     ImGui::SameLine();
-    ImGui::TextDisabled("(%d with no locator aren't shown)", logUnpinned_);
+    ImGui::TextDisabled(tr("(%d with no locator aren't shown)"), logUnpinned_);
   }
   ImGui::SameLine(0, S(20));
   if (panelButton("Whole world")) logMapView_ = worldmap::View();
   ImGui::SameLine();
-  ImGui::TextDisabled("Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts");
+  ImGui::TextDisabled("%s", tr("Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts"));
 
   ImVec2 avail = ImGui::GetContentRegionAvail();
   const ImVec2 size(std::max(1.f, avail.x), std::max(1.f, avail.y));
@@ -5033,7 +5137,7 @@ void App::drawLogMap() {
     const float r = S(7), e = r + S(1.5f);
     dl->AddQuadFilled(ImVec2(c.x, c.y - e), ImVec2(c.x + e, c.y), ImVec2(c.x, c.y + e), ImVec2(c.x - e, c.y), kEdge);
     dl->AddQuadFilled(ImVec2(c.x, c.y - r), ImVec2(c.x + r, c.y), ImVec2(c.x, c.y + r), ImVec2(c.x - r, c.y), C_GREEN);
-    if (hovered && !dragging && fabsf(io.MousePos.x - c.x) + fabsf(io.MousePos.y - c.y) <= e) ImGui::SetTooltip("Your station, %s", locator_);
+    if (hovered && !dragging && fabsf(io.MousePos.x - c.x) + fabsf(io.MousePos.y - c.y) <= e) ImGui::SetTooltip(tr("Your station, %s"), locator_);
   }
 
   auto drawPin = [&](const LogPin& pin, ImVec2 tip, bool hot) {
@@ -5200,7 +5304,7 @@ void App::drawLogBookWindow() {
     ImGui::SetNextWindowSize(ImVec2(std::min(logBookOwnSize_.x * logBookResize_, logBookRoom_.x), std::min(logBookOwnSize_.y * logBookResize_, logBookRoom_.y)));
   }
   logBookResize_ = 0;
-  if (!ImGui::Begin("Log book", &openLogBook_, flags)) {
+  if (!ImGui::Begin(trId("Log book"), &openLogBook_, flags)) {
     ImGui::End();
     return;
   }
@@ -5241,10 +5345,10 @@ void App::drawLogBookWindow() {
 
   drawStationPicker();
   ImGui::SameLine();
-  ImGui::Text("%d contacts, %d callsigns, %d countries, %d confirmed", logBookContacts_, logBookCalls_, logBookCountries_, logBookConfirmed_);
+  ImGui::Text(tr("%d contacts, %d callsigns, %d countries, %d confirmed"), logBookContacts_, logBookCalls_, logBookCountries_, logBookConfirmed_);
   ImGui::SameLine(0, S(20));
   ImGui::SetNextItemWidth(S(200));
-  ImGui::InputTextWithHint("##logsearch", "Search", logBookQuery_, sizeof logBookQuery_);
+  ImGui::InputTextWithHint("##logsearch", tr("Search"), logBookQuery_, sizeof logBookQuery_);
   ImGui::SameLine();
   if (panelButton("Export ADIF")) {
     // One callsign at a time is what LoTW wants uploaded, and All callsigns is the whole log in one file.
@@ -5258,25 +5362,25 @@ void App::drawLogBookWindow() {
         if (c == '/' || c == '\\') c = '-';
     }
     std::string path = store::dataDir() + name;
-    if (store::exportAdif(path, out, callsign_, locator_)) say("Exported " + std::to_string(out.size()) + " QSOs to " + path);
-    else say("Couldn't write " + path);
+    if (store::exportAdif(path, out, callsign_, locator_)) say(trf("Exported %d QSOs to %s", (int)out.size(), path.c_str()));
+    else say(trf("Couldn't write %s", path.c_str()));
   }
   ImGui::SameLine();
   ImGui::BeginDisabled(logPick_ != nullptr);
   if (panelButton("Import ADIF...")) pickLogToImport();
   ImGui::EndDisabled();
-  ImGui::SetItemTooltip("Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak.");
+  ImGui::SetItemTooltip("%s", tr("Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak."));
   ImGui::SameLine();
   // A contact being changed on the Log tab is known by its place in the log, which this would move.
   ImGui::BeginDisabled(logEditing_ >= 0);
   if (panelButton("Sort")) sortLogFile();
   ImGui::EndDisabled();
-  ImGui::SetItemTooltip(logEditing_ >= 0 ? "Finish changing the contact on the Log tab first." : "Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.");
+  ImGui::SetItemTooltip("%s", logEditing_ >= 0 ? tr("Finish changing the contact on the Log tab first.") : tr("Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak."));
   // At the far right if there's room, and just along from the others if not. A window of its own has the
   // system's maximise button instead.
   if (!ownWindow) {
     ImGui::SameLine();
-    const char* fullLabel = logBookFull_ ? "Restore" : "Maximise";
+    const char* fullLabel = logBookFull_ ? tr("Restore") : tr("Maximise");
     const float fullX = ImGui::GetWindowContentRegionMax().x - ImGui::CalcTextSize(fullLabel).x - ImGui::GetStyle().FramePadding.x * 2;
     if (fullX > ImGui::GetCursorPosX()) ImGui::SetCursorPosX(fullX);
     if (panelButton(fullLabel)) {
@@ -5287,8 +5391,8 @@ void App::drawLogBookWindow() {
 
   bool showMap = false;
   if (ImGui::BeginTabBar("logbookviews")) {
-    if (ImGui::BeginTabItem("Contacts")) ImGui::EndTabItem();
-    if (ImGui::BeginTabItem("World map")) {
+    if (ImGui::BeginTabItem(trId("Contacts"))) ImGui::EndTabItem();
+    if (ImGui::BeginTabItem(trId("World map"))) {
       showMap = true;
       ImGui::EndTabItem();
     }
@@ -5300,14 +5404,14 @@ void App::drawLogBookWindow() {
     return;
   }
 
-  static const char* const kHeads[] = {"Began", "Ended", "Call", "Station", "kHz", "Band", "Mode", "Confirmed", "Sent", "Rcvd", "Name", "QTH", "Locator", "Distance (km)", "Power (W)", "Country", "Contest", "Exch sent", "Exch rcvd", "Notes"};
+  static const char* const kHeads[] = {N_("Began"), N_("Ended"), N_("Call"), N_("Station"), "kHz", N_("Band"), N_("Mode"), N_("Confirmed"), N_("Sent"), N_("Rcvd"), N_("Name"), "QTH", N_("Locator"), N_("Distance (km)"), N_("Power (W)"), N_("Country"), N_("Contest"), N_("Exch sent"), N_("Exch rcvd"), N_("Notes")};
   static const float kWidths[] = {112, 112, 90, 90, 74, 44, 56, 110, 36, 36, 90, 110, 62, 100, 74, 130, 90, 70, 70, 240};
   const int columns = 20;
   const int kDistanceColumn = 13;
   int bring = -1;
   if (ImGui::BeginTable("logbook", columns, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable)) {
     // Newest first until a heading is clicked.
-    for (int c = 0; c < columns; c++) ImGui::TableSetupColumn(kHeads[c], ImGuiTableColumnFlags_WidthFixed | (c == 0 ? ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_PreferSortDescending : 0), S(kWidths[c]));
+    for (int c = 0; c < columns; c++) ImGui::TableSetupColumn(trId(kHeads[c]), ImGuiTableColumnFlags_WidthFixed | (c == 0 ? ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_PreferSortDescending : 0), S(kWidths[c]));
     ImGui::TableSetupScrollFreeze(3, 1);
     ImGui::TableHeadersRow();
     ImGuiTableSortSpecs* sort = ImGui::TableGetSortSpecs();
@@ -5328,7 +5432,7 @@ void App::drawLogBookWindow() {
         ImGui::TableNextColumn();
         if (ImGui::Selectable(store::displayDate(e.utc, dateFormat_).c_str(), i == logEditing_, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) bring = i;
         const bool rowTip = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip);
-        ImGui::SetItemTooltip("Double-click to change it on the Log tab");
+        ImGui::SetItemTooltip("%s", tr("Double-click to change it on the Log tab"));
         auto cell = [](const std::string& s) {
           ImGui::TableNextColumn();
           ImGui::TextUnformatted(s.c_str());
@@ -5341,7 +5445,7 @@ void App::drawLogBookWindow() {
         cell(bands::adifBand(e.hz));
         cell(e.mode), cell(store::confirmedBy(e)), cell(e.rstSent), cell(e.rstRcvd), cell(e.name), cell(e.qth), cell(e.locator), cell(e.distKm);
         // Takes over from the row's tooltip, anywhere in this cell.
-        if (rowTip && ImGui::TableGetHoveredColumn() == kDistanceColumn && !e.distMiles.empty()) ImGui::SetTooltip("%s miles", e.distMiles.c_str());
+        if (rowTip && ImGui::TableGetHoveredColumn() == kDistanceColumn && !e.distMiles.empty()) ImGui::SetTooltip(tr("%s miles"), e.distMiles.c_str());
         cell(e.power), cell(e.country), cell(e.contest), cell(e.exchSent), cell(e.exchRcvd), cell(e.notes);
         ImGui::PopID();
       }
@@ -5376,7 +5480,7 @@ bool App::buildScanChannels(std::vector<scan::Channel>& out, size_t& first, std:
   if (scanSource_ == 0) {
     int b = plan_.bandOf(st_.hz);
     if (b < 0) {
-      why = "The dial isn't on a band in the " + plan_.name + " plan. Tune to one, or scan a range.";
+      why = trf("The dial isn't on a band in the %s plan. Tune to one, or scan a range.", plan_.name.c_str());
       return false;
     }
     const bands::Band& band = plan_.bands[(size_t)b];
@@ -5387,11 +5491,11 @@ bool App::buildScanChannels(std::vector<scan::Channel>& out, size_t& first, std:
   } else if (scanSource_ == 1) {
     long long lo = tuning::parseFreq(scanFrom_, st_.hz, radio()), hi = tuning::parseFreq(scanTo_, st_.hz, radio());
     if (lo < 0 || hi < 0) {
-      why = "Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say";
+      why = tr("Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say");
       return false;
     }
     if (lo > hi) std::swap(lo, hi);
-    addRange(lo, hi, "Range");
+    addRange(lo, hi, tr("Range"));
   } else if (scanSource_ == 2) {
     std::string filter = scanFilter_;
     for (char& c : filter) c = (char)tolower((unsigned char)c);
@@ -5419,11 +5523,11 @@ bool App::buildScanChannels(std::vector<scan::Channel>& out, size_t& first, std:
     out.erase(std::unique(out.begin(), out.end(), [](const scan::Channel& x, const scan::Channel& y) { return x.hz == y.hz; }), out.end());
   }
   if (out.size() > kMaxScanChannels) {
-    why = "That's more than " + std::to_string(kMaxScanChannels) + " channels. Choose a bigger step or a smaller range.";
+    why = trf("That's more than %d channels. Choose a bigger step or a smaller range.", (int)kMaxScanChannels);
     return false;
   }
   if (out.empty()) {
-    why = "There's nothing to scan there that the " + std::string(radio().name) + " can tune";
+    why = trf("There's nothing to scan there that the %s can tune", radio().name);
     return false;
   }
   // Ranges and stations are in order, so carry on up from the dial. Memories go from the top of their list.
@@ -5451,18 +5555,18 @@ void App::startScan() {
 void App::pumpScan() {
   if (!scan_.running()) {
     // Lock out, on the Scan tab, can end a scan between frames.
-    if (scan_.update(glfwGetTime(), st_.hz, -999) == scan::NOTHING_LEFT) say("Scan stopped: every channel has been locked out");
+    if (scan_.update(glfwGetTime(), st_.hz, -999) == scan::NOTHING_LEFT) say(tr("Scan stopped: every channel has been locked out"));
     return;
   }
   if (!st_.connected) {
     scan_.stop();
-    say("Scan stopped: the rig isn't answering");
+    say(tr("Scan stopped: the rig isn't answering"));
     return;
   }
   // The scan only ever tunes while receiving, whoever keyed the rig.
   if (st_.tx) {
     scan_.stop();
-    say("Scan stopped: the rig is transmitting");
+    say(tr("Scan stopped: the rig is transmitting"));
     return;
   }
   scan_.setConfig(scanConfig());
@@ -5471,7 +5575,7 @@ void App::pumpScan() {
     scanErrorSeq_ = st_.lastErrorSeq;
     if (st_.lastError.find("frequency") != std::string::npos) scan_.lockOut();
     if (!scan_.running()) {
-      say("Scan stopped: the rig refused every frequency in it");
+      say(tr("Scan stopped: the rig refused every frequency in it"));
       return;
     }
   }
@@ -5490,8 +5594,8 @@ void App::pumpScan() {
       if (scanHits_.size() > 100) scanHits_.pop_back();
       break;
     }
-    case scan::DIAL_MOVED: say("Scan stopped: the dial was tuned"); break;
-    case scan::NOTHING_LEFT: say("Scan stopped: every channel has been locked out"); break;
+    case scan::DIAL_MOVED: say(tr("Scan stopped: the dial was tuned")); break;
+    case scan::NOTHING_LEFT: say(tr("Scan stopped: every channel has been locked out")); break;
     default: break;
   }
 }
@@ -5499,49 +5603,49 @@ void App::pumpScan() {
 void App::drawScan() {
   const bool running = scan_.running();
   const float fieldW = S(190);
-  static const char* const kSources[] = {"The band the dial is on", "A range of frequencies", "Memories", "Stations"};
+  static const char* const kSources[] = {N_("The band the dial is on"), N_("A range of frequencies"), N_("Memories"), N_("Stations")};
   ImGui::BeginDisabled(running);
   ImGui::SetNextItemWidth(fieldW);
-  ImGui::Combo("Scan", &scanSource_, kSources, 4);
+  comboTr("Scan", &scanSource_, kSources, 4);
   note("scansource");
   if (scanSource_ == 0 || scanSource_ == 1) {
     if (scanSource_ == 1) {
       ImGui::SetNextItemWidth(fieldW);
-      ImGui::InputTextWithHint("From", "14.0", scanFrom_, sizeof scanFrom_);
+      ImGui::InputTextWithHint(trId("From"), "14.0", scanFrom_, sizeof scanFrom_);
       note("scanfrom");
       ImGui::SetNextItemWidth(fieldW);
-      ImGui::InputTextWithHint("To", "14.35", scanTo_, sizeof scanTo_);
+      ImGui::InputTextWithHint(trId("To"), "14.35", scanTo_, sizeof scanTo_);
       note("scanto");
     }
     ImGui::SetNextItemWidth(fieldW);
-    ImGui::Combo("Step", &scanStepIdx_, kScanStepNames, kScanStepCount);
+    comboTr("Step", &scanStepIdx_, kScanStepNames, kScanStepCount);
   } else if (scanSource_ == 2) {
     ImGui::SetNextItemWidth(fieldW);
-    ImGui::InputTextWithHint("Names with", "Empty for all of them", scanFilter_, sizeof scanFilter_);
+    ImGui::InputTextWithHint(trId("Names with"), tr("Empty for all of them"), scanFilter_, sizeof scanFilter_);
   } else {
-    std::string shown = scanService_ == bands::S_COUNT ? "All those showing" : bands::serviceName((bands::Service)scanService_);
+    std::string shown = tr(scanService_ == bands::S_COUNT ? "All those showing" : bands::serviceName((bands::Service)scanService_));
     ImGui::SetNextItemWidth(fieldW);
-    if (ImGui::BeginCombo("Service", shown.c_str())) {
-      if (ImGui::Selectable("All those showing", scanService_ == bands::S_COUNT)) scanService_ = bands::S_COUNT;
+    if (ImGui::BeginCombo(trId("Service"), shown.c_str())) {
+      if (ImGui::Selectable(trId("All those showing"), scanService_ == bands::S_COUNT)) scanService_ = bands::S_COUNT;
       for (int s = 0; s < bands::S_COUNT; s++)
         if (ImGui::Selectable(bands::serviceName((bands::Service)s), scanService_ == s)) scanService_ = s;
       ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("Broadcasters go by the Stations menu's \"Only what's scheduled now\", as of when the scan starts.");
+    ImGui::SetItemTooltip("%s", tr("Broadcasters go by the Stations menu's \"Only what's scheduled now\", as of when the scan starts."));
   }
   ImGui::EndDisabled();
 
   ImGui::SetNextItemWidth(fieldW);
-  ImGui::SliderInt("Each one for", &scanDwellMs_, 300, 3000, "%d ms");
-  ImGui::SetItemTooltip("How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal.");
+  ImGui::SliderInt(trId("Each one for"), &scanDwellMs_, 300, 3000, "%d ms");
+  ImGui::SetItemTooltip("%s", tr("How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal."));
   std::string levelName = scanLevelName(scanLevel_);
   ImGui::SetNextItemWidth(fieldW);
-  ImGui::SliderInt("Stop at", &scanLevel_, 1, 13, levelName.c_str());
+  ImGui::SliderInt(trId("Stop at"), &scanLevel_, 1, 13, levelName.c_str());
   note("scanlevel");
-  ImGui::SetItemTooltip("The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere.");
-  static const char* const kResumes[] = {"Stay until I carry on", "Carry on after 5 s", "Carry on after 10 s", "Carry on when it stops"};
+  ImGui::SetItemTooltip("%s", tr("The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere."));
+  static const char* const kResumes[] = {N_("Stay until I carry on"), N_("Carry on after 5 s"), N_("Carry on after 10 s"), N_("Carry on when it stops")};
   ImGui::SetNextItemWidth(fieldW);
-  ImGui::Combo("On a signal", &scanResume_, kResumes, scan::RESUME_COUNT);
+  comboTr("On a signal", &scanResume_, kResumes, scan::RESUME_COUNT);
 
   float gap = ImGui::GetStyle().ItemSpacing.x;
   float w3 = (ImGui::GetContentRegionAvail().x - gap * 2) / 3;
@@ -5558,24 +5662,26 @@ void App::drawScan() {
   ImGui::BeginDisabled(!scan_.running());
   if (panelButton("Next", ImVec2(w3, 0))) scan_.next();
   note("scannext");
-  ImGui::SetItemTooltip("Carry on to the next channel");
+  ImGui::SetItemTooltip("%s", tr("Carry on to the next channel"));
   ImGui::SameLine();
   if (panelButton("Lock out", ImVec2(w3, 0))) scan_.lockOut();
   note("scanlock");
-  ImGui::SetItemTooltip("Leave this channel out until the scan is stopped, for a signal that's always there");
+  ImGui::SetItemTooltip("%s", tr("Leave this channel out until the scan is stopped, for a signal that's always there"));
   ImGui::EndDisabled();
 
   if (scan_.running()) {
     const scan::Channel& c = scan_.current();
-    if (scan_.state() == scan::STOPPED) ImGui::TextColored(ImColor(C_GREEN), "Signal at %s  %s", tuning::formatHz(c.hz).c_str(), sUnitsName(scan_.peakDb()).c_str());
-    else ImGui::TextColored(ImColor(C_AMBER), "Listening at %s", tuning::formatHz(c.hz).c_str());
-    ImGui::TextDisabled("%s  %d of %d%s", c.label.c_str(), (int)scan_.index() + 1, (int)scan_.count(), scan_.lockedCount() ? (", " + std::to_string((int)scan_.lockedCount()) + " locked out").c_str() : "");
+    if (scan_.state() == scan::STOPPED) ImGui::TextColored(ImColor(C_GREEN), tr("Signal at %s  %s"), tuning::formatHz(c.hz).c_str(), sUnitsName(scan_.peakDb()).c_str());
+    else ImGui::TextColored(ImColor(C_AMBER), tr("Listening at %s"), tuning::formatHz(c.hz).c_str());
+    std::string place = trf("%s  %d of %d", c.label.c_str(), (int)scan_.index() + 1, (int)scan_.count());
+    if (scan_.lockedCount()) place += ", " + trf("%d locked out", (int)scan_.lockedCount());
+    ImGui::TextDisabled("%s", place.c_str());
   } else {
-    ImGui::TextDisabled("S meter now: %s. Tuning stops a scan.", st_.meter[civ::M_S] >= 0 ? sUnitsName(civ::smeterDb(st_.meter[civ::M_S])).c_str() : "--");
+    ImGui::TextDisabled(tr("S meter now: %s. Tuning stops a scan."), st_.meter[civ::M_S] >= 0 ? sUnitsName(civ::smeterDb(st_.meter[civ::M_S])).c_str() : "--");
   }
 
   ImGui::Separator();
-  ImGui::TextColored(ImColor(C_ACCENT), "HEARD");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("HEARD"));
   ImGui::SameLine();
   if (!scanHits_.empty()) {
     ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - S(50));
@@ -5583,8 +5689,8 @@ void App::drawScan() {
   }
   if (ImGui::BeginTable("scanhits", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
     ImGui::TableSetupColumn("UTC", ImGuiTableColumnFlags_WidthFixed, S(42));
-    ImGui::TableSetupColumn("Where", ImGuiTableColumnFlags_WidthFixed, S(92));
-    ImGui::TableSetupColumn("What", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn(trId("Where"), ImGuiTableColumnFlags_WidthFixed, S(92));
+    ImGui::TableSetupColumn(trId("What"), ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("S", ImGuiTableColumnFlags_WidthFixed, S(46));
     ImGui::TableSetupScrollFreeze(0, 1);
     ImGui::TableHeadersRow();
@@ -5595,7 +5701,7 @@ void App::drawScan() {
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
       if (ImGui::Selectable(h.utc.c_str(), false, ImGuiSelectableFlags_SpanAllColumns)) chosen = &h;
-      ImGui::SetItemTooltip("Click to stop the scan and go back there");
+      ImGui::SetItemTooltip("%s", tr("Click to stop the scan and go back there"));
       ImGui::TableNextColumn();
       ImGui::TextUnformatted(tuning::formatHz(h.channel.hz).c_str());
       ImGui::TableNextColumn();
@@ -5619,7 +5725,7 @@ void App::startSpots() {
     dx_.startDemo();
   } else {
     if (!callsign_[0]) {
-      say("A DX cluster logs you in by callsign. Put yours in Rig > Settings first.");
+      say(tr("A DX cluster logs you in by callsign. Put yours in Rig > Settings first."));
       return;
     }
     dx_.start(dxHost_, dxPort_, callsign_, dxCommands_);
@@ -5642,7 +5748,7 @@ bands::Marker App::markerForSpot(const dx::Spot& s, dx::ModeHint hint) const {
   std::string country = dx::countryOf(s.call);
   m.note = country;
   if (!s.comment.empty()) m.note += (m.note.empty() ? "" : "\n") + s.comment;
-  m.note += (m.note.empty() ? "" : "\n") + std::string("Spotted by ") + s.spotter + (s.utc.empty() ? "" : " at " + s.utc + "Z");
+  m.note += (m.note.empty() ? "" : "\n") + (s.utc.empty() ? trf("Spotted by %s", s.spotter.c_str()) : trf("Spotted by %s at %sZ", s.spotter.c_str(), s.utc.c_str()));
   int bandIdx = plan_.bandOf(s.hz);
   const bands::Segment* seg = plan_.segmentAt(s.hz);
   bool data = false;
@@ -5722,7 +5828,7 @@ bool App::spotShown(size_t i, bool useBandFilter) const {
 void App::drawSpotsPanel() {
   ImGui::BeginChild("spots", ImVec2(0, 0), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
   ImGui::AlignTextToFramePadding();
-  ImGui::TextColored(ImColor(C_ACCENT), "DX SPOTS");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("DX SPOTS"));
   dx::Client::Status status = dx_.status();
   if (dxOn_) {
     ImGui::SameLine();
@@ -5738,17 +5844,17 @@ void App::drawSpotsPanel() {
     if (dxOn_) stopSpots();
     else startSpots();
   }
-  ImGui::SetItemTooltip("Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign.");
+  ImGui::SetItemTooltip("%s", tr("Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign."));
 
   if (dxOn_) {
-    static const char* const kBandFilters[] = {"All bands", "This band"};
-    static const char* const kModeFilters[] = {"All modes", "CW", "Voice", "Data"};
+    static const char* const kBandFilters[] = {N_("All bands"), N_("This band")};
+    static const char* const kModeFilters[] = {N_("All modes"), "CW", N_("Voice"), N_("Data")};
     float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) / 2;
     ImGui::SetNextItemWidth(w);
-    ImGui::Combo("##spotband", &spotBandFilter_, kBandFilters, 2);
+    comboTr("##spotband", &spotBandFilter_, kBandFilters, 2);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(w);
-    ImGui::Combo("##spotmode", &spotModeFilter_, kModeFilters, 4);
+    comboTr("##spotmode", &spotModeFilter_, kModeFilters, 4);
     // Row numbers, worked out once a frame so the clipper knows how many there are.
     std::vector<int> rows;
     if (spotRows_.size() == spots_.spots().size())
@@ -5756,13 +5862,13 @@ void App::drawSpotsPanel() {
         if (spotShown(i, true)) rows.push_back((int)i);
     if (rows.empty()) {
       ImGui::PushStyleColor(ImGuiCol_Text, C_DIM);
-      ImGui::TextWrapped("%s", status.state == dx::Client::CONNECTED ? "No spots here yet." : status.message.c_str());
+      ImGui::TextWrapped("%s", status.state == dx::Client::CONNECTED ? tr("No spots here yet.") : tr(status.message.c_str()));
       ImGui::PopStyleColor();
     } else if (ImGui::BeginTable("spotlist", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
       ImGui::TableSetupColumn("kHz", ImGuiTableColumnFlags_WidthFixed, S(66));
-      ImGui::TableSetupColumn("Call", ImGuiTableColumnFlags_WidthStretch);
-      ImGui::TableSetupColumn("Mode", ImGuiTableColumnFlags_WidthFixed, S(46));
-      ImGui::TableSetupColumn("Age", ImGuiTableColumnFlags_WidthFixed, S(30));
+      ImGui::TableSetupColumn(trId("Call"), ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn(trId("Mode"), ImGuiTableColumnFlags_WidthFixed, S(46));
+      ImGui::TableSetupColumn(trId("Age"), ImGuiTableColumnFlags_WidthFixed, S(30));
       ImGui::TableSetupScrollFreeze(0, 1);
       ImGui::TableHeadersRow();
       long long now = (long long)time(nullptr);
@@ -5785,8 +5891,9 @@ void App::drawSpotsPanel() {
           std::string band = bands::adifBand(s.hz);
           bool onBand = workedOnBand_.count(s.call + "|" + band) != 0, ever = workedCalls_.count(s.call) != 0;
           if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s\n%s\n%s\n\nClick to tune there and put the call in the log", s.call.c_str(), r.marker.note.c_str(),
-                              onBand ? "Worked on this band" : ever ? "Worked, but not on this band" : "Not worked before");
+            ImGui::SetTooltip("%s\n%s\n%s\n\n%s", s.call.c_str(), r.marker.note.c_str(),
+                              onBand ? tr("Worked on this band") : ever ? tr("Worked, but not on this band") : tr("Not worked before"),
+                              tr("Click to tune there and put the call in the log"));
           }
           ImGui::TableNextColumn();
           ImGui::TextColored(ImColor(onBand ? C_DIM : ever ? C_AMBER : C_GREEN), "%s", s.call.c_str());
@@ -5815,18 +5922,18 @@ void App::drawCwVoice() {
     return s;
   };
   auto send = [&](const std::string& text) {
-    if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
-    else if (text.find("{CALL}") == std::string::npos && expand(text).empty()) say("Nothing to send");
+    if (!st_.txArmed) say(tr("Transmit isn't armed. Press ARM TX first."));
+    else if (text.find("{CALL}") == std::string::npos && expand(text).empty()) say(tr("Nothing to send"));
     else if (st_.sw[civ::S_BKIN] == 0) {
       rig_.sendCw(expand(text));
-      say("Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit.");
+      say(tr("Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit."));
     } else rig_.sendCw(expand(text));
   };
-  ImGui::TextColored(ImColor(C_ACCENT), "CW KEYER");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("CW KEYER"));
   ImGui::Separator();
-  ImGui::TextDisabled("Mode must be CW. Sends through the rig's keyer.");
+  ImGui::TextDisabled("%s", tr("Mode must be CW. Sends through the rig's keyer."));
   ImGui::SetNextItemWidth(-1);
-  if (ImGui::InputTextWithHint("##cw", "Type and press Enter to send", cwLine_, sizeof cwLine_, ImGuiInputTextFlags_EnterReturnsTrue) && cwLine_[0]) {
+  if (ImGui::InputTextWithHint("##cw", tr("Type and press Enter to send"), cwLine_, sizeof cwLine_, ImGuiInputTextFlags_EnterReturnsTrue) && cwLine_[0]) {
     send(cwLine_);
     cwLine_[0] = 0;
     ImGui::SetKeyboardFocusHere(-1);
@@ -5842,19 +5949,19 @@ void App::drawCwVoice() {
     ImGui::PopID();
   }
   if (actionButton("STOP SENDING", ImVec2(-1, 0), V_RED, V_RED_HI)) rig_.stopCw();
-  ImGui::TextDisabled("{CALL} is your callsign, from Settings.");
+  ImGui::TextDisabled("%s", tr("{CALL} is your callsign, from Settings."));
 
   ImGui::Spacing();
-  ImGui::TextColored(ImColor(C_ACCENT), "VOICE MEMORY");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("VOICE MEMORY"));
   ImGui::Separator();
-  ImGui::TextDisabled("Plays what's recorded on the rig. Mode must be SSB, AM or FM.");
+  ImGui::TextDisabled("%s", tr("Plays what's recorded on the rig. Mode must be SSB, AM or FM."));
   float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 3) / 4;
   for (int i = 1; i <= 8; i++) {
     if ((i - 1) % 4) ImGui::SameLine();
     char b[8];
     snprintf(b, sizeof b, "T%d", i);
     if (panelButton(b, ImVec2(w, 0))) {
-      if (!st_.txArmed) say("Transmit isn't armed. Press ARM TX first.");
+      if (!st_.txArmed) say(tr("Transmit isn't armed. Press ARM TX first."));
       else rig_.playVoice(i);
     }
   }
@@ -5895,24 +6002,23 @@ void App::loadNet() {
 void App::saveNet() {
   std::string text = store::joinCsv({"#net", netTitle_, netStarted_, std::to_string(netHz_), netMode_}) + "\n";
   for (const NetEntry& e : net_) text += store::joinCsv({e.call, e.name, e.joined, e.left}) + "\n";
-  if (!store::saveText(netPath_, text)) say("Couldn't save the net list to " + netPath_);
+  if (!store::saveText(netPath_, text)) say(trf("Couldn't save the net list to %s", netPath_.c_str()));
 }
 
 // The net list as a page: a heading, a few lines about the net, and everyone who checked in.
 printing::Doc App::netDoc() {
   auto when = [&](const std::string& t) { return t.empty() ? std::string() : store::displayDate(t, dateFormat_); };
   printing::Doc d;
-  d.title = netTitle_[0] ? netTitle_ : "Net";
+  d.title = netTitle_[0] ? netTitle_ : tr("Net");
   std::string about;
-  if (!netStarted_.empty()) about = "Started " + when(netStarted_) + " UTC";
+  if (!netStarted_.empty()) about = trf("Started %s UTC", when(netStarted_).c_str());
   if (netHz_ > 0) about += (about.empty() ? "" : ", ") + tuning::formatHz(netHz_) + (netMode_.empty() ? "" : " " + netMode_);
-  if (callsign_[0]) about += (about.empty() ? "Net control " : ", net control ") + std::string(callsign_);
+  if (callsign_[0]) about += (about.empty() ? "" : ", ") + trf("Net control %s", callsign_);
   if (!about.empty()) d.lines.push_back(about);
   int still = 0;
   for (const NetEntry& e : net_) still += e.left.empty();
-  d.lines.push_back(std::to_string(net_.size()) + " check-in" + (net_.size() == 1 ? "" : "s") + ", " + std::to_string(still) + " still on at " +
-                    store::displayDate(utcNow("%Y-%m-%d %H:%M"), dateFormat_) + " UTC");
-  d.columns = {"#", "Callsign", "Name", "Country", "Joined (UTC)", "Left (UTC)"};
+  d.lines.push_back(trf("Checked in: %d. Still on at %s UTC: %d.", (int)net_.size(), store::displayDate(utcNow("%Y-%m-%d %H:%M"), dateFormat_).c_str(), still));
+  d.columns = {"#", tr("Callsign"), tr("Name"), tr("Country"), tr("Joined (UTC)"), tr("Left (UTC)")};
   for (size_t i = 0; i < net_.size(); i++) {
     const NetEntry& e = net_[i];
     d.rows.push_back({std::to_string(i + 1), e.call, e.name, dx::countryOf(e.call), when(e.joined), when(e.left)});
@@ -5923,7 +6029,7 @@ printing::Doc App::netDoc() {
 
 void App::drawNetPrint() {
   if (printJob_ && printJob_->done) {
-    say(printJob_->ok ? "Sent the net list to " + printJob_->printer : printJob_->why);
+    say(printJob_->ok ? trf("Sent the net list to %s", printJob_->printer.c_str()) : std::string(tr(printJob_->why.c_str())));
     printJob_.reset();
   }
   if (openNetPrint_) {
@@ -5940,10 +6046,10 @@ void App::drawNetPrint() {
         break;
       }
     }
-    ImGui::OpenPopup("Print the net list");
+    ImGui::OpenPopup(trId("Print the net list"));
   }
   ImGui::SetNextWindowSize(ImVec2(S(620), 0));
-  if (!ImGui::BeginPopupModal("Print the net list", nullptr, ImGuiWindowFlags_NoResize)) return;
+  if (!ImGui::BeginPopupModal(trId("Print the net list"), nullptr, ImGuiWindowFlags_NoResize)) return;
   printing::Doc d = netDoc();
   ImGui::PushFont(fMid_);
   ImGui::TextUnformatted(d.title.c_str());
@@ -5971,11 +6077,11 @@ void App::drawNetPrint() {
   }
   ImGui::Spacing();
   ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted("Printer");
+  ImGui::TextUnformatted(tr("Printer"));
   ImGui::SameLine();
   ImGui::SetNextItemWidth(-1);
   if (printers_.empty()) {
-    ImGui::TextDisabled("No printers are set up on this computer");
+    ImGui::TextDisabled("%s", tr("No printers are set up on this computer"));
   } else {
     printerIdx_ = std::max(0, std::min((int)printers_.size() - 1, printerIdx_));
     if (ImGui::BeginCombo("##printer", printers_[(size_t)printerIdx_].c_str())) {
@@ -6006,7 +6112,7 @@ void App::drawNetPrint() {
 
 void App::drawNet() {
   ImGui::SetNextItemWidth(-1);
-  ImGui::InputTextWithHint("##nettitle", "Net name, such as Sunday 80m net", netTitle_, sizeof netTitle_);
+  ImGui::InputTextWithHint("##nettitle", tr("Net name, such as Sunday 80m net"), netTitle_, sizeof netTitle_);
   if (ImGui::IsItemDeactivatedAfterEdit()) saveNet();
   if (netFocusCall_) {
     ImGui::SetKeyboardFocusHere();
@@ -6016,10 +6122,10 @@ void App::drawNet() {
   ImGui::PushFont(fLogBig_);
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, ImGui::GetStyle().FramePadding.y * 2));
   ImGui::SetNextItemWidth(w);
-  bool enter = ImGui::InputTextWithHint("##netcall", "Callsign", netCall_, sizeof netCall_, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CharsUppercase);
+  bool enter = ImGui::InputTextWithHint("##netcall", tr("Callsign"), netCall_, sizeof netCall_, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CharsUppercase);
   ImGui::SameLine();
   ImGui::SetNextItemWidth(w);
-  enter |= ImGui::InputTextWithHint("##netname", "Name", netName_, sizeof netName_, ImGuiInputTextFlags_EnterReturnsTrue);
+  enter |= ImGui::InputTextWithHint("##netname", tr("Name"), netName_, sizeof netName_, ImGuiInputTextFlags_EnterReturnsTrue);
   ImGui::PopStyleVar();
   ImGui::PopFont();
   // Trimmed, so a stray space doesn't make a second entry for the same station.
@@ -6031,7 +6137,7 @@ void App::drawNet() {
     if (net_[(size_t)i].call == call && net_[(size_t)i].left.empty()) already = i;
   if (!call.empty()) {
     std::string country = dx::countryOf(call);
-    if (already >= 0) ImGui::TextColored(ImColor(C_AMBER), "Already on the net, since %s UTC", net_[(size_t)already].joined.substr(std::min<size_t>(11, net_[(size_t)already].joined.size())).c_str());
+    if (already >= 0) ImGui::TextColored(ImColor(C_AMBER), tr("Already on the net, since %s UTC"), net_[(size_t)already].joined.substr(std::min<size_t>(11, net_[(size_t)already].joined.size())).c_str());
     else if (!country.empty()) ImGui::TextDisabled("%s", country.c_str());
   }
   ImGui::BeginDisabled(call.empty() || already >= 0);
@@ -6061,9 +6167,9 @@ void App::drawNet() {
     int still = 0;
     for (const NetEntry& e : net_) still += e.left.empty();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("%d on the net, %d checked in", still, (int)net_.size());
+    ImGui::TextDisabled(tr("%d on the net, %d checked in"), still, (int)net_.size());
     ImGui::SameLine();
-    const char* label = netClearing_ ? "Really clear it?" : "New net";
+    const char* label = netClearing_ ? tr("Really clear it?") : tr("New net");
     float bw = ImGui::CalcTextSize(label).x + ImGui::GetStyle().FramePadding.x * 2;
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - bw));
     if (netClearing_) {
@@ -6078,17 +6184,17 @@ void App::drawNet() {
     } else if (panelButton(label)) {
       netClearing_ = true;
     }
-    ImGui::SetItemTooltip("Clears the list for the next net. Print it first to keep it.");
+    ImGui::SetItemTooltip("%s", tr("Clears the list for the next net. Print it first to keep it."));
   } else {
-    ImGui::TextDisabled("Type a callsign and press Enter as each station checks in.");
+    ImGui::TextDisabled("%s", tr("Type a callsign and press Enter as each station checks in."));
   }
   int remove = -1;
   if (ImGui::BeginTable("net", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH, ImVec2(0, 0))) {
     float tw = ImGui::CalcTextSize("00:00").x + S(8);
-    ImGui::TableSetupColumn("Call", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("In", ImGuiTableColumnFlags_WidthFixed, tw);
-    ImGui::TableSetupColumn("Out", ImGuiTableColumnFlags_WidthFixed, tw);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize("Back").x + ImGui::GetStyle().FramePadding.x * 2 + S(6));
+    ImGui::TableSetupColumn(trId("Call"), ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn(trId("In"), ImGuiTableColumnFlags_WidthFixed, tw);
+    ImGui::TableSetupColumn(trId("Out"), ImGuiTableColumnFlags_WidthFixed, tw);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(tr("Back")).x + ImGui::GetStyle().FramePadding.x * 2 + S(6));
     ImGui::TableSetupScrollFreeze(0, 1);
     ImGui::TableHeadersRow();
     auto hhmm = [](const std::string& t) { return t.size() >= 16 ? t.substr(11, 5) : t; };
@@ -6103,12 +6209,12 @@ void App::drawNet() {
       std::string label = e.call + (e.name.empty() ? "" : "  " + e.name);
       ImGui::Selectable(label.c_str());
       if (ImGui::BeginPopupContextItem("netrow")) {
-        if (ImGui::MenuItem("Find on the map")) findOnMap(e.call, true);
-        if (ImGui::MenuItem("Remove from the list")) remove = i;
+        if (ImGui::MenuItem(trId("Find on the map"))) findOnMap(e.call, true);
+        if (ImGui::MenuItem(trId("Remove from the list"))) remove = i;
         ImGui::EndPopup();
       }
       std::string country = dx::countryOf(e.call);
-      ImGui::SetItemTooltip("%s%sRight-click to find them on the map, or to take them off if they went on by mistake.", country.c_str(), country.empty() ? "" : "\n");
+      ImGui::SetItemTooltip("%s%s%s", country.c_str(), country.empty() ? "" : "\n", tr("Right-click to find them on the map, or to take them off if they went on by mistake."));
       ImGui::TableNextColumn();
       ImGui::AlignTextToFramePadding();
       ImGui::TextUnformatted(hhmm(e.joined).c_str());
@@ -6122,7 +6228,7 @@ void App::drawNet() {
         e.left = gone ? "" : utcNow("%Y-%m-%d %H:%M");
         saveNet();
       }
-      ImGui::SetItemTooltip(gone ? "They're back: clears the time they left" : "They've left the net: greys them out and notes the time");
+      ImGui::SetItemTooltip("%s", gone ? tr("They're back: clears the time they left") : tr("They've left the net: greys them out and notes the time"));
       ImGui::PopID();
     }
     ImGui::EndTable();
@@ -6146,7 +6252,7 @@ void App::drawRightTabs() {
   if (ImGui::BeginTabBar("tabs")) {
     auto tab = [&](const char* name, int i) {
       bool select = (frameCount_ == 1 && opt_.tab == i) || (i == 2 && logShowTab_);
-      return ImGui::BeginTabItem(name, nullptr, select ? ImGuiTabItemFlags_SetSelected : 0);
+      return ImGui::BeginTabItem(trId(name), nullptr, select ? ImGuiTabItemFlags_SetSelected : 0);
     };
     if (tab("Keypad", 0)) {
       drawKeypad();
@@ -6201,33 +6307,33 @@ void App::drawStatus() {
   ImGui::SameLine();
   ImGui::AlignTextToFramePadding();
   if (opt_.demo) {
-    ImGui::TextColored(ImColor(C_AMBER), "DEMO: a simulated radio. Nothing is connected.");
+    ImGui::TextColored(ImColor(C_AMBER), "%s", tr("DEMO: a simulated radio. Nothing is connected."));
   } else if (opt_.noRig) {
-    ImGui::TextDisabled("Audio only: leaving the serial port alone");
+    ImGui::TextDisabled("%s", tr("Audio only: leaving the serial port alone"));
   } else if (st_.connected) {
-    ImGui::Text("%s  %s  %d baud", radio().name, port_.c_str(), baud_);
+    ImGui::Text(tr("%s  %s  %d baud"), radio().name, port_.c_str(), baud_);
   } else if (!st_.portError.empty()) {
     bool busy = st_.portError.find("in use") != std::string::npos;
-    ImGui::TextColored(ImColor(C_RED), "%s%s", st_.portError.c_str(), busy ? ". Close the other program: a port has one owner." : "");
+    ImGui::TextColored(ImColor(C_RED), "%s%s", rigMessage(st_.portError).c_str(), busy ? tr(". Close the other program: a port has one owner.") : "");
   } else if (st_.portOpen && st_.strangerId >= 0) {
-    ImGui::TextColored(ImColor(C_AMBER), "A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address.",
+    ImGui::TextColored(ImColor(C_AMBER), tr("A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address."),
                        st_.strangerAddr, st_.strangerId, st_.strangerAddr);
   } else if (st_.portOpen) {
-    ImGui::TextColored(ImColor(C_AMBER), "%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one.", port_.c_str(), baud_);
+    ImGui::TextColored(ImColor(C_AMBER), tr("%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one."), port_.c_str(), baud_);
   } else {
-    ImGui::TextDisabled("Connecting...");
+    ImGui::TextDisabled("%s", tr("Connecting..."));
   }
   double now = glfwGetTime();
   if (st_.lastErrorSeq != lastErrorSeq_) {
     lastErrorSeq_ = st_.lastErrorSeq;
     // Main and sub can't share a band, so a band change can be refused for that. It may not be the reason.
     bool maybeSub = radio().hasMainSub && st_.lastError.find("frequency") != std::string::npos;
-    if (!st_.lastError.empty()) say(st_.lastError + (maybeSub ? ". Is the SUB band on that band?" : ""));
+    if (!st_.lastError.empty()) say(rigMessage(st_.lastError) + (maybeSub ? tr(". Is the SUB band on that band?") : ""));
   }
   if (scan_.running()) {
     ImGui::SameLine(0, S(20));
-    if (scan_.state() == scan::STOPPED) ImGui::TextColored(ImColor(C_GREEN), "SCAN: signal. Next is on the Scan tab.");
-    else ImGui::TextColored(ImColor(C_AMBER), "SCANNING. Tune to stop it.");
+    if (scan_.state() == scan::STOPPED) ImGui::TextColored(ImColor(C_GREEN), "%s", tr("SCAN: signal. Next is on the Scan tab."));
+    else ImGui::TextColored(ImColor(C_AMBER), "%s", tr("SCANNING. Tune to stop it."));
   }
   if (updateCheck_ && updateCheck_->done) {
     if (update::isNewer(updateCheck_->published, update::kBuildStamp)) newerBuild_ = updateCheck_->published;
@@ -6235,29 +6341,29 @@ void App::drawStatus() {
   }
   if (!newerBuild_.empty()) {
     ImGui::SameLine(0, S(20));
-    std::string label = "New version available, built " + newerBuild_.substr(0, 10) + "##update";
+    std::string label = trf("New version available, built %s", newerBuild_.substr(0, 10).c_str()) + "##update";
     ImGui::PushStyleColor(ImGuiCol_Text, C_GREEN);
     if (ImGui::Selectable(label.c_str(), false, 0, ImGui::CalcTextSize(label.c_str(), nullptr, true))) store::openFolder(update::kDownloadPage);
     ImGui::PopStyleColor();
-    ImGui::SetItemTooltip("Click to open the download page on GitHub. You're on the build from %s UTC.", update::kBuildStamp);
+    ImGui::SetItemTooltip(tr("Click to open the download page on GitHub. You're on the build from %s UTC."), update::kBuildStamp);
   }
   if (now < statusUntil_) {
     ImGui::SameLine(0, S(20));
     ImGui::TextColored(ImColor(C_AMBER), "%s", status_.c_str());
   }
   if (clockSync_ && clockSync_->done) {
-    clockResult_ = clockSync_->report.message;
+    clockResult_ = tr(clockSync_->report.message.c_str());
     // The radio follows the computer, so only once the computer's time is known to be good. A scripted run
     // has nothing to gain from waiting for the minute.
     if (!opt_.noRig && opt_.selfTest.empty()) {
-      if (!clockSync_->report.ok) clockResult_ += " The radio's clock wasn't set.";
-      else if (!st_.connected) clockResult_ += " The radio isn't connected, so its clock wasn't set.";
-      else if (!civ::clockRows(st_.rigId)) clockResult_ += " This program doesn't know how to set this radio's clock.";
+      if (!clockSync_->report.ok) clockResult_ += std::string(" ") + tr("The radio's clock wasn't set.");
+      else if (!st_.connected) clockResult_ += std::string(" ") + tr("The radio isn't connected, so its clock wasn't set.");
+      else if (!civ::clockRows(st_.rigId)) clockResult_ += std::string(" ") + tr("This program doesn't know how to set this radio's clock.");
       else {
         // It takes no seconds, so sending it just as a minute starts is what makes it right.
         const time_t t = time(nullptr);
         radioClockAt_ = t - t % 60 + 60;
-        clockResult_ += " The radio's clock follows on the minute.";
+        clockResult_ += std::string(" ") + tr("The radio's clock follows on the minute.");
       }
     }
     say(clockResult_);
@@ -6269,16 +6375,32 @@ void App::drawStatus() {
   }
   std::string right = utcNow("%H:%M:%S UTC");
   float rw = ImGui::CalcTextSize(right.c_str()).x, bw = S(58);
-  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - rw - bw - ImGui::GetStyle().ItemSpacing.x);
+  const float cw = ImGui::CalcTextSize(tr("Conditions")).x + 2 * ImGui::GetStyle().FramePadding.x + S(8);
+  const float sp = ImGui::GetStyle().ItemSpacing.x;
+  ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - rw - bw - cw - 2 * sp);
+  {
+    // Propagation from the operator's own square, so it needs the locator in Settings.
+    std::string grid;
+    for (const char* p = locator_; *p; ++p)
+      if (isalnum((unsigned char)*p)) grid += *p;
+    ImGui::BeginDisabled(grid.empty());
+    if (toggle("Conditions##conditions", false, ImVec2(cw, 0), "conditions")) store::openFolder("https://hf.dxview.org/perspective/" + grid);
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+      ImGui::SetTooltip(grid.empty() ? tr("Put your locator in Settings to see HF conditions from your square.")
+                                     : tr("Opens HF conditions from %s on hf.dxview.org in your browser."), grid.c_str());
+  }
+  ImGui::SameLine();
   const bool clockBusy = clockSync_ != nullptr || radioClockAt_ != 0;
   ImGui::BeginDisabled(clockBusy);
   if (toggle(clockBusy ? "Wait##clocksync" : "Sync##clocksync", false, ImVec2(bw, 0), "clocksync")) startClockSync();
   ImGui::EndDisabled();
   if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-    ImGui::SetTooltip("%s\nThen sets the radio's date, time and UTC offset from it, as the next minute starts.%s%s",
-                      opt_.demo ? "Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it."
-                                : "Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.",
-                      clockResult_.empty() ? "" : "\n\nLast time: ", clockResult_.c_str());
+    ImGui::SetTooltip("%s\n%s%s%s",
+                      opt_.demo ? tr("Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it.")
+                                : tr("Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission."),
+                      tr("Then sets the radio's date, time and UTC offset from it, as the next minute starts."),
+                      clockResult_.empty() ? "" : (std::string("\n\n") + tr("Last time:") + " ").c_str(), clockResult_.c_str());
   }
   ImGui::SameLine();
   ImGui::TextUnformatted(right.c_str());
@@ -6300,14 +6422,14 @@ void App::setRadioClock() {
   const struct tm l = localTime(t);
   const int offset = utcOffsetMinutes(t);
   if (!rig_.setRadioClock(l.tm_year + 1900, l.tm_mon + 1, l.tm_mday, l.tm_hour, l.tm_min, offset)) {
-    clockResult_ += " The radio stopped answering, so its clock wasn't set.";
-    say("The radio stopped answering, so its clock wasn't set.");
+    clockResult_ += std::string(" ") + tr("The radio stopped answering, so its clock wasn't set.");
+    say(tr("The radio stopped answering, so its clock wasn't set."));
     return;
   }
   // A refusal comes back as the rig's last error, and is shown in place of this.
   const int a = offset < 0 ? -offset : offset;
   char b[96];
-  snprintf(b, sizeof b, "Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.", l.tm_year + 1900, l.tm_mon + 1, l.tm_mday, l.tm_hour, l.tm_min, offset < 0 ? '-' : '+', a / 60, a % 60);
+  snprintf(b, sizeof b, tr("Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d."), l.tm_year + 1900, l.tm_mon + 1, l.tm_mday, l.tm_hour, l.tm_min, offset < 0 ? '-' : '+', a / 60, a % 60);
   clockResult_ += std::string(" ") + b;
   say(b);
 }
@@ -6330,40 +6452,40 @@ void App::startClockSync() {
 
 void App::drawMenu() {
   if (!ImGui::BeginMenuBar()) return;
-  if (ImGui::BeginMenu("Rig")) {
-    if (ImGui::MenuItem("Settings...")) openSettings_ = true;
+  if (ImGui::BeginMenu(trId("Rig"))) {
+    if (ImGui::MenuItem(trId("Settings..."))) openSettings_ = true;
     ImGui::Separator();
-    if (ImGui::MenuItem("Power on")) rig_.powerOn();
-    if (ImGui::MenuItem("Power off...", nullptr, false, st_.connected)) openPowerOff_ = true;
+    if (ImGui::MenuItem(trId("Power on"))) rig_.powerOn();
+    if (ImGui::MenuItem(trId("Power off..."), nullptr, false, st_.connected)) openPowerOff_ = true;
     ImGui::Separator();
-    if (ImGui::MenuItem("Open data folder")) store::openFolder(store::dataDir());
-    if (ImGui::MenuItem("Open received folder")) store::openFolder(store::receivedDir());
-    if (ImGui::MenuItem("Quit")) glfwSetWindowShouldClose(win_, 1);
+    if (ImGui::MenuItem(trId("Open data folder"))) store::openFolder(store::dataDir());
+    if (ImGui::MenuItem(trId("Open received folder"))) store::openFolder(store::receivedDir());
+    if (ImGui::MenuItem(trId("Quit"))) glfwSetWindowShouldClose(win_, 1);
     ImGui::EndMenu();
   }
-  if (ImGui::BeginMenu("View")) {
-    ImGui::MenuItem("Band scope", nullptr, &showScope_);
-    if (ImGui::MenuItem("Audio waterfall", nullptr, showAudio_ && !showMap_)) {
+  if (ImGui::BeginMenu(trId("View"))) {
+    ImGui::MenuItem(trId("Band scope"), nullptr, &showScope_);
+    if (ImGui::MenuItem(trId("Audio waterfall"), nullptr, showAudio_ && !showMap_)) {
       showAudio_ = showMap_ || !showAudio_;
       showMap_ = false;
     }
-    if (ImGui::MenuItem("Map", nullptr, showAudio_ && showMap_)) {
+    if (ImGui::MenuItem(trId("Map"), nullptr, showAudio_ && showMap_)) {
       showAudio_ = !showMap_ || !showAudio_;
       showMap_ = true;
     }
-    ImGui::MenuItem("Band plan on the scope", nullptr, &showBandPlan_);
+    ImGui::MenuItem(trId("Band plan on the scope"), nullptr, &showBandPlan_);
     ImGui::Separator();
-    ImGui::MenuItem("DX spots panel", nullptr, &showSpots_);
-    ImGui::MenuItem("DX spots on the scope", nullptr, &showSpotFlags_);
+    ImGui::MenuItem(trId("DX spots panel"), nullptr, &showSpots_);
+    ImGui::MenuItem(trId("DX spots on the scope"), nullptr, &showSpotFlags_);
     ImGui::Separator();
-    if (ImGui::MenuItem("Log book...")) openLogBook_ = true;
+    if (ImGui::MenuItem(trId("Log book..."))) openLogBook_ = true;
     ImGui::EndMenu();
   }
   drawStationsMenu();
-  if (ImGui::BeginMenu("Help")) {
-    if (ImGui::MenuItem("Keys and rig set-up...")) openHelp_ = true;
+  if (ImGui::BeginMenu(trId("Help"))) {
+    if (ImGui::MenuItem(trId("Keys and rig set-up..."))) openHelp_ = true;
     ImGui::Separator();
-    ImGui::TextDisabled("Built %s UTC", update::kBuildStamp);
+    ImGui::TextDisabled(tr("Built %s UTC"), update::kBuildStamp);
     ImGui::EndMenu();
   }
   ImGui::EndMenuBar();
@@ -6374,21 +6496,21 @@ void App::drawSettings() {
     ports_ = listSerialPorts();
     inDevs_ = audio_.captureDevices();
     outDevs_ = audio_.playbackDevices();
-    ImGui::OpenPopup("Settings");
+    ImGui::OpenPopup(trId("Settings"));
     openSettings_ = false;
   }
   ImGui::SetNextWindowSize(ImVec2(S(1000), 0));
-  if (!ImGui::BeginPopupModal("Settings", nullptr, ImGuiWindowFlags_NoResize)) return;
+  if (!ImGui::BeginPopupModal(trId("Settings"), nullptr, ImGuiWindowFlags_NoResize)) return;
   // Two columns: the band plan and station notes would make one column too tall.
   if (!ImGui::BeginTable("settingsColumns", 2, ImGuiTableFlags_SizingStretchSame)) {
     ImGui::EndPopup();
     return;
   }
   ImGui::TableNextColumn();
-  ImGui::TextColored(ImColor(C_ACCENT), "THE RIG");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("THE RIG"));
   ImGui::Separator();
   ImGui::SetNextItemWidth(S(340));
-  if (ImGui::BeginCombo("Port", port_.empty() ? "(choose)" : port_.c_str())) {
+  if (ImGui::BeginCombo(trId("Port"), port_.empty() ? tr("(choose)") : port_.c_str())) {
     for (const SerialPortInfo& p : ports_) {
       std::string l = p.name + (p.desc.empty() ? "" : "  " + p.desc);
       if (ImGui::Selectable(l.c_str(), p.name == port_)) port_ = p.name;
@@ -6396,81 +6518,89 @@ void App::drawSettings() {
     ImGui::EndCombo();
   }
   ImGui::SetNextItemWidth(S(120));
-  if (ImGui::BeginCombo("Baud", std::to_string(baud_).c_str())) {
+  if (ImGui::BeginCombo(trId("Baud"), std::to_string(baud_).c_str())) {
     for (int b : {115200, 57600, 38400, 19200, 9600, 4800})
       if (ImGui::Selectable(std::to_string(b).c_str(), b == baud_)) baud_ = b;
     ImGui::EndCombo();
   }
-  static const char* const kRadioChoices[] = {"Find out by asking it", "IC-7300", "IC-9700", "IC-R8600"};
+  static const char* const kRadioChoices[] = {N_("Find out by asking it"), "IC-7300", "IC-9700", "IC-R8600"};
   ImGui::SetNextItemWidth(S(200));
-  ImGui::Combo("Radio", &radioChoice_, kRadioChoices, 4);
-  ImGui::SetItemTooltip("It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed.");
+  comboTr("Radio", &radioChoice_, kRadioChoices, 4);
+  ImGui::SetItemTooltip("%s", tr("It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed."));
   ImGui::SetNextItemWidth(S(60));
-  ImGui::InputText("CI-V address (hex)", addrText_, sizeof addrText_, ImGuiInputTextFlags_CharsHexadecimal);
-  ImGui::SetItemTooltip("Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address.");
-  ImGui::TextDisabled("The scope stream needs 115200.");
+  ImGui::InputText(trId("CI-V address (hex)"), addrText_, sizeof addrText_, ImGuiInputTextFlags_CharsHexadecimal);
+  ImGui::SetItemTooltip("%s", tr("Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address."));
+  ImGui::TextDisabled("%s", tr("The scope stream needs 115200."));
 
   ImGui::Spacing();
-  ImGui::TextColored(ImColor(C_ACCENT), "SOUND");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("SOUND"));
   ImGui::Separator();
   ImGui::SetNextItemWidth(S(340));
-  if (ImGui::BeginCombo("From the rig", audioIn_.empty() ? "(find the USB Audio CODEC)" : audioIn_.c_str())) {
-    if (ImGui::Selectable("(find the USB Audio CODEC)", audioIn_.empty())) audioIn_.clear();
+  if (ImGui::BeginCombo(trId("From the rig"), audioIn_.empty() ? tr("(find the USB Audio CODEC)") : audioIn_.c_str())) {
+    if (ImGui::Selectable(trId("(find the USB Audio CODEC)"), audioIn_.empty())) audioIn_.clear();
     for (const std::string& d : inDevs_)
       if (ImGui::Selectable(d.c_str(), d == audioIn_)) audioIn_ = d;
     ImGui::EndCombo();
   }
   ImGui::SetNextItemWidth(S(340));
-  if (ImGui::BeginCombo("Listen on", audioOut_.empty() ? "(system default)" : audioOut_.c_str())) {
-    if (ImGui::Selectable("(system default)", audioOut_.empty())) audioOut_.clear();
+  if (ImGui::BeginCombo(trId("Listen on"), audioOut_.empty() ? tr("(system default)") : audioOut_.c_str())) {
+    if (ImGui::Selectable(trId("(system default)"), audioOut_.empty())) audioOut_.clear();
     for (const std::string& d : outDevs_)
       if (ImGui::Selectable(d.c_str(), d == audioOut_)) audioOut_ = d;
     ImGui::EndCombo();
   }
 
   ImGui::Spacing();
-  ImGui::TextColored(ImColor(C_ACCENT), "YOU");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("YOU"));
   ImGui::Separator();
   ImGui::SetNextItemWidth(S(160));
-  ImGui::InputText("Callsign", callsign_, sizeof callsign_, ImGuiInputTextFlags_CharsUppercase);
+  ImGui::InputText(trId("Callsign"), callsign_, sizeof callsign_, ImGuiInputTextFlags_CharsUppercase);
   ImGui::SetNextItemWidth(S(160));
-  ImGui::InputText("Your locator", locator_, sizeof locator_);
+  ImGui::InputText(trId("Your locator"), locator_, sizeof locator_);
   // Only once it's finished with, or a half-typed locator would leave its distances in the log for good.
   const bool locatorEdited = ImGui::IsItemDeactivatedAfterEdit();
-  ImGui::SetItemTooltip("Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.");
+  ImGui::SetItemTooltip("%s", tr("Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance."));
   if (locatorEdited) {
     bool filled = false;
     for (store::LogEntry& e : log_)
       if (fillDistance(e)) filled = true;
     if (filled) {
       logBookViewSorted_ = false;
-      if (!store::backupFile(logPath_) || !store::saveLog(logPath_, log_)) say("Couldn't save the log to " + logPath_);
+      if (!store::backupFile(logPath_) || !store::saveLog(logPath_, log_)) say(trf("Couldn't save the log to %s", logPath_.c_str()));
     }
   }
   ImGui::SetNextItemWidth(S(160));
-  ImGui::InputText("QRZ.com username", qrzUser_, sizeof qrzUser_);
+  ImGui::InputText(trId("QRZ.com username"), qrzUser_, sizeof qrzUser_);
   if (ImGui::IsItemDeactivatedAfterEdit()) qrzKey_.clear();
-  ImGui::SetItemTooltip("For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position.");
+  ImGui::SetItemTooltip("%s", tr("For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position."));
   ImGui::SetNextItemWidth(S(160));
-  ImGui::InputText("QRZ.com password", qrzPassword_, sizeof qrzPassword_, ImGuiInputTextFlags_Password);
+  ImGui::InputText(trId("QRZ.com password"), qrzPassword_, sizeof qrzPassword_, ImGuiInputTextFlags_Password);
   if (ImGui::IsItemDeactivatedAfterEdit()) qrzKey_.clear();
-  ImGui::SetItemTooltip("Kept in settings.ini in the data folder, as plain text.");
+  ImGui::SetItemTooltip("%s", tr("Kept in settings.ini in the data folder, as plain text."));
   ImGui::SetNextItemWidth(S(160));
-  if (ImGui::BeginCombo("Log date format", store::dateFormatName(dateFormat_))) {
+  ImGui::InputText(trId("HamQTH username"), hamqthUser_, sizeof hamqthUser_);
+  if (ImGui::IsItemDeactivatedAfterEdit()) hamqthKey_.clear();
+  ImGui::SetItemTooltip("%s", tr("For finding stations on the map, free: make an account at hamqth.com. Asked after QRZ.com, or alone if there's no QRZ.com login."));
+  ImGui::SetNextItemWidth(S(160));
+  ImGui::InputText(trId("HamQTH password"), hamqthPassword_, sizeof hamqthPassword_, ImGuiInputTextFlags_Password);
+  if (ImGui::IsItemDeactivatedAfterEdit()) hamqthKey_.clear();
+  ImGui::SetItemTooltip("%s", tr("Kept in settings.ini in the data folder, as plain text."));
+  ImGui::SetNextItemWidth(S(160));
+  if (ImGui::BeginCombo(trId("Log date format"), tr(store::dateFormatName(dateFormat_)))) {
     for (int i = 0; i < store::kDateFormatCount; i++)
-      if (ImGui::Selectable(store::dateFormatName(i), i == dateFormat_) && i != dateFormat_) {
+      if (ImGui::Selectable(trId(store::dateFormatName(i)), i == dateFormat_) && i != dateFormat_) {
         dateFormat_ = i;
         logBookViewRevision_ = 0;  // the log book's search looks at the dates as shown
       }
     ImGui::EndCombo();
   }
-  ImGui::SetItemTooltip("How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed.");
+  ImGui::SetItemTooltip("%s", tr("How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed."));
   ImGui::SetNextItemWidth(S(160));
-  ImGui::SliderInt("PTT time limit", &txLimit_, 5, 600, "%d s");
-  ImGui::SetItemTooltip("PTT from this program lets go by itself after this long");
+  ImGui::SliderInt(trId("PTT time limit"), &txLimit_, 5, 600, "%d s");
+  ImGui::SetItemTooltip("%s", tr("PTT from this program lets go by itself after this long"));
 
   ImGui::Spacing();
-  ImGui::TextColored(ImColor(C_ACCENT), "DX CLUSTER");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("DX CLUSTER"));
   ImGui::Separator();
   static const struct {
     const char* name;
@@ -6478,7 +6608,7 @@ void App::drawSettings() {
     int port;
   } kClusters[] = {{"VE7CC-1, Canada", "dxc.ve7cc.net", 23}, {"NC7J, United States", "dxc.nc7j.com", 7373}, {"N2KI, United States", "dxc.n2ki.com", 7300}, {"F5LEN, France", "dxcluster.f5len.org", 7373}};
   ImGui::SetNextItemWidth(S(240));
-  if (ImGui::BeginCombo("Choose one", "Fill in from a list")) {
+  if (ImGui::BeginCombo(trId("Choose one"), tr("Fill in from a list"))) {
     for (const auto& c : kClusters)
       if (ImGui::Selectable(c.name)) {
         setBuf(dxHost_, c.host);
@@ -6487,23 +6617,23 @@ void App::drawSettings() {
     ImGui::EndCombo();
   }
   ImGui::SetNextItemWidth(S(240));
-  ImGui::InputText("Server", dxHost_, sizeof dxHost_);
+  ImGui::InputText(trId("Server"), dxHost_, sizeof dxHost_);
   ImGui::SetNextItemWidth(S(90));
-  ImGui::InputInt("Port", &dxPort_, 0, 0);
+  ImGui::InputInt(trId("Port##dx"), &dxPort_, 0, 0);
   dxPort_ = std::max(1, std::min(65535, dxPort_));
   ImGui::SetNextItemWidth(S(240));
-  ImGui::InputText("Commands after login", dxCommands_, sizeof dxCommands_);
-  ImGui::SetItemTooltip("Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty.");
+  ImGui::InputText(trId("Commands after login"), dxCommands_, sizeof dxCommands_);
+  ImGui::SetItemTooltip("%s", tr("Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty."));
   ImGui::SetNextItemWidth(S(160));
-  ImGui::SliderInt("Keep spots for", &dxAgeMinutes_, 5, 240, "%d min");
-  ImGui::Checkbox("Show robot spots (Reverse Beacon Network)", &showSkimmers_);
-  ImGui::SetItemTooltip("Spots from automatic CW and data skimmers. There can be a great many.");
+  ImGui::SliderInt(trId("Keep spots for"), &dxAgeMinutes_, 5, 240, "%d min");
+  ImGui::Checkbox(trId("Show robot spots (Reverse Beacon Network)"), &showSkimmers_);
+  ImGui::SetItemTooltip("%s", tr("Spots from automatic CW and data skimmers. There can be a great many."));
 
   ImGui::TableNextColumn();
-  ImGui::TextColored(ImColor(C_ACCENT), "BAND PLAN");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("BAND PLAN"));
   ImGui::Separator();
   ImGui::SetNextItemWidth(S(340));
-  if (ImGui::BeginCombo("Country or region", plan_.name.c_str())) {
+  if (ImGui::BeginCombo(trId("Country or region"), plan_.name.c_str())) {
     std::string chosen;
     for (const bands::Plan& p : plans_.plans)
       if (ImGui::Selectable(p.name.c_str(), p.id == plan_.id)) chosen = p.id;
@@ -6517,7 +6647,7 @@ void App::drawSettings() {
   static const bands::Library kBuiltin = bands::builtinPlans();
   const bands::Plan* builtin = kBuiltin.find(plan_.id);
   if (builtin && builtin->revision > plan_.revision)
-    ImGui::TextColored(ImColor(C_AMBER), "This program has a newer copy of this plan (%s). Reset uses it.", builtin->revision.c_str());
+    ImGui::TextColored(ImColor(C_AMBER), tr("This program has a newer copy of this plan (%s). Reset uses it."), builtin->revision.c_str());
   for (const std::string& e : plans_.errors) {
     ImGui::PushStyleColor(ImGuiCol_Text, C_RED);
     ImGui::TextWrapped("%s", e.c_str());
@@ -6527,26 +6657,26 @@ void App::drawSettings() {
     bands::installPlans(plansDir_);
     store::openFolder(plansDir_);
   }
-  ImGui::SetItemTooltip("Each plan is a JSON file you can edit. README.txt there explains the format.");
+  ImGui::SetItemTooltip("%s", tr("Each plan is a JSON file you can edit. README.txt there explains the format."));
   ImGui::SameLine();
   if (panelButton("Reload")) reloadPlans();
-  ImGui::SetItemTooltip("Reads the files again, after you've edited one");
+  ImGui::SetItemTooltip("%s", tr("Reads the files again, after you've edited one"));
   ImGui::SameLine();
   ImGui::BeginDisabled(!builtin);
   if (panelButton("Reset this plan")) {
     if (bands::resetPlan(plansDir_, plan_.id)) reloadPlans();
-    else say("Can't write to " + plansDir_);
+    else say(trf("Can't write to %s", plansDir_.c_str()));
   }
-  ImGui::SetItemTooltip("Puts the built-in copy back. Your file is kept as .json.bak");
+  ImGui::SetItemTooltip("%s", tr("Puts the built-in copy back. Your file is kept as .json.bak"));
   ImGui::EndDisabled();
 
   ImGui::Spacing();
-  ImGui::TextColored(ImColor(C_ACCENT), "STATIONS");
+  ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("STATIONS"));
   ImGui::Separator();
   ImGui::PushStyleColor(ImGuiCol_Text, C_DIM);
-  ImGui::TextWrapped("Shown on the scope whichever band plan is chosen. See the Stations menu.");
+  ImGui::TextWrapped("%s", tr("Shown on the scope whichever band plan is chosen. See the Stations menu."));
   for (const bands::StationFile& f : stations_.files) {
-    ImGui::TextWrapped("%s (%d stations, revision %s). %s", f.name.c_str(), (int)f.stations.size(), f.revision.c_str(), f.note.c_str());
+    ImGui::TextWrapped(tr("%s (%d stations, revision %s). %s"), f.name.c_str(), (int)f.stations.size(), f.revision.c_str(), f.note.c_str());
     ImGui::SetItemTooltip("%s", f.source.c_str());
   }
   ImGui::PopStyleColor();
@@ -6559,21 +6689,43 @@ void App::drawSettings() {
     bands::installStations(stationsDir_);
     store::openFolder(stationsDir_);
   }
-  ImGui::SetItemTooltip("Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.");
+  ImGui::SetItemTooltip("%s", tr("Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again."));
   ImGui::SameLine();
   if (panelButton("Reset station list")) {
     bool ok = bands::resetStations(stationsDir_, "worldwide") && bands::resetStations(stationsDir_, "broadcast");
     if (ok && !radio().hasTransmit) ok = bands::resetStations(stationsDir_, "receiver");
     if (ok) reloadPlans();
-    else say("Can't write to " + stationsDir_);
+    else say(trf("Can't write to %s", stationsDir_.c_str()));
   }
-  ImGui::SetItemTooltip(radio().hasTransmit ? "Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak"
-                                            : "Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak");
+  ImGui::SetItemTooltip("%s", radio().hasTransmit ? tr("Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak")
+                                                  : tr("Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak"));
   ImGui::EndTable();
 
   ImGui::Spacing();
-  ImGui::Checkbox("Check GitHub for a new version at start", &checkUpdates_);
-  ImGui::SetItemTooltip("Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent.");
+  {
+    // Each language by its own name, so anyone can find theirs whatever is showing now.
+    const std::string system = i18n::systemLanguage();
+    const char* systemName = "English";
+    for (const i18n::Language& l : i18n::languages())
+      if (system == l.code) systemName = l.name;
+    const std::string automatic = trf("Automatic (%s)", systemName);
+    std::string shown = automatic;
+    for (const i18n::Language& l : i18n::languages())
+      if (language_ == l.code) shown = l.name;
+    ImGui::SetNextItemWidth(S(240));
+    if (ImGui::BeginCombo(trId("Language"), shown.c_str())) {
+      if (ImGui::Selectable((automatic + "##auto").c_str(), language_ == "auto") && language_ != "auto") language_ = "auto", languageChanged_ = true;
+      for (const i18n::Language& l : i18n::languages())
+        if (ImGui::Selectable(l.name, language_ == l.code) && language_ != l.code) language_ = l.code, languageChanged_ = true;
+      ImGui::EndCombo();
+    }
+    note("language");
+    ImGui::SetItemTooltip("%s", tr("Automatic follows the language this computer is set to. Choose one to keep to it whatever the computer uses. It changes straight away."));
+  }
+  ImGui::Checkbox(trId("Check GitHub for a new version at start"), &checkUpdates_);
+  ImGui::SetItemTooltip("%s", tr("Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent."));
+  ImGui::Checkbox(trId("Auto ON/OFF"), &autoPower_);
+  ImGui::SetItemTooltip("%s", tr("Switches the rig on when the program starts, and off when it closes. The rig's USB must stay powered for it to wake."));
   ImGui::Separator();
   if (panelButton("Apply and reconnect", ImVec2(S(170), 0))) {
     addr_ = (int)strtol(addrText_, nullptr, 16);
@@ -6597,50 +6749,50 @@ void App::drawSettings() {
 
 void App::drawHelp() {
   if (openHelp_) {
-    ImGui::OpenPopup("Keys and rig set-up");
+    ImGui::OpenPopup(trId("Keys and rig set-up"));
     openHelp_ = false;
   }
   ImGui::SetNextWindowSize(ImVec2(S(640), 0));
-  if (ImGui::BeginPopupModal("Keys and rig set-up", nullptr, ImGuiWindowFlags_NoResize)) {
-    ImGui::TextColored(ImColor(C_ACCENT), "ON THE RIG  (MENU > SET > Connectors > CI-V)");
+  if (ImGui::BeginPopupModal(trId("Keys and rig set-up"), nullptr, ImGuiWindowFlags_NoResize)) {
+    ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("ON THE RIG  (MENU > SET > Connectors > CI-V)"));
     ImGui::Separator();
-    ImGui::BulletText("CI-V USB Port: Unlink from [REMOTE]");
-    ImGui::BulletText("CI-V USB Baud Rate: 115200");
-    ImGui::BulletText("CI-V USB Echo Back: OFF  (ON works too)");
-    ImGui::BulletText("CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700");
-    ImGui::BulletText("USB AF Output Level (Connectors): raise it until the level bar sits below red");
-    ImGui::BulletText("USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF");
+    ImGui::BulletText("%s", tr("CI-V USB Port: Unlink from [REMOTE]"));
+    ImGui::BulletText("%s", tr("CI-V USB Baud Rate: 115200"));
+    ImGui::BulletText("%s", tr("CI-V USB Echo Back: OFF  (ON works too)"));
+    ImGui::BulletText("%s", tr("CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700"));
+    ImGui::BulletText("%s", tr("USB AF Output Level (Connectors): raise it until the level bar sits below red"));
+    ImGui::BulletText("%s", tr("USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF"));
     ImGui::Spacing();
-    ImGui::TextColored(ImColor(C_ACCENT), "KEYS");
+    ImGui::TextColored(ImColor(C_ACCENT), "%s", tr("KEYS"));
     ImGui::Separator();
     if (ImGui::BeginTable("keys", 2)) {
       static const char* rows[][2] = {
-          {"Digits", "Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels."},
-          {"Left, Right", "Tune by the step. Hold Shift for ten times that."},
-          {"Up, Down", "Change the step"},
-          {"Page Up, Page Down", "Next or previous band"},
-          {"Ctrl+F", "Find a station by name"},
-          {"F1 to F8", "LSB, USB, CW, CW-R, AM, FM, RTTY, RTTY-R"},
-          {"F9, F10", "Data mode, next filter"},
-          {"F11, F12", "Split, swap VFOs"},
-          {"Ctrl+Space", "PTT on or off, once armed"},
-          {"Tuning dial", "Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on."},
-          {"Wheel", "On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it."},
-          {"Click a digit", "Top half up, bottom half down"},
-          {"Click the band scope", "Tune there. Right-click for split and memories."},
-          {"< and > above the band scope", "Move the dial one whole page of the scope, in Centre mode."},
-          {"Click the audio waterfall", "Moves that signal to the pitch (not in data modes)"},
-          {"Right-click a band", "CW, FT8, FT4, WSPR, SSB frequencies"},
-          {"Click a DX spot", "Tune there, and put the call in the log. Red flags and green calls aren't worked yet."},
-          {"Double-click a log entry", "Bring it back to the Log tab, to change it and log it again"},
+          {N_("Digits"), N_("Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels.")},
+          {N_("Left, Right"), N_("Tune by the step. Hold Shift for ten times that.")},
+          {N_("Up, Down"), N_("Change the step")},
+          {N_("Page Up, Page Down"), N_("Next or previous band")},
+          {"Ctrl+F", N_("Find a station by name")},
+          {N_("F1 to F8"), "LSB, USB, CW, CW-R, AM, FM, RTTY, RTTY-R"},
+          {"F9, F10", N_("Data mode, next filter")},
+          {"F11, F12", N_("Split, swap VFOs")},
+          {"Ctrl+Space", N_("PTT on or off, once armed")},
+          {N_("Tuning dial"), N_("Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on.")},
+          {N_("Wheel"), N_("On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it.")},
+          {N_("Click a digit"), N_("Top half up, bottom half down")},
+          {N_("Click the band scope"), N_("Tune there. Right-click for split and memories.")},
+          {N_("< and > above the band scope"), N_("Move the dial one whole page of the scope, in Centre mode.")},
+          {N_("Click the audio waterfall"), N_("Moves that signal to the pitch (not in data modes)")},
+          {N_("Right-click a band"), N_("CW, FT8, FT4, WSPR, SSB frequencies")},
+          {N_("Click a DX spot"), N_("Tune there, and put the call in the log. Red flags and green calls aren't worked yet.")},
+          {N_("Double-click a log entry"), N_("Bring it back to the Log tab, to change it and log it again")},
       };
       ImGui::TableSetupColumn("k", ImGuiTableColumnFlags_WidthFixed, S(170));
       for (auto& r : rows) {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted(r[0]);
+        ImGui::TextUnformatted(tr(r[0]));
         ImGui::TableNextColumn();
-        ImGui::TextWrapped("%s", r[1]);
+        ImGui::TextWrapped("%s", tr(r[1]));
       }
       ImGui::EndTable();
     }
@@ -6652,11 +6804,11 @@ void App::drawHelp() {
   drawNetPrint();
 
   if (openPowerOff_) {
-    ImGui::OpenPopup("Power off the rig?");
+    ImGui::OpenPopup(trId("Power off the rig?"));
     openPowerOff_ = false;
   }
-  if (ImGui::BeginPopupModal("Power off the rig?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::TextUnformatted("The rig will switch off. Rig > Power on brings it back while its USB stays powered.");
+  if (ImGui::BeginPopupModal(trId("Power off the rig?"), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::TextUnformatted(tr("The rig will switch off. Rig > Power on brings it back while its USB stays powered."));
     if (actionButton("Power off", ImVec2(S(110), 0), V_RED, V_RED_HI)) {
       rig_.powerOff();
       ImGui::CloseCurrentPopup();
@@ -6680,7 +6832,7 @@ void App::frame() {
   if (st_.connected && st_.radio != seenRadio_) {
     seenRadio_ = st_.radio;
     rects_.clear();  // the self-test's record of what's on screen: buttons are about to come and go
-    say(std::string("This is an ") + seenRadio_->name + (seenRadio_->hasTransmit ? "" : ", a receiver: it can't transmit"));
+    say(seenRadio_->hasTransmit ? trf("This is an %s", seenRadio_->name) : trf("This is an %s, a receiver: it can't transmit", seenRadio_->name));
     glfwSetWindowTitle(win_, windowTitle().c_str());
   }
   if (opt_.demo) {
@@ -6715,7 +6867,7 @@ void App::frame() {
       std::string ext = dot == std::string::npos ? "" : f.substr(dot);
       for (char& c : ext) c = (char)tolower((unsigned char)c);
       if (ext == ".adi" || ext == ".adif") importLog(f);
-      else say("Only ADIF files can be dropped here, to import them into the log");
+      else say(tr("Only ADIF files can be dropped here, to import them into the log"));
     }
   }
 
@@ -7376,8 +7528,8 @@ int App::run() {
   keepAudioOpen();
   // It was on when the program last closed, which is the operator having asked for it.
   if (!automated && cfg_.getInt("dx_on", 0)) startSpots();
-  if (!plans_.errors.empty()) say("A band plan has a problem: " + plans_.errors[0]);
-  else if (!automated && cfg_.get("band_plan").empty()) say("The band plan is set to " + plan_.name + ". Choose your country in Settings.");
+  if (!plans_.errors.empty()) say(trf("A band plan has a problem: %s", plans_.errors[0].c_str()));
+  else if (!automated && cfg_.get("band_plan").empty()) say(trf("The band plan is set to %s. Choose your country in Settings.", plan_.name.c_str()));
   if (monitor_ && !opt_.demo) {
     std::string err;
     if (!audio_.startMonitor(audioOut_, err)) say(err);
@@ -7393,6 +7545,7 @@ int App::run() {
     glfwPollEvents();
     if (glfwGetWindowAttrib(win_, GLFW_ICONIFIED)) std::this_thread::sleep_for(std::chrono::milliseconds(15));
     if (!automated) followMonitor(), followLogBookMonitor();
+    if (languageChanged_) applyLanguage();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     if (!opt_.selfTest.empty()) runSelfTest();
@@ -7442,6 +7595,7 @@ int App::run() {
   rec_.close();
   decoder_.reset();  // finishes the logs and any chart under way
   if (faxTex_) glDeleteTextures(1, &faxTex_);
+  rig_.setPowerOffAtStop(autoPower_ && !automated && !opt_.demo);
   rig_.stop();
   audio_.stopMonitor();
   audio_.stopCapture();

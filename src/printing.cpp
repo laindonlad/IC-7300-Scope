@@ -1,5 +1,7 @@
 #include "printing.h"
 
+#include "i18n.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,7 +58,7 @@ bool print(const std::string& printer, const Doc& doc, std::string& why) {
   std::wstring wp = wide(printer);
   HDC dc = CreateDCW(L"WINSPOOL", wp.c_str(), nullptr, nullptr);
   if (!dc) {
-    why = "Couldn't open the printer " + printer;
+    why = trf("Couldn't open the printer %s", printer.c_str());
     return false;
   }
   int dpiX = GetDeviceCaps(dc, LOGPIXELSX), dpiY = GetDeviceCaps(dc, LOGPIXELSY);
@@ -103,7 +105,7 @@ bool print(const std::string& printer, const Doc& doc, std::string& why) {
   di.cbSize = sizeof di;
   di.lpszDocName = wt.c_str();
   bool ok = StartDocW(dc, &di) > 0;
-  if (!ok) why = GetLastError() == ERROR_CANCELLED ? "Printing was cancelled" : "The printer " + printer + " wouldn't take the job";
+  if (!ok) why = GetLastError() == ERROR_CANCELLED ? std::string(tr("Printing was cancelled")) : trf("The printer %s wouldn't take the job", printer.c_str());
   HPEN pen = CreatePen(PS_SOLID, std::max(1, dpiY / 150), RGB(0, 0, 0));
   HGDIOBJ oldPen = SelectObject(dc, pen);
   int y = top;
@@ -157,11 +159,11 @@ bool print(const std::string& printer, const Doc& doc, std::string& why) {
     }
     EndPage(dc);
     if (ok) EndDoc(dc);
-    else AbortDoc(dc), why = "The printer " + printer + " stopped part way through";
+    else AbortDoc(dc), why = trf("The printer %s stopped part way through", printer.c_str());
   } else if (ok) {
     AbortDoc(dc);
     ok = false;
-    why = "The printer " + printer + " wouldn't start a page";
+    why = trf("The printer %s wouldn't start a page", printer.c_str());
   }
   SelectObject(dc, oldPen);
   SelectObject(dc, oldFont);
@@ -243,7 +245,7 @@ bool print(const std::string& printer, const Doc& doc, std::string& why) {
   char path[] = "/tmp/ic7300-print-XXXXXX";
   int fd = mkstemp(path);
   if (fd < 0) {
-    why = "Couldn't write the page to print";
+    why = tr("Couldn't write the page to print");
     return false;
   }
   bool wrote = write(fd, t.data(), t.size()) == (ssize_t)t.size();
@@ -251,7 +253,7 @@ bool print(const std::string& printer, const Doc& doc, std::string& why) {
   std::string cmd = "lp -d " + quoted(printer) + " -t " + quoted(doc.title) + " " + quoted(path) + " >/dev/null 2>&1";
   bool ok = wrote && system(cmd.c_str()) == 0;
   unlink(path);
-  if (!ok) why = "The printer " + printer + " wouldn't take the job";
+  if (!ok) why = trf("The printer %s wouldn't take the job", printer.c_str());
   return ok;
 }
 #endif

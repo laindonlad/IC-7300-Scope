@@ -1,5 +1,7 @@
 #include "chart_overlay.h"
 
+#include "i18n.h"
+
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -140,8 +142,8 @@ static bool readChart(const std::string& path, int& w, int& h, std::vector<uint8
 bool save(const std::string& chartPath, const Image& overlay, const std::string& overlayFile, int x, int y, std::string& saved, std::string& error) {
   int w = 0, h = 0;
   std::vector<uint8_t> rgb;
-  if (!readChart(chartPath, w, h, rgb)) return error = "Can't read the chart " + chartPath, false;
-  if (overlay.w <= 0 || overlay.h <= 0) return error = "There's no overlay to save", false;
+  if (!readChart(chartPath, w, h, rgb)) return error = trf("Can't read the chart %s", chartPath.c_str()), false;
+  if (overlay.w <= 0 || overlay.h <= 0) return error = tr("There's no overlay to save"), false;
 
   int oh = std::max(1, (int)(((long long)overlay.h * w + overlay.w / 2) / overlay.w));
   Image o = resized(overlay, w, oh);
@@ -161,7 +163,7 @@ bool save(const std::string& chartPath, const Image& overlay, const std::string&
   for (int n = 2; fs::exists(out, ec); n++) out = chart.parent_path() / (base + "-" + std::to_string(n) + ".png");
   if (!stbi_write_png(out.string().c_str(), w, h, 3, rgb.data(), w * 3)) {
     fs::remove(out, ec);
-    return error = "Can't write " + out.string(), false;
+    return error = trf("Can't write %s", out.string().c_str()), false;
   }
   saved = out.string();
   return true;

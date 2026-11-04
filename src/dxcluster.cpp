@@ -1,5 +1,7 @@
 #include "dxcluster.h"
 
+#include "i18n.h"
+
 #ifdef _WIN32
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0602
@@ -414,7 +416,7 @@ std::string talk(Client::Shared& sh, Sock s, const std::string& host, const std:
     if (loggedInAt > 0) return true;
     if (!sendLine(s, call)) return false;
     loggedInAt = nowSeconds();
-    sh.set(Client::CONNECTED, "Connected to " + host);
+    sh.set(Client::CONNECTED, trf("Connected to %s", host.c_str()));
     return true;
   };
   while (!sh.quit) {
@@ -437,7 +439,7 @@ std::string talk(Client::Shared& sh, Sock s, const std::string& host, const std:
       lastPoke = now;
       if (!sendLine(s, "")) return lastLine;
     }
-    if (now - lastHeard > 600) return "Nothing heard for ten minutes";
+    if (now - lastHeard > 600) return tr("Nothing heard for ten minutes");
 
     if (!waitOn(s, false, 250)) continue;
     char buf[4096];
@@ -468,17 +470,17 @@ void runClient(std::shared_ptr<Client::Shared> sh, std::string host, int port, s
   };
   std::string where = host + ":" + std::to_string(port);
   while (!sh->quit) {
-    sh->set(Client::CONNECTING, "Connecting to " + where);
+    sh->set(Client::CONNECTING, trf("Connecting to %s", where.c_str()));
     Sock s = connectTo(host, port, sh->quit);
     if (s == kNoSock) {
-      if (!sh->quit) sh->set(Client::WAITING, "Couldn't reach " + where + ". Trying again in a minute.");
+      if (!sh->quit) sh->set(Client::WAITING, trf("Couldn't reach %s. Trying again in a minute.", where.c_str()));
       wait(60);
       continue;
     }
     std::string last = talk(*sh, s, host, call, commands);
     closeSock(s);
     if (sh->quit) break;
-    sh->set(Client::WAITING, "Lost " + where + (last.empty() ? "" : " (it said: " + last + ")") + ". Trying again in a minute.");
+    sh->set(Client::WAITING, last.empty() ? trf("Lost %s. Trying again in a minute.", where.c_str()) : trf("Lost %s (it said: %s). Trying again in a minute.", where.c_str(), last.c_str()));
     wait(60);
   }
 }
@@ -501,7 +503,7 @@ void runDemo(std::shared_ptr<Client::Shared> sh) {
       "DX de PA1DEM:   432200.0  G8ABC        SSB",
   };
   const int count = (int)(sizeof kLines / sizeof kLines[0]);
-  sh->set(Client::CONNECTED, "Made-up spots, as this is the demo. Nothing is connected.");
+  sh->set(Client::CONNECTED, tr("Made-up spots, as this is the demo. Nothing is connected."));
   for (int i = 0; !sh->quit; i = (i + 1) % count) {
     char when[16];
     time_t t = time(nullptr);

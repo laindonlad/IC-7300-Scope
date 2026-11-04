@@ -1,0 +1,2290 @@
+# Português (pt)
+
+%s is in use by another program
+= %s está em uso por outro programa
+
+%s isn't there (radio off or unplugged?)
+= %s não foi encontrado (rádio desligado ou desconectado?)
+
+%s: permission denied (on Linux, join the dialout group)
+= %s: permissão negada (no Linux, entre no grupo dialout)
+
+%s can't be opened
+= Não foi possível abrir %s
+
+The rig wouldn't %s
+= O rádio não conseguiu %s
+
+A band plan has a problem: %s
+= Um plano de bandas tem um problema: %s
+
+A station list has a problem: %s
+= Uma lista de estações tem um problema: %s
+
+Band plans and stations reloaded
+= Planos de bandas e estações recarregados
+
+DEMO: simulated %s
+= DEMO: %s simulado
+
+The rig's USB audio isn't there (radio off?). Choose a device in Settings.
+= O áudio USB do rádio não foi encontrado (rádio desligado?). Escolha um dispositivo nas Configurações.
+
+Saved %s
+= %s salvo
+
+%s isn't on the %s, which tunes %s
+= %s está fora do alcance do %s, que sintoniza %s
+
+"%s" isn't a frequency the %s can tune (%s)
+= "%s" não é uma frequência que o %s possa sintonizar (%s)
+
+The %s is a receiver: it can't transmit.
+= O %s é um receptor: não pode transmitir.
+
+Transmit isn't armed. Press ARM TX first.
+= A transmissão não está armada. Pressione ARM TX primeiro.
+
+Enter: %s MHz
+= Entrada: %s MHz
+
+keep typing, or Esc to cancel
+= continue digitando, ou Esc para cancelar
+
+Other VFO
+= Outro VFO
+
+Listening on
+= Ouvindo em
+
+Click for the bar meter
+= Clique para o medidor de barra
+
+Click for the needle meter
+= Clique para o medidor de ponteiro
+
+Squelch open
+= Squelch aberto
+
+Squelch closed
+= Squelch fechado
+
+OVERLOAD
+= SOBRECARGA
+
+No overload
+= Sem sobrecarga
+
+SIGNAL
+= SINAL
+
+Saved %s to memories
+= %s salvo nas memórias
+
+Type-N, 50 ohms: 10 kHz to 3 GHz
+= Tipo N, 50 ohms: 10 kHz a 3 GHz
+
+SO-239, 50 ohms: 10 kHz to 30 MHz
+= SO-239, 50 ohms: 10 kHz a 30 MHz
+
+RCA, 500 ohms: 10 kHz to 30 MHz
+= RCA, 500 ohms: 10 kHz a 30 MHz
+
+Save to memories
+= Salvar na memória
+
+Save this frequency and mode to memories
+= Salvar esta frequência e modo nas memórias
+
+Receive only. Hold the mouse over an antenna for its port.
+= Só recepção. Passe o mouse sobre uma antena para ver o conector.
+
+Receive only. Above 30 MHz it can only use ANT1.
+= Só recepção. Acima de 30 MHz só pode usar ANT1.
+
+Nothing here can transmit until this is on. Off at every start.\nTurning it off also releases PTT.
+= Nada aqui transmite até que isto esteja ligado. Desligado a cada início.\nDesligá-lo também libera o PTT.
+
+The rig isn't connected
+= O rádio não está conectado
+
+Click on, click off. Ctrl+Space does the same.\nReleases by itself after %d s (Settings).
+= Um clique liga, outro desliga. Ctrl+Espaço faz o mesmo.\nLibera sozinho após %d s (Configurações).
+
+Starts the rig's antenna tuner. This transmits a carrier.
+= Aciona o acoplador de antena do rádio. Isto transmite uma portadora.
+
+The antenna tuner in or out of line
+= Acoplador de antena ligado ou em bypass
+
+Receive on this VFO, transmit on the other. Right-click for a quick offset.
+= Recebe neste VFO e transmite no outro. Clique direito para um deslocamento rápido.
+
+Split %+d kHz
+= Split %+d kHz
+
+Swap the two VFOs
+= Trocar os dois VFOs
+
+Copy this VFO to the other
+= Copiar este VFO para o outro
+
+Mem
+= Mem
+
+TRANSMITTING
+= TRANSMITINDO
+
+%d s of %d s
+= %d s de %d s
+
+Armed: the buttons above will transmit
+= Armado: os botões acima vão transmitir
+
+Transmit locked
+= Transmissão bloqueada
+
+Bands
+= Bandas
+
+The band you're in. Click for every band the receiver covers.\nPage Up and Page Down go through them in order.
+= A banda em que você está. Clique para ver todas as bandas que o receptor cobre.\nPage Up e Page Down percorrem-nas em ordem.
+
+Go to the band
+= Ir para a banda
+
+Wide FM, for FM broadcast and other wide signals
+= FM largo, para radiodifusão em FM e outros sinais largos
+
+Synchronous AM: both sidebands, or just the lower or upper one to dodge interference
+= AM síncrono: as duas bandas laterais, ou só a inferior ou a superior para fugir de interferência
+
+Digital
+= Digital
+
+D-STAR, P25, dPMR, NXDN and DCR digital voice
+= Voz digital D-STAR, P25, dPMR, NXDN e DCR
+
+Transmit bass and treble
+= Graves e agudos na transmissão
+
+Receive bass and treble
+= Graves e agudos na recepção
+
+The rig has no bass or treble setting for %s
+= O rádio não tem ajuste de graves ou agudos para %s
+
+Not available: this radio hasn't said it's an IC-7300 (SSB only on an MK2)
+= Indisponível: este rádio não se identificou como IC-7300 (só SSB num MK2)
+
+Not available: this radio hasn't said it's an IC-7300
+= Indisponível: este rádio não se identificou como IC-7300
+
+Not available in %s
+= Indisponível em %s
+
+Transmit audio
+= Áudio de TX
+
+Receive audio
+= Áudio de RX
+
+Bass
+= Graves
+
+Treble
+= Agudos
+
+%s. Goes back to where you were on this band.\nRight-click: CW, FT8 and so on.
+= %s. Volta para onde você estava nesta banda.\nClique direito: CW, FT8 etc.
+
+The %s plan has no bands for the %s
+= O plano %s não tem bandas para o %s
+
+D-STAR digital voice
+= Voz digital D-STAR
+
+D-STAR high-speed data, on 23 cm only
+= Dados de alta velocidade D-STAR, só em 23 cm
+
+Data mode: the rig takes its transmit audio from the USB sound card (with DATA MOD set to USB)
+= Modo de dados: o rádio pega o áudio de transmissão da placa de som USB (com DATA MOD em USB)
+
+Step
+= Passo
+
+Left and Right arrows tune by this; Up and Down change it.\nWheel over the waterfalls uses it too.
+= As setas Esquerda e Direita sintonizam com este passo; Cima e Baixo o mudam.\nA roda do mouse sobre as cascatas também o usa.
+
+RECEIVE
+= RECEPÇÃO
+
+RF gain
+= Ganho RF
+
+Squelch
+= Squelch
+
+Preamp
+= Pré-amp
+
+The internal preamp, and any external one the rig powers (set up in its menu)
+= O pré-amplificador interno, e algum externo alimentado pelo rádio (configurado no menu dele)
+
+Improves how it copes with strong signals, at some cost in sensitivity
+= Melhora o comportamento com sinais fortes, com alguma perda de sensibilidade
+
+Attenuator
+= Atenuador
+
+Width
+= Largura
+
+fixed by the mode
+= fixada pelo modo
+
+Shape
+= Forma
+
+PBT inner
+= PBT interno
+
+PBT outer
+= PBT externo
+
+Centre PBT
+= Centrar PBT
+
+Notch
+= Notch
+
+Notch width
+= Largura notch
+
+Auto notch
+= Notch auto
+
+RIT / XIT
+= RIT / XIT
+
+Clear
+= Limpar
+
+CW pitch
+= Tom do CW
+
+TRANSMIT
+= TRANSMISSÃO
+
+RF power
+= Potência RF
+
+Mic gain
+= Ganho mic
+
+Comp
+= Comp
+
+SSB TX BW
+= Banda TX SSB
+
+Monitor
+= Monitor
+
+Anti-VOX
+= Anti-VOX
+
+Break-in
+= Break-in
+
+Key speed
+= Veloc. CW
+
+BK-IN delay
+= Atraso BK-IN
+
+Not on a band in the %s plan
+= Fora das bandas do plano %s
+
+In the %s band
+= Na banda de %s
+
+%s: %s\n%s to %s MHz\nClick to tune here
+= %s: %s\n%s a %s MHz\nClique para sintonizar aqui
+
+Out of band under the %s plan
+= Fora de banda segundo o plano %s
+
+Out of band
+= Fora de banda
+
+%s begins %s
+= %s começa em %s
+
+%s ends %s
+= %s termina em %s
+
+Stations
+= Estações
+
+Find a station...
+= Procurar estação...
+
+Show on the scope
+= Mostrar no espectro
+
+Only what's scheduled now
+= Só o que está no ar agora
+
+Flags a broadcaster only during its scheduled hours. This menu and Find a station list them all,\nwith their times in UTC. Being scheduled doesn't mean you'll hear it.
+= Marca uma emissora só durante o horário programado. Este menu e Procurar estação mostram todas,\ncom horários em UTC. Estar programada não significa que você vá ouvi-la.
+
+%s to %s
+= %s a %s
+
+Find a station
+= Procurar estação
+
+Name, type, place or frequency in kHz
+= Nome, tipo, local ou frequência em kHz
+
+%d found. Click one to go there, or press Enter for the first.
+= %d encontradas. Clique numa para ir até ela, ou pressione Enter para a primeira.
+
+%d found. Connect the rig to go there.
+= %d encontradas. Conecte o rádio para ir até lá.
+
+On
+= Lig.
+
+Off
+= Desl.
+
+Streams the rig's own spectrum scope over CI-V
+= Transmite o próprio espectro do rádio pelo CI-V
+
+Span, in Centre mode
+= Span, no modo Centro
+
+Centre
+= Centro
+
+Fixed
+= Fixo
+
+Centre follows the dial. Fixed uses the band edges set on the rig.
+= Centro acompanha o dial. Fixo usa os limites de banda definidos no rádio.
+
+Ref
+= Ref
+
+The rig's scope reference level
+= Nível de referência do espectro do rádio
+
+Fast
+= Rápido
+
+Mid
+= Médio
+
+Slow
+= Lento
+
+Speed
+= Velocidade
+
+Sweep speed
+= Veloc. varredura
+
+Auto
+= Auto
+
+Set the colours from the noise floor
+= Ajustar as cores a partir do nível de ruído
+
+Display
+= Exibição
+
+Floor
+= Piso
+
+Range
+= Faixa
+
+Colours
+= Cores
+
+Back one page of the scope. Centre mode only.
+= Volta uma página do espectro. Só no modo Centro.
+
+On one page of the scope. Centre mode only.
+= Avança uma página do espectro. Só no modo Centro.
+
+Click to tune there
+= Clique para sintonizar ali
+
+Click to tune %s at %s
+= Clique para sintonizar %s em %s
+
+Click to go there in %s
+= Clique para ir até lá em %s
+
+Scope data is off
+= Dados do espectro desligados
+
+No scope data. On the rig: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+= Sem dados do espectro. No rádio: CI-V USB Port = Unlink from [REMOTE], CI-V USB Baud Rate = 115200
+
+Out of the scope's range
+= Fora do alcance do espectro
+
+Tune here
+= Sintonizar aqui
+
+Transmit here (split)
+= Transmitir aqui (split)
+
+Recording to %s
+= Gravando em %s
+
+Can't write %s
+= Não foi possível gravar %s
+
+Clear this panel. What's in the file stays there.
+= Limpa este painel. O que está no arquivo continua lá.
+
+Hearing:
+= Ouvindo:
+
+CW is written down once the decoder is sure of it, some 16 characters behind what it's hearing
+= O CW é escrito quando o decodificador tem certeza, uns 16 caracteres atrás do que está ouvindo
+
+Nothing decoded yet
+= Nada decodificado ainda
+
+Saving to %s
+= Salvando em %s
+
+Can't read the overlay %s
+= Não foi possível ler a sobreposição %s
+
+Overlay
+= Sobreposição
+
+None
+= Nenhuma
+
+Open the overlays folder
+= Abrir a pasta de sobreposições
+
+Lays a map over the chart. Overlays are the transparent PNGs in the overlays folder, each made for one station's charts
+= Coloca um mapa sobre a carta. As sobreposições são os PNGs transparentes da pasta de sobreposições, cada um feito para as cartas de uma estação
+
+Save a copy
+= Salvar cópia
+
+Moves the overlay across, in the chart's pixels, for a chart that doesn't line up. Drag, or double-click to type
+= Move a sobreposição na horizontal, em pixels da carta, para uma carta que não se alinha. Arraste, ou clique duas vezes para digitar
+
+Moves the overlay down, in the chart's pixels, for a chart that was tuned in late. Drag, or double-click to type
+= Move a sobreposição para baixo, em pixels da carta, para uma carta sintonizada com atraso. Arraste, ou clique duas vezes para digitar
+
+Once the chart has finished
+= Quando a carta terminar
+
+Saves the chart with this overlay as a new picture in the received folder. The chart itself stays as it was.
+= Salva a carta com esta sobreposição como nova imagem na pasta de recebidos. A carta original fica como estava.
+
+Receiving: %u lines, IOC %d, %+.0f ppm (measured)
+= Recebendo: %u linhas, IOC %d, %+.0f ppm (medido)
+
+Receiving: %u lines, IOC %d, %+.0f ppm
+= Recebendo: %u linhas, IOC %d, %+.0f ppm
+
+Phasing: %d lines
+= Fase: %d linhas
+
+Start tone heard
+= Tom de início ouvido
+
+Waiting for a chart to start
+= Aguardando o início de uma carta
+
+Stop and save
+= Parar e salvar
+
+Start now
+= Iniciar agora
+
+Start a chart from here, for one that's already under way. Set the slant by hand if it leans.
+= Inicia uma carta a partir daqui, para uma que já está em andamento. Ajuste a inclinação à mão se ela ficar torta.
+
+Centre %.0f Hz
+= Centro %.0f Hz
+
+Where the signal's centre is heard: the midpoint of its black at -400 Hz and its white at +400 Hz
+= Onde se ouve o centro do sinal: o ponto médio entre o preto em -400 Hz e o branco em +400 Hz
+
+Slant %+.0f ppm
+= Inclinação %+.0f ppm
+
+Trims the line length, to straighten a chart that leans. A chart that starts with phasing measures this for itself.
+= Ajusta o comprimento da linha, para endireitar uma carta torta. Uma carta que começa com fase mede isto sozinha.
+
+No chart yet. In USB, set the dial 1.9 kHz below the station's listed frequency. A chart starts by itself when its start tone or phasing is heard.
+= Nenhuma carta ainda. Em USB, ponha o dial 1.9 kHz abaixo da frequência divulgada da estação. A carta começa sozinha quando se ouve o tom de início ou a fase.
+
+%d lines/s
+= %d linhas/s
+
+FFT size
+= Tamanho FFT
+
+Larger shows finer detail but blurs fast changes
+= Maior mostra mais detalhes, mas borra mudanças rápidas
+
+Rec
+= Grav
+
+Record the receiver to a WAV file in the received folder
+= Grava o receptor num arquivo WAV na pasta de recebidos
+
+Listen
+= Ouvir
+
+Play the receiver through this computer's speakers. Muted while transmitting.
+= Toca o receptor nos alto-falantes deste computador. Mudo durante a transmissão.
+
+Clean
+= Limpeza
+
+voice noise reduction
+= redução de ruído para voz
+
+spectral noise reduction
+= redução de ruído espectral
+
+Noise reduction on this computer, for what you hear: %s now. The waterfall, decoders and recordings keep the rig's audio as it is.
+= Redução de ruído neste computador, para o que você ouve: %s agora. A cascata, os decodificadores e as gravações mantêm o áudio do rádio como está.
+
+How the audio is cleaned up, and the equaliser (on)
+= Como o áudio é limpo, e o equalizador (ligado)
+
+How the audio is cleaned up, and the equaliser
+= Como o áudio é limpo, e o equalizador
+
+By mode
+= Pelo modo
+
+Voice
+= Voz
+
+Spectral
+= Espectral
+
+Method
+= Método
+
+Voice is a neural network trained on speech: best for SSB, AM and FM, but it removes CW and data tones.\nSpectral tracks the noise floor and works on anything.\nBy mode uses Voice for phone and Spectral for CW, RTTY and data.
+= Voz é uma rede neural treinada com fala: melhor para SSB, AM e FM, mas remove CW e tons de dados.\nEspectral acompanha o nível de ruído e funciona com qualquer coisa.\nPelo modo usa Voz para fonia e Espectral para CW, RTTY e dados.
+
+Strength
+= Intensidade
+
+Higher takes out more noise, and more of the signal with it
+= Mais alto tira mais ruído, e mais sinal junto
+
+Leveller
+= Nivelador
+
+Evens out fading and quiet stations
+= Compensa o fading e as estações fracas
+
+Equaliser
+= Equalizador
+
+Shapes what you hear, whether Clean is on or not. The rig's RX EQ doesn't reach its USB audio, so this is the one for the speakers.
+= Molda o que você ouve, com Limpeza ligada ou não. O RX EQ do rádio não chega ao áudio USB, então este é o dos alto-falantes.
+
+Low cut
+= Corte graves
+
+Takes out the boom and rumble below this
+= Tira o ronco e o zumbido abaixo disto
+
+Below about 250 Hz
+= Abaixo de uns 250 Hz
+
+Middle
+= Médios
+
+Around 1.2 kHz, where speech is easiest to follow
+= Em torno de 1.2 kHz, onde a fala é mais fácil de entender
+
+Above about 2.2 kHz: crisper consonants, but more hiss
+= Acima de uns 2.2 kHz: consoantes mais nítidas, mas mais chiado
+
+High cut
+= Corte agudos
+
+Takes out the hiss above this
+= Tira o chiado acima disto
+
+Flat
+= Plano
+
+Speech
+= Fala
+
+A starting point for SSB: less bass, more presence
+= Um ponto de partida para SSB: menos graves, mais presença
+
+Audio level from the rig: %.0f dBFS. Set by the rig's USB AF Output Level.
+= Nível de áudio do rádio: %.0f dBFS. Ajustado pelo USB AF Output Level do rádio.
+
+Decode
+= Decodificar
+
+Decode the receiver in a panel beside the waterfall, and save what's decoded in the received folder
+= Decodifica o receptor num painel ao lado da cascata, e salva o que foi decodificado na pasta de recebidos
+
+Data mode: the dial stays put, so your digital program keeps its place
+= Modo de dados: o dial fica parado, para que o seu programa digital mantenha a posição
+
+kept since %s, from %s
+= guardado desde %s, via %s
+
+Audio
+= Áudio
+
+The audio waterfall, recording and decoders
+= A cascata de áudio, a gravação e os decodificadores
+
+Map
+= Mapa
+
+Find a station by its callsign on a street or satellite map. The audio and decoders keep going.
+= Encontre uma estação pelo indicativo num mapa de ruas ou de satélite. O áudio e os decodificadores continuam funcionando.
+
+Type a callsign first
+= Digite um indicativo primeiro
+
+Couldn't save locations.csv in the data folder
+= Não foi possível salvar locations.csv na pasta de dados
+
+from your log
+= via seu log
+
+Still looking up %s online
+= Ainda procurando %s online
+
+%s isn't in your log with a locator. Put a HamQTH or QRZ.com login in Settings to look it up there.
+= %s não está no seu log com localizador. Ponha um login do HamQTH ou QRZ.com nas Configurações para procurá-lo lá.
+
+Looking up %s on QRZ.com and HamQTH...
+= Procurando %s no QRZ.com e HamQTH...
+
+Looking up %s on QRZ.com...
+= Procurando %s no QRZ.com...
+
+Looking up %s on HamQTH...
+= Procurando %s no HamQTH...
+
+from %s
+= via %s
+
+Found %s on %s, and kept it
+= %s encontrado no %s, e guardado
+
+Type a callsign and press Enter: it's looked for in your log, then in the places kept from before, then on QRZ.com and HamQTH.
+= Digite um indicativo e pressione Enter: ele é procurado no seu log, depois nos locais já guardados, depois no QRZ.com e HamQTH.
+
+%.0f km, %.0f miles, bearing %.0f degrees
+= %.0f km, %.0f milhas, azimute %.0f graus
+
+Callsign
+= Indicativo
+
+A callsign to find. Press Enter to look for it.
+= Um indicativo a procurar. Pressione Enter para procurá-lo.
+
+Find
+= Procurar
+
+Look it up on QRZ.com, then HamQTH, even if it's in your log or kept already, and keep what's found
+= Procura no QRZ.com, depois no HamQTH, mesmo que já esteja no seu log ou guardado, e guarda o que encontrar
+
+Single
+= Um só
+
+All
+= Todos
+
+Locator
+= Localizador
+
+Maidenhead locator squares, in blue. Single shows the station's square, such as JO01en, and the bigger one it's in, such as JO01. All draws the grid over the whole map, finer as you zoom in.
+= Quadrículas do localizador Maidenhead, em azul. Um só mostra a quadrícula da estação, como JO01en, e a maior que a contém, como JO01. Todos desenha a grade no mapa inteiro, mais fina conforme você aproxima.
+
+OS grid
+= Grade OS
+
+Ordnance Survey National Grid squares, in magenta, for Great Britain only. Single shows the station's 10 km square, such as TQ68, and the 100 km one it's in, such as TQ. All draws the grid over the whole map.
+= Quadrados da National Grid da Ordnance Survey, em magenta, só para a Grã-Bretanha. Um só mostra o quadrado de 10 km da estação, como TQ68, e o de 100 km que o contém, como TQ. Todos desenha a grade no mapa inteiro.
+
+Lat/Lon
+= Lat/Lon
+
+Show lines of latitude and longitude in yellow, closer together as you zoom in
+= Mostra linhas de latitude e longitude em amarelo, mais próximas conforme você aproxima
+
+Whole world
+= Mundo todo
+
+Street View
+= Street View
+
+Open Google Street View in your web browser at the middle of the map, to look around at street level
+= Abre o Google Street View no navegador, no centro do mapa, para olhar em volta ao nível da rua
+
+Your station, %s
+= Sua estação, %s
+
+Some of the map couldn't be fetched: %s
+= Parte do mapa não pôde ser baixada: %s
+
+Loading the map...
+= Carregando o mapa...
+
+From %s
+= Via %s
+
+Click to choose it
+= Clique para escolher
+
+Click and spin, like a VFO knob. Clockwise tunes up.\nTurn slowly to fine tune. Spin fast to move further, and let go to let it run on.\nShift: ten times the rate. The wheel moves it by the step.
+= Clique e gire, como o dial de um VFO. Sentido horário sobe a frequência.\nGire devagar para ajuste fino. Gire rápido para ir mais longe, e solte para deixá-lo continuar.\nShift: dez vezes mais rápido. A roda do mouse move pelo passo.
+
+1 turn = %s
+= 1 volta = %s
+
+Or just type: %s
+= Ou simplesmente digite: %s
+
+ON %s
+= EM %s
+
+Between this band's blocks
+= Entre os segmentos desta banda
+
+Outside the amateur bands
+= Fora das bandas de radioamador
+
+in the %s plan
+= no plano %s
+
+Name
+= Nome
+
+Save
+= Salvar
+
+Filter
+= Filtro
+
+Mode
+= Modo
+
+Click to tune, double-click to edit
+= Clique para sintonizar, clique duas vezes para editar
+
+Edit memory
+= Editar memória
+
+Frequency
+= Frequência
+
+e.g. 14.074 or 7030k
+= ex.: 14.074 ou 7030k
+
+Not a frequency the %s can tune
+= Não é uma frequência que o %s possa sintonizar
+
+Data mode
+= Modo de dados
+
+Saved %s at %s
+= %s salvo em %s
+
+Cancel
+= Cancelar
+
+All callsigns
+= Todos indicat.
+
+No callsign set
+= Sem indicativo
+
+New callsign
+= Novo indicat.
+
+Add
+= Adicionar
+
+The callsign you're on the air as. New contacts go under it, and the Log tab and worked-before marks show only its contacts. All callsigns shows the whole log here without changing it.
+= O indicativo com que você está no ar. Os novos contatos ficam nele, e a aba Log e as marcas de já trabalhado mostram só os contatos dele. Todos indicat. mostra o log inteiro aqui sem mudá-lo.
+
+Couldn't back up the log first, so nothing was imported
+= Não foi possível fazer backup do log antes, então nada foi importado
+
+Imported %d new QSOs, updated %d, and %d were already up to date
+= Importados %d QSOs novos, %d atualizados, e %d já estavam em dia
+
+Some are under other callsigns: choose them in the log book
+= Alguns estão em outros indicativos: escolha-os no logbook
+
+Couldn't save the log to %s
+= Não foi possível salvar o log em %s
+
+The log is already in date order
+= O log já está em ordem de data
+
+Couldn't back up the log first, so it wasn't sorted
+= Não foi possível fazer backup do log antes, então ele não foi ordenado
+
+Sorted %d QSOs into date order. The log as it was is in %s.bak
+= %d QSOs ordenados por data. O log como estava fica em %s.bak
+
+There's no file dialog on this system (it needs zenity or kdialog), so drag the ADIF file onto the window instead
+= Não há diálogo de arquivos neste sistema (precisa de zenity ou kdialog), então arraste o arquivo ADIF para a janela
+
+Changing a logged contact
+= Alterando um contato do log
+
+, last on %s
+= , a última em %s
+
+Worked once%s: %s
+= Trabalhado uma vez%s: %s
+
+Worked %d times%s: %s
+= Trabalhado %d vezes%s: %s
+
+Already logged on this band and mode.
+= Já registrado nesta banda e modo.
+
+Not worked before
+= Nunca trabalhado
+
+RST sent
+= RST env.
+
+RST rcvd
+= RST rec.
+
+Power (W)
+= Potência (W)
+
+Left empty, it's what the rig's power is set to
+= Se vazio, usa a potência ajustada no rádio
+
+Notes
+= Notas
+
+Contest
+= Concurso
+
+Contest, such as CQ-WW-SSB
+= Concurso, como CQ-WW-SSB
+
+Exchange sent
+= Troca enviada
+
+Exchange rcvd
+= Troca recebida
+
+An exchange sent that's only a number goes up by one with each contact
+= Uma troca enviada que seja só um número aumenta de um a cada contato
+
+Began
+= Início
+
+Ended
+= Fim
+
+Your callsign for this contact
+= Seu indicativo neste contato
+
+Update
+= Atualizar
+
+Really delete it?
+= Apagar mesmo?
+
+Couldn't back up the log first, so nothing was deleted
+= Não foi possível fazer backup do log antes, então nada foi apagado
+
+Keep it
+= Manter
+
+Delete
+= Apagar
+
+%s  %s  %s UTC
+= %s  %s  %s UTC
+
+Log it
+= Gravar no log
+
+That frequency isn't a number of kHz
+= Essa frequência não é um número de kHz
+
+Times need to look like 2026-10-31 19:05
+= Os horários devem ser assim: 2026-10-31 19:05
+
+Updated %s
+= %s atualizado
+
+Couldn't save the log entry to %s
+= Não foi possível salvar o registro em %s
+
+Log book...
+= Logbook...
+
+Call
+= Indicativo
+
+%s  %s  %s/%s  %s %s\nDouble-click to change it
+= %s  %s  %s/%s  %s %s\nClique duas vezes para alterar
+
+%s km, %s miles
+= %s km, %s milhas
+
+%d contacts
+= %d contatos
+
+and %d earlier. Search the Contacts tab for %s to see them all.
+= e mais %d anteriores. Procure %s na aba Contatos para ver todos.
+
+to
+= até
+
+Power
+= Potência
+
+Confirmed by
+= Confirmado por
+
+Your callsign
+= Seu indicativo
+
+Exch sent
+= Troca env.
+
+Exch rcvd
+= Troca rec.
+
+Contacts: %d. Places: %d.
+= Contatos: %d. Locais: %d.
+
+(%d with no locator aren't shown)
+= (%d sem localizador não são mostrados)
+
+Scroll or double-click to zoom in, drag to move, hover over a pin for its contacts
+= Role ou clique duas vezes para aproximar, arraste para mover, passe sobre um alfinete para ver os contatos
+
+Log book
+= Logbook
+
+%d contacts, %d callsigns, %d countries, %d confirmed
+= %d contatos, %d indicativos, %d países, %d confirmados
+
+Search
+= Procurar
+
+Export ADIF
+= Exportar ADIF
+
+Exported %d QSOs to %s
+= %d QSOs exportados para %s
+
+Couldn't write %s
+= Não foi possível gravar %s
+
+Import ADIF...
+= Importar ADIF...
+
+Choose an ADIF file, or drag one onto the window. A contact already in the log isn't added again: its QSL status is brought up to date and its empty fields filled. The log is first copied to log.csv.bak.
+= Escolha um arquivo ADIF, ou arraste um para a janela. Um contato que já está no log não é adicionado de novo: o estado do QSL é atualizado e os campos vazios são preenchidos. Antes, o log é copiado para log.csv.bak.
+
+Sort
+= Ordenar
+
+Finish changing the contact on the Log tab first.
+= Termine de alterar o contato na aba Log primeiro.
+
+Puts every contact in the log file in date order, oldest first, whichever callsign is showing. New contacts then carry on at the end. The log is first copied to log.csv.bak.
+= Põe todos os contatos do arquivo de log em ordem de data, os mais antigos primeiro, seja qual for o indicativo exibido. Os novos contatos continuam no fim. Antes, o log é copiado para log.csv.bak.
+
+Restore
+= Restaurar
+
+Maximise
+= Maximizar
+
+Contacts
+= Contatos
+
+World map
+= Mapa-múndi
+
+Station
+= Estação
+
+Band
+= Banda
+
+Confirmed
+= Confirmado
+
+Sent
+= Env.
+
+Rcvd
+= Rec.
+
+Distance (km)
+= Distância (km)
+
+Country
+= País
+
+Double-click to change it on the Log tab
+= Clique duas vezes para alterar na aba Log
+
+%s miles
+= %s milhas
+
+The dial isn't on a band in the %s plan. Tune to one, or scan a range.
+= O dial não está numa banda do plano %s. Sintonize uma, ou faça a varredura de uma faixa.
+
+Scan needs two frequencies this radio can tune, written the way you'd type them: 14.0 and 14.35, say
+= A varredura precisa de duas frequências que este rádio sintonize, escritas como você as digitaria: 14.0 e 14.35, por exemplo
+
+That's more than %d channels. Choose a bigger step or a smaller range.
+= São mais de %d canais. Escolha um passo maior ou uma faixa menor.
+
+There's nothing to scan there that the %s can tune
+= Não há nada ali que o %s possa sintonizar para varrer
+
+Scan stopped: every channel has been locked out
+= Varredura parada: todos os canais foram bloqueados
+
+Scan stopped: the rig isn't answering
+= Varredura parada: o rádio não responde
+
+Scan stopped: the rig is transmitting
+= Varredura parada: o rádio está transmitindo
+
+Scan stopped: the rig refused every frequency in it
+= Varredura parada: o rádio recusou todas as frequências
+
+Scan stopped: the dial was tuned
+= Varredura parada: o dial foi girado
+
+The band the dial is on
+= A banda do dial
+
+A range of frequencies
+= Uma faixa de frequências
+
+Memories
+= Memórias
+
+Scan
+= Varredura
+
+From
+= De
+
+To
+= Até
+
+Names with
+= Nomes com
+
+Empty for all of them
+= Vazio para todos
+
+All those showing
+= Todos os exibidos
+
+Service
+= Serviço
+
+Broadcasters go by the Stations menu's "Only what's scheduled now", as of when the scan starts.
+= As emissoras seguem a opção "Só o que está no ar agora" do menu Estações, no momento em que a varredura começa.
+
+Each one for
+= Cada um por
+
+How long it listens to each channel. A fast AGC setting scans best, as a slow one can still be holding on after a strong signal.
+= Quanto tempo escuta cada canal. Um AGC rápido varre melhor, pois um lento ainda pode estar segurando depois de um sinal forte.
+
+Stop at
+= Parar em
+
+The S meter reading that counts as a signal. Set it above the band's noise, or it will stop everywhere.
+= A leitura do S meter que conta como sinal. Ajuste acima do ruído da banda, senão vai parar em todo lugar.
+
+Stay until I carry on
+= Ficar até eu seguir
+
+Carry on after 5 s
+= Seguir após 5 s
+
+Carry on after 10 s
+= Seguir após 10 s
+
+Carry on when it stops
+= Seguir quando o sinal cair
+
+On a signal
+= Com sinal
+
+Next
+= Próximo
+
+Carry on to the next channel
+= Seguir para o próximo canal
+
+Lock out
+= Bloquear
+
+Leave this channel out until the scan is stopped, for a signal that's always there
+= Deixa este canal de fora até a varredura parar, para um sinal que está sempre presente
+
+Signal at %s  %s
+= Sinal em %s  %s
+
+Listening at %s
+= Ouvindo em %s
+
+%s  %d of %d
+= %s  %d de %d
+
+%d locked out
+= %d bloqueados
+
+S meter now: %s. Tuning stops a scan.
+= S meter agora: %s. Sintonizar para a varredura.
+
+HEARD
+= OUVIDOS
+
+Where
+= Onde
+
+What
+= O quê
+
+Click to stop the scan and go back there
+= Clique para parar a varredura e voltar ali
+
+A DX cluster logs you in by callsign. Put yours in Rig > Settings first.
+= Um DX cluster faz o login pelo indicativo. Ponha o seu em Rádio > Configurações primeiro.
+
+Spotted by %s
+= Spot de %s
+
+Spotted by %s at %sZ
+= Spot de %s às %sZ
+
+DX SPOTS
+= SPOTS DE DX
+
+Live spots from the DX cluster in Rig > Settings. It connects only while this is on, and logs in with your callsign.
+= Spots ao vivo do DX cluster definido em Rádio > Configurações. Só se conecta enquanto isto está ligado, e faz login com o seu indicativo.
+
+All bands
+= Todas bandas
+
+This band
+= Esta banda
+
+All modes
+= Todos modos
+
+Data
+= Dados
+
+No spots here yet.
+= Nenhum spot aqui ainda.
+
+Age
+= Idade
+
+Worked on this band
+= Trabalhado nesta banda
+
+Worked, but not on this band
+= Trabalhado, mas não nesta banda
+
+Click to tune there and put the call in the log
+= Clique para sintonizar e pôr o indicativo no log
+
+Nothing to send
+= Nada para enviar
+
+Break-in is off, so the rig will key the sidetone only. Turn BK-IN on to transmit.
+= O break-in está desligado, então o rádio só vai tocar o sidetone. Ligue o BK-IN para transmitir.
+
+CW KEYER
+= MANIPULADOR CW
+
+Mode must be CW. Sends through the rig's keyer.
+= O modo deve ser CW. Envia pelo manipulador do rádio.
+
+Type and press Enter to send
+= Digite e pressione Enter para enviar
+
+STOP SENDING
+= PARAR ENVIO
+
+{CALL} is your callsign, from Settings.
+= {CALL} é o seu indicativo, das Configurações.
+
+VOICE MEMORY
+= MEMÓRIA DE VOZ
+
+Plays what's recorded on the rig. Mode must be SSB, AM or FM.
+= Toca o que está gravado no rádio. O modo deve ser SSB, AM ou FM.
+
+STOP PLAYING
+= PARAR
+
+Couldn't save the net list to %s
+= Não foi possível salvar a lista da rodada em %s
+
+Net
+= Rodada
+
+Started %s UTC
+= Início %s UTC
+
+Net control %s
+= Controle da rodada %s
+
+Checked in: %d. Still on at %s UTC: %d.
+= Registrados: %d. Ainda presentes às %s UTC: %d.
+
+Joined (UTC)
+= Entrou (UTC)
+
+Left (UTC)
+= Saiu (UTC)
+
+Sent the net list to %s
+= Lista da rodada enviada para %s
+
+Print the net list
+= Imprimir a lista da rodada
+
+Printer
+= Impressora
+
+No printers are set up on this computer
+= Não há impressoras configuradas neste computador
+
+Printing...
+= Imprimindo...
+
+Print
+= Imprimir
+
+Net name, such as Sunday 80m net
+= Nome da rodada, como Rodada de domingo em 80m
+
+Already on the net, since %s UTC
+= Já está na rodada, desde %s UTC
+
+Check in
+= Registrar
+
+Print list...
+= Imprimir lista...
+
+%d on the net, %d checked in
+= %d na rodada, %d registrados
+
+Really clear it?
+= Limpar mesmo?
+
+New net
+= Nova rodada
+
+Clears the list for the next net. Print it first to keep it.
+= Limpa a lista para a próxima rodada. Imprima antes para guardá-la.
+
+Type a callsign and press Enter as each station checks in.
+= Digite um indicativo e pressione Enter conforme cada estação entra.
+
+In
+= Ent.
+
+Out
+= Saída
+
+Back
+= Voltou
+
+Find on the map
+= Achar no mapa
+
+Remove from the list
+= Tirar da lista
+
+Right-click to find them on the map, or to take them off if they went on by mistake.
+= Clique direito para achá-la no mapa, ou para tirá-la se entrou por engano.
+
+Left
+= Saiu
+
+They're back: clears the time they left
+= Voltou: apaga o horário de saída
+
+They've left the net: greys them out and notes the time
+= Saiu da rodada: fica em cinza e o horário é anotado
+
+Keypad
+= Teclado
+
+Log
+= Log
+
+CW / Voice
+= CW / Voz
+
+DEMO: a simulated radio. Nothing is connected.
+= DEMO: um rádio simulado. Nada está conectado.
+
+Audio only: leaving the serial port alone
+= Só áudio: a porta serial não é usada
+
+%s  %s  %d baud
+= %s  %s  %d baud
+
+. Close the other program: a port has one owner.
+= . Feche o outro programa: uma porta só tem um dono.
+
+A radio answered at %02Xh, reporting %02Xh. It isn't an IC-7300, IC-9700 or IC-R8600: to try it, put %02X in Settings as the CI-V address.
+= Um rádio respondeu em %02Xh, informando %02Xh. Não é um IC-7300, IC-9700 nem IC-R8600: para experimentá-lo, ponha %02X nas Configurações como endereço CI-V.
+
+%s open, but no answer: is the rig on, at %d baud? A 9700 shows two ports: use its Enhanced one.
+= %s aberta, mas sem resposta: o rádio está ligado, a %d baud? Um 9700 mostra duas portas: use a Enhanced.
+
+Connecting...
+= Conectando...
+
+. Is the SUB band on that band?
+= . A banda SUB está nessa banda?
+
+SCAN: signal. Next is on the Scan tab.
+= VARREDURA: sinal. Próximo está na aba Varredura.
+
+SCANNING. Tune to stop it.
+= VARRENDO. Sintonize para parar.
+
+New version available, built %s
+= Nova versão disponível, compilada em %s
+
+Click to open the download page on GitHub. You're on the build from %s UTC.
+= Clique para abrir a página de download no GitHub. Você está na versão de %s UTC.
+
+The radio's clock wasn't set.
+= O relógio do rádio não foi acertado.
+
+The radio isn't connected, so its clock wasn't set.
+= O rádio não está conectado, então o relógio dele não foi acertado.
+
+This program doesn't know how to set this radio's clock.
+= Este programa não sabe acertar o relógio deste rádio.
+
+The radio's clock follows on the minute.
+= O relógio do rádio é acertado na virada do minuto.
+
+Conditions
+= Condições
+
+Put your locator in Settings to see HF conditions from your square.
+= Ponha o seu localizador nas Configurações para ver as condições de HF da sua quadrícula.
+
+Opens HF conditions from %s on hf.dxview.org in your browser.
+= Abre as condições de HF a partir de %s no hf.dxview.org, no navegador.
+
+Wait
+= Aguarde
+
+Sync
+= Sincr.
+
+Checks this computer's clock against internet time (NTP).\nIn the demo it won't change it.
+= Compara o relógio deste computador com a hora da internet (NTP).\nNa demo ele não é alterado.
+
+Sets this computer's clock from internet time (NTP), for FT8, FT4 and the other timed modes.\nWindows may ask for permission.
+= Acerta o relógio deste computador pela hora da internet (NTP), para FT8, FT4 e os outros modos temporizados.\nO Windows pode pedir permissão.
+
+Then sets the radio's date, time and UTC offset from it, as the next minute starts.
+= Depois acerta a data, a hora e o fuso UTC do rádio a partir dele, no início do minuto seguinte.
+
+Last time:
+= Última vez:
+
+The radio stopped answering, so its clock wasn't set.
+= O rádio parou de responder, então o relógio dele não foi acertado.
+
+Sent the radio %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+= Enviado ao rádio: %04d-%02d-%02d %02d:%02d, UTC%c%d:%02d.
+
+Rig
+= Rádio
+
+Settings...
+= Configurações...
+
+Power on
+= Ligar
+
+Power off...
+= Desligar...
+
+Open data folder
+= Abrir pasta de dados
+
+Open received folder
+= Abrir pasta de recebidos
+
+Quit
+= Sair
+
+View
+= Ver
+
+Band scope
+= Espectro
+
+Audio waterfall
+= Cascata de áudio
+
+Band plan on the scope
+= Plano de bandas no espectro
+
+DX spots panel
+= Painel de spots de DX
+
+DX spots on the scope
+= Spots de DX no espectro
+
+Help
+= Ajuda
+
+Keys and rig set-up...
+= Teclas e config. do rádio...
+
+Built %s UTC
+= Compilado em %s UTC
+
+Settings
+= Configurações
+
+THE RIG
+= O RÁDIO
+
+Port
+= Porta
+
+(choose)
+= (escolha)
+
+Baud
+= Baud
+
+Find out by asking it
+= Descobrir perguntando
+
+Radio
+= Rádio
+
+It normally works this out. Choose one if it gets it wrong, as could happen if the radio's CI-V address has been changed.
+= Normalmente isto é detectado sozinho. Escolha um se der errado, como pode acontecer se o endereço CI-V do rádio tiver sido alterado.
+
+CI-V address (hex)
+= Endereço CI-V (hex)
+
+Tried first. If nothing answers there, it tries 94h, A2h, 96h and the broadcast address.
+= Tentado primeiro. Se nada responder ali, tenta 94h, A2h, 96h e o endereço de broadcast.
+
+The scope stream needs 115200.
+= O fluxo do espectro precisa de 115200.
+
+SOUND
+= SOM
+
+From the rig
+= Do rádio
+
+(find the USB Audio CODEC)
+= (procurar o USB Audio CODEC)
+
+Listen on
+= Ouvir em
+
+(system default)
+= (padrão do sistema)
+
+YOU
+= VOCÊ
+
+Your locator
+= Seu localizador
+
+Your Maidenhead locator, such as IO91WM. It goes in exported logs, and the Log tab uses it to give a distance.
+= O seu localizador Maidenhead, como IO91WM. Vai nos logs exportados, e a aba Log o usa para calcular a distância.
+
+QRZ.com username
+= Usuário QRZ.com
+
+For finding stations on the map that aren't in your log. Needs a QRZ.com XML subscription to give their locator or position.
+= Para encontrar no mapa estações que não estão no seu log. Precisa de uma assinatura XML do QRZ.com para obter o localizador ou a posição.
+
+QRZ.com password
+= Senha QRZ.com
+
+Kept in settings.ini in the data folder, as plain text.
+= Guardada em settings.ini na pasta de dados, como texto simples.
+
+HamQTH username
+= Usuário HamQTH
+
+For finding stations on the map, free: make an account at hamqth.com. Asked after QRZ.com, or alone if there's no QRZ.com login.
+= Para encontrar estações no mapa, grátis: crie uma conta em hamqth.com. Consultado depois do QRZ.com, ou sozinho se não houver login do QRZ.com.
+
+HamQTH password
+= Senha HamQTH
+
+Log date format
+= Formato de data do log
+
+How dates are shown in the log, in UTC. The Log tab leaves out the year to save room. Exported logs, and the log file itself, aren't changed.
+= Como as datas aparecem no log, em UTC. A aba Log omite o ano para economizar espaço. Os logs exportados, e o próprio arquivo de log, não mudam.
+
+PTT time limit
+= Limite de PTT
+
+PTT from this program lets go by itself after this long
+= O PTT deste programa se solta sozinho depois deste tempo
+
+DX CLUSTER
+= DX CLUSTER
+
+Choose one
+= Escolha um
+
+Fill in from a list
+= Preencher de uma lista
+
+Server
+= Servidor
+
+Commands after login
+= Comandos após o login
+
+Sent once logged in, with a ; between them. Each kind of cluster has its own: see the server's help. Usually empty.
+= Enviados após o login, separados por ;. Cada tipo de cluster tem os seus: veja a ajuda do servidor. Normalmente vazio.
+
+Keep spots for
+= Manter spots por
+
+Show robot spots (Reverse Beacon Network)
+= Mostrar spots automáticos (Reverse Beacon Network)
+
+Spots from automatic CW and data skimmers. There can be a great many.
+= Spots de skimmers automáticos de CW e dados. Podem ser muitíssimos.
+
+BAND PLAN
+= PLANO DE BANDAS
+
+Country or region
+= País ou região
+
+This program has a newer copy of this plan (%s). Reset uses it.
+= Este programa tem uma cópia mais nova deste plano (%s). Restaurar usa essa cópia.
+
+Open plans folder
+= Abrir pasta de planos
+
+Each plan is a JSON file you can edit. README.txt there explains the format.
+= Cada plano é um arquivo JSON que você pode editar. O README.txt de lá explica o formato.
+
+Reload
+= Recarregar
+
+Reads the files again, after you've edited one
+= Lê os arquivos de novo, depois de você editar algum
+
+Reset this plan
+= Restaurar este plano
+
+Can't write to %s
+= Não foi possível gravar em %s
+
+Puts the built-in copy back. Your file is kept as .json.bak
+= Volta à cópia original embutida. O seu arquivo fica guardado como .json.bak
+
+STATIONS
+= ESTAÇÕES
+
+Shown on the scope whichever band plan is chosen. See the Stations menu.
+= Mostradas no espectro seja qual for o plano de bandas. Veja o menu Estações.
+
+%s (%d stations, revision %s). %s
+= %s (%d estações, revisão %s). %s
+
+Open stations folder
+= Abrir pasta de estações
+
+Each list is a JSON file you can edit, and you can add your own. README.txt there explains the format. Reload above reads them again.
+= Cada lista é um arquivo JSON que você pode editar, e você pode acrescentar as suas. O README.txt de lá explica o formato. Recarregar, acima, lê as listas de novo.
+
+Reset station list
+= Restaurar estações
+
+Puts the built-in worldwide and broadcaster lists back. Your files are kept as .json.bak
+= Volta às listas originais mundial e de emissoras. Os seus arquivos ficam guardados como .json.bak
+
+Puts the built-in worldwide, broadcaster and receiver lists back. Your files are kept as .json.bak
+= Volta às listas originais mundial, de emissoras e de receptor. Os seus arquivos ficam guardados como .json.bak
+
+Automatic (%s)
+= Automático (%s)
+
+Language
+= Idioma
+
+Automatic follows the language this computer is set to. Choose one to keep to it whatever the computer uses. It changes straight away.
+= Automático segue o idioma configurado neste computador. Escolha um para mantê-lo seja qual for o do computador. A mudança é imediata.
+
+Check GitHub for a new version at start
+= Procurar nova versão no GitHub ao iniciar
+
+Reads one small file from GitHub each time the program starts, and says on the bottom line if there's a newer build. Nothing about you or your radio is sent.
+= Lê um pequeno arquivo do GitHub cada vez que o programa inicia, e avisa na linha de baixo se houver uma versão mais nova. Nada sobre você ou o seu rádio é enviado.
+
+Auto ON/OFF
+= Liga/desliga auto
+
+Switches the rig on when the program starts, and off when it closes. The rig's USB must stay powered for it to wake.
+= Liga o rádio quando o programa inicia, e desliga quando ele fecha. A USB do rádio precisa continuar alimentada para ele acordar.
+
+Apply and reconnect
+= Aplicar e reconectar
+
+Close
+= Fechar
+
+Keys and rig set-up
+= Teclas e config. do rádio
+
+ON THE RIG  (MENU > SET > Connectors > CI-V)
+= NO RÁDIO  (MENU > SET > Connectors > CI-V)
+
+CI-V USB Port: Unlink from [REMOTE]
+= CI-V USB Port: Unlink from [REMOTE]
+
+CI-V USB Baud Rate: 115200
+= CI-V USB Baud Rate: 115200
+
+CI-V USB Echo Back: OFF  (ON works too)
+= CI-V USB Echo Back: OFF  (ON também funciona)
+
+CI-V Address: leave it at the default, 94h on an IC-7300 or A2h on an IC-9700
+= CI-V Address: deixe no padrão, 94h num IC-7300 ou A2h num IC-9700
+
+USB AF Output Level (Connectors): raise it until the level bar sits below red
+= USB AF Output Level (Connectors): aumente até a barra de nível ficar logo abaixo do vermelho
+
+USB SEND and USB Keying (Connectors > USB SEND/Keying): OFF
+= USB SEND e USB Keying (Connectors > USB SEND/Keying): OFF
+
+KEYS
+= TECLAS
+
+Digits
+= Dígitos
+
+Start a frequency: 14.074, 14074, 7, 198k, +5. Enter goes there, Esc cancels.
+= Começa uma frequência: 14.074, 14074, 7, 198k, +5. Enter vai até ela, Esc cancela.
+
+Left, Right
+= Esquerda, Direita
+
+Tune by the step. Hold Shift for ten times that.
+= Sintoniza pelo passo. Segure Shift para dez vezes isso.
+
+Up, Down
+= Cima, Baixo
+
+Change the step
+= Muda o passo
+
+Page Up, Page Down
+= Page Up, Page Down
+
+Next or previous band
+= Banda seguinte ou anterior
+
+Find a station by name
+= Procura uma estação pelo nome
+
+F1 to F8
+= F1 a F8
+
+Data mode, next filter
+= Modo de dados, próximo filtro
+
+Split, swap VFOs
+= Split, trocar VFOs
+
+PTT on or off, once armed
+= PTT liga ou desliga, depois de armado
+
+Tuning dial
+= Dial de sintonia
+
+Click and spin it. One turn is ten steps. Spin fast to move further; let go and it runs on.
+= Clique e gire. Uma volta são dez passos. Gire rápido para ir mais longe; solte e ele continua.
+
+Wheel
+= Roda do mouse
+
+On a digit tunes that digit. On a waterfall or the dial, by the step. On a slider, moves it.
+= Num dígito, sintoniza esse dígito. Numa cascata ou no dial, pelo passo. Num controle deslizante, move-o.
+
+Click a digit
+= Clicar num dígito
+
+Top half up, bottom half down
+= Metade de cima sobe, metade de baixo desce
+
+Click the band scope
+= Clicar no espectro
+
+Tune there. Right-click for split and memories.
+= Sintoniza ali. Clique direito para split e memórias.
+
+< and > above the band scope
+= < e > acima do espectro
+
+Move the dial one whole page of the scope, in Centre mode.
+= Move o dial uma página inteira do espectro, no modo Centro.
+
+Click the audio waterfall
+= Clicar na cascata de áudio
+
+Moves that signal to the pitch (not in data modes)
+= Leva esse sinal para o tom de CW (não nos modos de dados)
+
+Right-click a band
+= Clique direito numa banda
+
+CW, FT8, FT4, WSPR, SSB frequencies
+= Frequências de CW, FT8, FT4, WSPR, SSB
+
+Click a DX spot
+= Clicar num spot de DX
+
+Tune there, and put the call in the log. Red flags and green calls aren't worked yet.
+= Sintoniza ali, e põe o indicativo no log. Bandeiras vermelhas e indicativos verdes ainda não foram trabalhados.
+
+Double-click a log entry
+= Clique duplo num registro do log
+
+Bring it back to the Log tab, to change it and log it again
+= Traz de volta para a aba Log, para alterá-lo e gravá-lo de novo
+
+Power off the rig?
+= Desligar o rádio?
+
+The rig will switch off. Rig > Power on brings it back while its USB stays powered.
+= O rádio vai desligar. Rádio > Ligar o traz de volta enquanto a USB dele continuar alimentada.
+
+Power off
+= Desligar
+
+This is an %s
+= Este é um %s
+
+This is an %s, a receiver: it can't transmit
+= Este é um %s, um receptor: não pode transmitir
+
+Only ADIF files can be dropped here, to import them into the log
+= Só arquivos ADIF podem ser soltos aqui, para importá-los no log
+
+The band plan is set to %s. Choose your country in Settings.
+= O plano de bandas está em %s. Escolha o seu país nas Configurações.
+
+The audio system didn't start
+= O sistema de áudio não iniciou
+
+Can't list the sound devices
+= Não foi possível listar os dispositivos de som
+
+"%s" isn't there (radio off or unplugged?)
+= "%s" não foi encontrado (rádio desligado ou desconectado?)
+
+Can't open "%s"
+= Não foi possível abrir "%s"
+
+Can't start "%s"
+= Não foi possível iniciar "%s"
+
+The rig's USB sound card is the system default output, and the monitor won't feed it. Choose your speakers in Settings.
+= A placa de som USB do rádio é a saída padrão do sistema, e o monitor não a alimenta. Escolha os seus alto-falantes nas Configurações.
+
+No default output device
+= Sem dispositivo de saída padrão
+
+"%s" isn't there
+= "%s" não foi encontrado
+
+Can't open the output device
+= Não foi possível abrir o dispositivo de saída
+
+Can't start the output device
+= Não foi possível iniciar o dispositivo de saída
+
+Commercial
+= Comercial
+
+Government
+= Governo
+
+Naval and maritime
+= Naval e marítimo
+
+Military
+= Militar
+
+Broadcast
+= Radiodifusão
+
+Amateur satellites and beacons
+= Satélites e beacons de radioamador
+
+Aviation
+= Aviação
+
+Satellites and navigation
+= Satélites e navegação
+
+Land mobile and licence-free
+= Móvel terrestre e uso livre
+
+Numbers and mystery stations
+= Estações de números e misteriosas
+
+Beacons
+= Beacons
+
+Satellite
+= Satélite
+
+Maritime
+= Marítimo
+
+Mobile
+= Móvel
+
+Navigation
+= Navegação
+
+Other
+= Outros
+
+Can't read the chart %s
+= Não foi possível ler a carta %s
+
+There's no overlay to save
+= Não há sobreposição para salvar
+
+No time server answered. Is this computer online, and is UDP port 123 open?
+= Nenhum servidor de hora respondeu. Este computador está online, e a porta UDP 123 está aberta?
+
+The time servers disagree, so the clock was left alone. Try again in a minute.
+= Os servidores de hora discordam, então o relógio não foi mexido. Tente de novo em um minuto.
+
+%.3f s slow
+= %.3f s atrasado
+
+%.3f s fast
+= %.3f s adiantado
+
+The clock is %s, too far out to trust. Check its date and time in your system settings.
+= O relógio está %s, longe demais para ser confiável. Verifique a data e a hora nas configurações do sistema.
+
+The clock is right: %s, to within %s. Left it alone.
+= O relógio está certo: %s, com margem de %s. Não foi mexido.
+
+The clock is %s. Demo: left it alone.
+= O relógio está %s. Demo: não foi mexido.
+
+The clock is still %s: Windows wasn't given permission to set it.
+= O relógio continua %s: o Windows não recebeu permissão para acertá-lo.
+
+The clock is %s. Setting it needs root: run this program once with sudo and --sync-clock.
+= O relógio está %s. Acertá-lo exige root: execute este programa uma vez com sudo e --sync-clock.
+
+The clock is still %s: it couldn't be set.
+= O relógio continua %s: não foi possível acertá-lo.
+
+The clock was %s and has been set, but the servers didn't answer to confirm it.
+= O relógio estava %s e foi acertado, mas os servidores não responderam para confirmar.
+
+The clock was %s and was set, but is now %s.
+= O relógio estava %s e foi acertado, mas agora está %s.
+
+The clock was %s. It's now %s, to within %s.
+= O relógio estava %s. Agora está %s, com margem de %s.
+
+Connected to %s
+= Conectado a %s
+
+Nothing heard for ten minutes
+= Nada recebido em dez minutos
+
+Connecting to %s
+= Conectando a %s
+
+Couldn't reach %s. Trying again in a minute.
+= Não foi possível alcançar %s. Tentando de novo em um minuto.
+
+Lost %s. Trying again in a minute.
+= Conexão com %s perdida. Tentando de novo em um minuto.
+
+Lost %s (it said: %s). Trying again in a minute.
+= Conexão com %s perdida (mensagem: %s). Tentando de novo em um minuto.
+
+Made-up spots, as this is the demo. Nothing is connected.
+= Spots inventados, pois esta é a demo. Nada está conectado.
+
+position set by the operator on QRZ
+= posição definida pelo operador no QRZ
+
+street address
+= endereço
+
+post code
+= código postal
+
+state or county
+= estado ou região
+
+country only
+= só o país
+
+worked out from QRZ's bearing and distance, to about 100 m
+= calculada pelo azimute e distância do QRZ, com cerca de 100 m de precisão
+
+worked out from QRZ's bearing and distance from your locator, to a few km
+= calculada pelo azimute e distância do QRZ a partir do seu localizador, com alguns km de precisão
+
+6-character locator, about 5 km by 4
+= localizador de 6 caracteres, cerca de 5 km por 4
+
+4-character locator, about 150 km by 110
+= localizador de 4 caracteres, cerca de 150 km por 110
+
+QRZ.com wouldn't log in.
+= O QRZ.com não aceitou o login.
+
+QRZ.com wouldn't log in: %s
+= O QRZ.com não aceitou o login: %s
+
+the session ended
+= a sessão terminou
+
+QRZ.com has %s but gives no locator or position.
+= O QRZ.com tem %s mas não dá localizador nem posição.
+
+QRZ.com has %s but gives no locator or position (%s)
+= O QRZ.com tem %s mas não dá localizador nem posição (%s)
+
+QRZ.com's sign-in page: %s
+= Página de login do QRZ.com: %s
+
+QRZ.com's sign-in page has changed, so this can't sign in any more
+= A página de login do QRZ.com mudou, então não é mais possível entrar por aqui
+
+Your QRZ.com account asks for a two-factor code to sign in, which this can't give
+= A sua conta do QRZ.com pede um código de dois fatores para entrar, e este programa não pode fornecê-lo
+
+QRZ.com's page for %s: %s
+= Página do QRZ.com para %s: %s
+
+QRZ.com's page for %s gives no locator.
+= A página do QRZ.com para %s não dá localizador.
+
+QRZ.com has no %s
+= O QRZ.com não tem %s
+
+QRZ.com's page for %s gives no locator. It's in qrz-page.html in the data folder.
+= A página do QRZ.com para %s não dá localizador. Ela está em qrz-page.html na pasta de dados.
+
+Put your QRZ.com username and password in Settings to look callsigns up there
+= Ponha o seu usuário e senha do QRZ.com nas Configurações para procurar indicativos lá
+
+HamQTH wouldn't log in.
+= O HamQTH não aceitou o login.
+
+HamQTH wouldn't log in: %s
+= O HamQTH não aceitou o login: %s
+
+HamQTH has no %s
+= O HamQTH não tem %s
+
+it gave an answer this can't read
+= deu uma resposta que não pôde ser lida
+
+HamQTH has %s but gives no locator or position.
+= O HamQTH tem %s mas não dá localizador nem posição.
+
+Put your HamQTH username and password in Settings to look callsigns up there
+= Ponha o seu usuário e senha do HamQTH nas Configurações para procurar indicativos lá
+
+your log
+= seu log
+
+Not a web address: %s
+= Não é um endereço web: %s
+
+Windows couldn't start a web session
+= O Windows não conseguiu iniciar uma sessão web
+
+The answer was too long
+= A resposta foi longa demais
+
+The server answered %d
+= O servidor respondeu %d
+
+Couldn't reach the server (error %lu)
+= Não foi possível alcançar o servidor (erro %lu)
+
+Couldn't write a temporary file
+= Não foi possível gravar um arquivo temporário
+
+Couldn't run curl
+= Não foi possível executar o curl
+
+Couldn't fetch it (is curl installed?)
+= Não foi possível baixar (o curl está instalado?)
+
+Couldn't open the printer %s
+= Não foi possível abrir a impressora %s
+
+Printing was cancelled
+= A impressão foi cancelada
+
+The printer %s wouldn't take the job
+= A impressora %s não aceitou o trabalho
+
+The printer %s stopped part way through
+= A impressora %s parou no meio
+
+The printer %s wouldn't start a page
+= A impressora %s não iniciou uma página
+
+Couldn't write the page to print
+= Não foi possível gerar a página para imprimir
+
+set that frequency
+= ajustar essa frequência
+
+set the other VFO
+= ajustar o outro VFO
+
+set that mode
+= ajustar esse modo
+
+set data mode
+= ativar o modo de dados
+
+set the other VFO's mode
+= ajustar o modo do outro VFO
+
+set that level
+= ajustar esse nível
+
+change that setting
+= mudar essa configuração
+
+set that EQ level
+= ajustar esse nível de EQ
+
+set its time
+= acertar a hora
+
+set its date
+= acertar a data
+
+set its UTC offset
+= acertar o fuso UTC
+
+set the attenuator
+= ajustar o atenuador
+
+change antenna
+= mudar de antena
+
+set IP+
+= ajustar o IP+
+
+set split
+= ativar o split
+
+set the filter width
+= ajustar a largura do filtro
+
+set the RIT offset
+= ajustar o deslocamento do RIT
+
+set RIT
+= ajustar o RIT
+
+set XIT
+= ajustar o XIT
+
+copy the VFO
+= copiar o VFO
+
+swap the VFOs
+= trocar os VFOs
+
+set the tuner
+= ajustar o acoplador
+
+power off
+= desligar
+
+power on
+= ligar
+
+turn the scope on
+= ligar o espectro
+
+start the scope data
+= iniciar os dados do espectro
+
+set the span
+= ajustar o span
+
+set the scope mode
+= ajustar o modo do espectro
+
+set the scope reference
+= ajustar a referência do espectro
+
+set the sweep speed
+= ajustar a velocidade de varredura
+
+transmit
+= transmitir
+
+start the tuner
+= iniciar o acoplador
+
+send CW
+= enviar CW
+
+stop CW
+= parar o CW
+
+play that voice memory
+= tocar essa memória de voz
+
+Writing to the port failed (unplugged?)
+= A gravação na porta falhou (desconectada?)
+
+Transmit time limit reached: PTT released
+= Limite de tempo de transmissão atingido: PTT liberado
+
+The port has gone (unplugged?)
+= A porta sumiu (desconectada?)
+
+No serial port chosen
+= Nenhuma porta serial escolhida
+
+The simulated port is unplugged
+= A porta simulada está desconectada
+
+Couldn't open %s
+= Não foi possível abrir %s
+
+There are no ADIF records in %s
+= Não há registros ADIF em %s
+
+Street
+= Ruas
+
+Topo
+= Topo
+
+Hybrid
+= Híbrido
+
+OpenStreetMap: streets, footpaths and buildings, for finding your way on foot
+= OpenStreetMap: ruas, trilhas e edifícios, para se orientar a pé
+
+Esri's topographic map: terrain, contours and trails
+= Mapa topográfico da Esri: relevo, curvas de nível e trilhas
+
+Esri's satellite and aerial photographs
+= Fotos de satélite e aéreas da Esri
+
+The photographs with roads and place names over them
+= As fotos com estradas e nomes de lugares por cima
+
+a tile that wouldn't decode
+= um bloco que não pôde ser decodificado
+
+Classic
+= Clássico
+
+Thermal
+= Térmico
+
+Ice
+= Gelo
+
+Grey
+= Cinza
+
+Amateur
+= Radioamador
+
+Shortwave utility
+= Serviços em ondas curtas
+
+Land mobile
+= Móvel terrestre
+
+Shortwave broadcast
+= Radiodifusão em ondas curtas
+
+Mobile phones and data
+= Telefonia móvel e dados
+
+Long and medium wave
+= Ondas longas e médias
+
+FM and TV broadcast
+= Radiodifusão FM e TV

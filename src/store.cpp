@@ -1,5 +1,7 @@
 #include "store.h"
 
+#include "i18n.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -639,7 +641,7 @@ bool importAdif(const std::string& path, std::vector<LogEntry>& log, const std::
   // By way of a path, so a name with accents opens on Windows too.
   std::ifstream f(std::filesystem::u8path(path), std::ios::binary);
   if (!f) {
-    error = "Couldn't open " + path;
+    error = trf("Couldn't open %s", path.c_str());
     return false;
   }
   std::stringstream all;
@@ -647,7 +649,7 @@ bool importAdif(const std::string& path, std::vector<LogEntry>& log, const std::
   const std::string text = all.str();
   std::vector<LogEntry> records = parseAdif(text);
   if (records.empty()) {
-    error = "There are no ADIF records in " + path;
+    error = trf("There are no ADIF records in %s", path.c_str());
     return false;
   }
   const long long window = isEqslInbox(adifHeader(text)) ? 30 : 1;

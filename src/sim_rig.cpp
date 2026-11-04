@@ -1,4 +1,5 @@
 #include "sim_rig.h"
+#include "i18n.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -404,7 +405,7 @@ class SimTransport : public Transport {
   bool open(std::string& err) override {
     std::lock_guard<std::mutex> g(s_->m);
     if (s_->portFails) {
-      err = "The simulated port is unplugged";
+      err = N_("The simulated port is unplugged");
       return false;
     }
     open_ = true;
