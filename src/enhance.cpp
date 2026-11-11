@@ -168,6 +168,73 @@ struct Biquad {
   void clear() { z1 = z2 = 0; }
 };
 
+// A band out of the middle, taken right out rather than turned down. The audio goes into the frequency domain in
+// overlapping slices, every bin inside the band is set to nothing, and it comes back out and is put together again.
+// A tone well inside the band is gone, not quieter: all that's left of it is the window's leakage into the bins
+// either side of the band, which falls away fast the further in from the edges the tone is.
+//
+// 4096 points at 48kHz is 11.7 Hz a bin. Hann in and Hann out at three-quarters overlap add up to a flat 1.5,
+// so the band edges are clean and nothing outside the band is touched. It costs a frame, about 85ms, of delay.
+class Notch {
+ public:
+  static constexpr int kN = 4096, kHop = kN / 4;
+  Notch() : win_(kN), frame_(kN), acc_(kN), buf_(kN), in_(kHop), out_(kHop) {
+    for (int i = 0; i < kN; i++) win_[i] = 0.5f - 0.5f * cosf(2.f * (float)M_PI * i / kN);
+  }
+  void configure(float hz, float width) {
+    lo_ = hz - width / 2, hi_ = hz + width / 2;
+  }
+  void reset() {
+    std::fill(frame_.begin(), frame_.end(), 0.f);
+    std::fill(acc_.begin(), acc_.end(), 0.f);
+    std::fill(out_.begin(), out_.end(), 0.f);
+    pos_ = 0;
+  }
+  // In place, a hop late on top of the frame.
+  void run(float* s, int n) {
+    for (int i = 0; i < n; i++) {
+      float y = out_[pos_];
+      in_[pos_] = s[i];
+      s[i] = y;
+      if (++pos_ == kHop) {
+        block();
+        pos_ = 0;
+      }
+    }
+  }
+
+ private:
+  void block() {
+    memmove(frame_.data(), frame_.data() + kHop, sizeof(float) * (kN - kHop));
+    memcpy(frame_.data() + kN - kHop, in_.data(), sizeof(float) * kHop);
+    for (int i = 0; i < kN; i++) buf_[i] = std::complex<float>(frame_[i] * win_[i], 0.f);
+    dsp::fft(buf_.data(), kN);
+    // Every bin whose middle is in the band; a band narrower than a bin still takes the one it's on.
+    const double binHz = kRate / kN;
+    int k0 = (int)ceil(lo_ / binHz), k1 = (int)floor(hi_ / binHz);
+    if (k1 < k0) k0 = k1 = (int)lround((lo_ + hi_) / 2 / binHz);
+    k0 = std::max(0, k0), k1 = std::min(kN / 2, k1);
+    for (int k = k0; k <= k1; k++) {
+      buf_[k] = 0;
+      if (k > 0 && k < kN / 2) buf_[kN - k] = 0;
+    }
+    // The inverse, by way of the forward transform.
+    for (auto& z : buf_) z = std::conj(z);
+    dsp::fft(buf_.data(), kN);
+    const float scale = 1.f / (kN * 1.5f);
+    for (int i = 0; i < kN; i++) acc_[i] += buf_[i].real() * scale * win_[i];
+    memcpy(out_.data(), acc_.data(), sizeof(float) * kHop);
+    memmove(acc_.data(), acc_.data() + kHop, sizeof(float) * (kN - kHop));
+    std::fill(acc_.begin() + (kN - kHop), acc_.end(), 0.f);
+  }
+
+  std::vector<float> win_, frame_, acc_;
+  std::vector<std::complex<float>> buf_;
+  std::vector<float> in_, out_;
+  int pos_ = 0;
+  double lo_ = 0, hi_ = 0;
+};
+
 // The cuts are fourth-order Butterworth, two biquads each, so they're steep enough to hear.
 class Equaliser {
  public:
@@ -204,8 +271,9 @@ struct Enhancer::Impl {
   DenoiseState* rnn = nullptr;
   SpectralNr spectral;
   Leveller leveller;
-  Equaliser eq;
-  bool equalising = false;
+  Equaliser eq, filter;  // the filter is an equaliser with its middle flat: just the cuts
+  Notch notch;
+  bool equalising = false, filtering = false, notching = false;
   // A block in, the last block's result out, so every call gives back what it was given.
   static constexpr int kMaxBlock = SpectralNr::kHop;
   float in[kMaxBlock] = {}, out[kMaxBlock] = {}, dry[kMaxBlock] = {}, tmp[kMaxBlock] = {};
@@ -255,6 +323,24 @@ Enhancer::~Enhancer() {
 
 void Enhancer::process(float* s, int n) {
   Impl& m = *impl_;
+  bool filt = filterOn_.load(std::memory_order_relaxed);
+  if (filt != m.filtering) {
+    m.filtering = filt;
+    m.filter.reset();
+  }
+  if (filt) {
+    m.filter.configure(filterLow_.load(std::memory_order_relaxed), 0, 0, 0, filterHigh_.load(std::memory_order_relaxed));
+    m.filter.run(s, n);
+  }
+  bool nt = notchOn_.load(std::memory_order_relaxed);
+  if (nt != m.notching) {
+    m.notching = nt;
+    m.notch.reset();
+  }
+  if (nt) {
+    m.notch.configure(notchHz_.load(std::memory_order_relaxed), notchWidth_.load(std::memory_order_relaxed));
+    m.notch.run(s, n);
+  }
   bool eq = eqOn_.load(std::memory_order_relaxed);
   if (eq != m.equalising) {
     m.equalising = eq;

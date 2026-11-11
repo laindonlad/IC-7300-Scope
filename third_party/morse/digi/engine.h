@@ -18,6 +18,11 @@
 //    MARGIN of anything else on the same signal, is locked to; otherwise everything over
 //    MAYBE_AT is offered as a choice. Locked, its text is what's shown; the lock goes when it
 //    has scored under DROP_AT for LOST_SEC.
+// CW (the console's change): a QSO heard from one side only is silent while the other side sends,
+// so a CW lock is held through CW_HOLD_SEC of nothing, not LOST_SEC, and a CW channel that has
+// decoded is kept as long unseen. Quiet for LOST_SEC, the lock can be taken over by a clear winner
+// elsewhere, so tuning to another station doesn't leave it waiting. A signal coming back is matched
+// to where its channel last heard it, not where it was first found, so drift keeps its channel.
 // With a family chosen (setFamily), only its variants are offered. Pairs are still followed with
 // CW or PSK chosen, to keep CW off their tones.
 #include <stdio.h>
@@ -351,6 +356,9 @@ class Engine {
 
   static constexpr float LOCK_AT = 0.6f, MAYBE_AT = 0.3f, MARGIN = 0.25f, DROP_AT = 0.2f;
   static constexpr float LOST_SEC = 6;
+  static constexpr float CW_HOLD_SEC = 120;  // CW: how long a lock and its channel wait through silence
+  // How long the locked signal has scored under DROP_AT: it's quiet, and kept, past LOST_SEC.
+  float lockedQuietSec() const { return state_ == LOCKED ? lowHops_ / HOPS_PER_SEC : 0; }
 
  private:
   static constexpr float MIN_DB = 6, MERGE_HZ = 35, PAIR_TOL = 0.1f, PAIR_DB = 10;
@@ -500,6 +508,8 @@ class Engine {
         consider(CW, 0);
       }
     }
+    // A single's CW tone, where its demodulator last heard it; a pair's centre.
+    float cwHz() const { return isPair ? hz : hz + single()->cw.offsetHz(); }
     // Where the signal is, as its demodulator follows it.
     float trackedHz(const Option& o) const {
       if (o.fam == PSK) return hz + single()->psk[o.sub].offsetHz();
@@ -712,7 +722,9 @@ class Engine {
         continue;
       }
       float gone = (hop_ - c->seen) / HOPS_PER_SEC;
-      if (gone > (c->pinned ? PINNED_SEC : UNSEEN_SEC)) c->free();
+      float keep = c->pinned ? PINNED_SEC : UNSEEN_SEC;
+      if (family_ == CW && !c->isPair && c->good) keep = CW_HOLD_SEC;  // the other side of a QSO may be sending
+      if (gone > keep) c->free();
     }
   }
 
@@ -746,6 +758,7 @@ class Engine {
     for (Channel* c : ch_) {
       if (!c->used || c->isPair != pair) continue;
       float d = fabsf(c->hz - hz);
+      if (!pair) d = fminf(d, fabsf(c->cwHz() - hz));  // where it's drifted to, too
       if (d > (pair ? 20 : 12)) continue;
       if (pair && fabsf(c->shift - shift) > c->shift * 0.15f) continue;
       if (d < bestD) {
@@ -921,8 +934,19 @@ class Engine {
         locked_.snr = snrOf(locked_);
       }
       lowHops_ = s < DROP_AT ? lowHops_ + DECIDE_EVERY : 0;
-      if (!c || lowHops_ / HOPS_PER_SEC > LOST_SEC) unlockNow();
-      else return;
+      float quiet = lowHops_ / HOPS_PER_SEC;
+      if (!c || quiet > (locked_.fam == CW ? CW_HOLD_SEC : LOST_SEC)) {
+        unlockNow();
+      } else if (quiet > LOST_SEC) {
+        // CW held through a silence: a clear winner elsewhere has it, as it would with nothing locked.
+        const Best* top = nullptr;
+        for (int i = 0; i < nb; i++)
+          if (best[i].shown && best[i].a.ch != lockedId_ && (!top || best[i].a.score > top->a.score)) top = &best[i];
+        if (top && hop_ >= holdUntil_ && top->a.score >= LOCK_AT && top->b.score < top->a.score - MARGIN) lock(top->a);
+        return;
+      } else {
+        return;
+      }
     }
 
     // A tap waiting for something to lock to

@@ -7,7 +7,7 @@
 //
 // A signal gets a stream once a variant on its channel has scored LOCK_AT for START_MS, or the
 // engine is locked to it. The stream follows that variant until it scores under DROP_AT for
-// LOST_SEC, its channel goes, or another variant on the channel clearly beats it for SWITCH_MS
+// LOST_SEC (CW: CW_HOLD_SEC, for a QSO heard from one side), its channel goes, or another variant on the channel clearly beats it for SWITCH_MS
 // (which starts a new stream). A channel whose stream has just ended needs SWITCH_MS too: as a
 // signal ends, the averages behind CW's score pass through what keying looks like, so for a few
 // seconds the leftovers of a PSK carrier score as CW. A stream's text is written from the start
@@ -56,7 +56,8 @@ class Streams {
       take(e, s, ms, false);
       if (o.score < Engine::DROP_AT) {
         if (!s.lowSince) s.lowSince = ms ? ms : 1;
-        if (ms - s.lowSince > Engine::LOST_SEC * 1000) {
+        float lost = s.o.fam == CW ? Engine::CW_HOLD_SEC : Engine::LOST_SEC;
+        if (ms - s.lowSince > lost * 1000) {
           take(e, s, ms, true);
           end(s, ms);
           continue;

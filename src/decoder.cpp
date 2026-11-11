@@ -13,7 +13,7 @@
 #include <thread>
 
 // A band can have more signals on it than the Morse board has room for. Only this file includes the engine.
-#define DIGI_MAX_CH 8
+#define DIGI_MAX_CH 12  // room for CW signals held through a silence, as well as new ones
 #include "digi/bmp.h"
 #include "digi/streams.h"
 #include "digi/wefax.h"
@@ -321,8 +321,10 @@ struct Decoder::Impl {
         const Digi::Option& o = engine->locked();
         Digi::label(o, lb, sizeof lb);
         int at = snprintf(b, sizeof b, "%s at %.0f Hz, %.0f dB", lb, o.hz, o.snr);
-        float wpm = engine->lockedWpm();
-        if (wpm > 0) snprintf(b + at, sizeof b - (size_t)at, ", %.0f WPM", wpm);
+        float wpm = engine->lockedWpm(), quiet = engine->lockedQuietSec();
+        if (o.fam == Digi::CW && quiet > Digi::Engine::LOST_SEC)
+          snprintf(b + at, sizeof b - (size_t)at, ", quiet %.0f s, held for %.0f s", quiet, Digi::Engine::CW_HOLD_SEC);
+        else if (wpm > 0) snprintf(b + at, sizeof b - (size_t)at, ", %.0f WPM", wpm);
         heading = b;
       } else {
         heading = std::string("Listening for ") + modeName(mode);

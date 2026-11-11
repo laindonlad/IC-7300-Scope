@@ -80,6 +80,10 @@ constexpr int kEqLowCount = 6;
 const float kEqHighHz[] = {0, 3500, 3000, 2700, 2400, 2100};
 const char* const kEqHighNames[] = {"Off", "3.5 kHz", "3.0 kHz", "2.7 kHz", "2.4 kHz", "2.1 kHz"};
 constexpr int kEqHighCount = 6;
+// The listening filter's high edge reads as off at or above this.
+constexpr float kAfFilterTopHz = 23900;
+// How narrow and how wide the notch goes.
+constexpr float kNotchMinHz = 20, kNotchMaxHz = 1500;
 const char* const kSpanNames[] = {"+/-2.5k", "+/-5k", "+/-10k", "+/-25k", "+/-50k", "+/-100k", "+/-250k", "+/-500k", "+/-1M", "+/-2.5M"};
 const int kWaterfallRows = 1024;
 // A chart on screen: 1809 pixels and up to 3000 lines at the usual IOC 576 are halved each way, as the panel
@@ -256,12 +260,13 @@ const char* const kScanStepNames[] = {"1 kHz", "2.5 kHz", "5 kHz", "9 kHz", "10 
 const int kScanStepCount = 9;
 const size_t kMaxScanChannels = 100000;
 // The antenna scope sweeps only these, the main HF bands and 6 m at their widest anywhere, and then only where the
-// chosen band plan also has the band. 60 m is left out as it's channels and power limits in most places.
+// chosen band plan also has the band. 60 m is channels or blocks in most places, and the sweep keeps to the plan's.
 struct SweepBand {
   const char* name;
   long long lo, hi;
 };
-const SweepBand kSweepBands[] = {{"160 m", 1800000, 2000000},   {"80 m", 3500000, 4000000},   {"40 m", 7000000, 7300000},
+const SweepBand kSweepBands[] = {{"160 m", 1800000, 2000000},   {"80 m", 3500000, 4000000},   {"60 m", 5060000, 5450000},
+                                 {"40 m", 7000000, 7300000},
                                  {"30 m", 10100000, 10150000},  {"20 m", 14000000, 14350000}, {"17 m", 18068000, 18168000},
                                  {"15 m", 21000000, 21450000},  {"12 m", 24890000, 24990000}, {"10 m", 28000000, 29700000},
                                  {"6 m", 50000000, 54000000}};
@@ -316,7 +321,9 @@ class App {
   void drawMenu();
   void drawHeader();
   void drawVfo();
-  void drawFreqDigits(long long hz, bool tx);
+  void drawFreqDigits(long long hz, bool tx, float* endX = nullptr);
+  void drawPowerButton(ImVec2 digitsAt, float digitsEnd, float digitsH);
+  double powerOnAt_ = -100;  // when the power button last switched the rig on, for the while it takes
   void drawMeters();
   void drawNeedleMeter(ImVec2 org, float w, float h);
   void drawNeedleFace(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float reading);
@@ -591,6 +598,15 @@ class App {
   // The speaker's equaliser, on whether or not the noise reduction is. Indexes into the cut tables.
   bool eqOn_ = false;
   int eqLowIdx_ = 2, eqHighIdx_ = 0;
+  // The listening filter, set by dragging its edges on the audio waterfall. 0 for no low cut.
+  bool afOn_ = false;
+  float afLowHz_ = 200, afHighHz_ = 3000;
+  int afDrag_ = 0;  // 1 the low edge, 2 the high, while it's being dragged
+  // The notch, moved and sized on the audio waterfall.
+  bool notchOn_ = false;
+  float notchHz_ = 1000, notchWidthHz_ = 100;
+  int notchDrag_ = 0;  // 1 its low edge, 2 its high edge, 3 the whole of it
+  double notchGrabOffset_ = 0;  // where in the notch it was taken hold of, so it doesn't jump
   float eqBass_ = 0, eqMid_ = 0, eqTreble_ = 0;
   int nrMethodFor(int mode) const;
   float peakDb_ = -100, peakHold_ = 0;
@@ -604,6 +620,8 @@ class App {
   Decoder::Status decodeStatus_;
   int decodeShown_ = Decoder::OFF;
   std::string decodeText_, dialSent_;
+  std::string decodeWrapped_, decodeWrapSrc_, decodeSel_;  // the panel's text as shown, wrapped; what was selected
+  float decodeWrapW_ = -1;
   std::vector<Decoder::FaxLine> faxTaken_;
   float faxCentre_ = 1900, faxPpm_ = 0;
   int faxWasState_ = Decoder::FAX_IDLE;
@@ -1104,6 +1122,12 @@ void App::loadSettings() {
   eqOn_ = cfg_.getInt("eq_on", 0) != 0;
   eqLowIdx_ = std::max(0, std::min(kEqLowCount - 1, cfg_.getInt("eq_low", 2)));
   eqHighIdx_ = std::max(0, std::min(kEqHighCount - 1, cfg_.getInt("eq_high", 0)));
+  afOn_ = cfg_.getInt("af_filter", 0) != 0;
+  notchOn_ = cfg_.getInt("notch", 0) != 0;
+  notchWidthHz_ = (float)std::max((double)kNotchMinHz, std::min((double)kNotchMaxHz, cfg_.getDouble("notch_width", 100)));
+  notchHz_ = (float)std::max(notchWidthHz_ / 2.0, std::min(23000.0, cfg_.getDouble("notch_hz", 1000)));
+  afLowHz_ = (float)std::max(0.0, std::min(20000.0, cfg_.getDouble("af_low", 200)));
+  afHighHz_ = (float)std::max(afLowHz_ + 100.0, std::min(23900.0, cfg_.getDouble("af_high", 3000)));
   eqBass_ = std::max(-12.f, std::min(12.f, (float)cfg_.getDouble("eq_bass", 0)));
   eqMid_ = std::max(-12.f, std::min(12.f, (float)cfg_.getDouble("eq_mid", 0)));
   eqTreble_ = std::max(-12.f, std::min(12.f, (float)cfg_.getDouble("eq_treble", 0)));
@@ -1277,6 +1301,12 @@ void App::saveSettings() {
   cfg_.setInt("eq_on", eqOn_);
   cfg_.setInt("eq_low", eqLowIdx_);
   cfg_.setInt("eq_high", eqHighIdx_);
+  cfg_.setInt("af_filter", afOn_);
+  cfg_.setInt("notch", notchOn_);
+  cfg_.setDouble("notch_hz", notchHz_);
+  cfg_.setDouble("notch_width", notchWidthHz_);
+  cfg_.setDouble("af_low", afLowHz_);
+  cfg_.setDouble("af_high", afHighHz_);
   cfg_.setDouble("eq_bass", eqBass_);
   cfg_.setDouble("eq_mid", eqMid_);
   cfg_.setDouble("eq_treble", eqTreble_);
@@ -1926,7 +1956,7 @@ void App::radioRow(const char* label, int sw, const std::vector<std::pair<const 
 
 // ---------------------------------------------------------------- the header
 
-void App::drawFreqDigits(long long hz, bool tx) {
+void App::drawFreqDigits(long long hz, bool tx, float* endX) {
   ImGui::PushFont(fFreq_);
   float dw = ImGui::CalcTextSize("0").x, h = ImGui::GetTextLineHeight(), dotW = dw * 0.5f;
   ImVec2 p = ImGui::GetCursorScreenPos();
@@ -1965,11 +1995,15 @@ void App::drawFreqDigits(long long hz, bool tx) {
     }
   }
   ImGui::PopFont();
+  if (endX) *endX = x;
   ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + h));
 }
 
 void App::drawVfo() {
   ImGui::BeginChild("vfo", ImVec2(S(405), S(124)), ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+  ImVec2 digitsAt = ImGui::GetCursorScreenPos();
+  float digitsEnd = digitsAt.x, digitsH = 0;
+  ImGui::BeginDisabled(!st_.connected);
   if (!entry_.empty()) {
     // What's being typed, and what it'll be taken to mean.
     long long hz = tuning::parseFreq(entry_, st_.hz, radio());
@@ -1982,7 +2016,8 @@ void App::drawVfo() {
     else ImGui::TextColored(ImColor(C_DIM), "%s", tr("keep typing, or Esc to cancel"));
     ImGui::PopFont();
   } else {
-    drawFreqDigits(st_.hz, st_.tx);
+    drawFreqDigits(st_.hz, st_.tx, &digitsEnd);
+    digitsH = ImGui::GetCursorScreenPos().y - digitsAt.y;
     ImGui::PushFont(fMid_);
     ImGui::TextColored(ImColor(C_ACCENT), "%s", modeLabel(st_.mode, st_.data).c_str());
     ImGui::PopFont();
@@ -2027,7 +2062,50 @@ void App::drawVfo() {
       ImGui::TextColored(ImColor(C_ACCENT), "IP+");
     }
   }
+  ImGui::EndDisabled();
+  drawPowerButton(digitsAt, digitsEnd, digitsH);
   ImGui::EndChild();
+}
+
+// On and off, to the right of the digits. Off takes the same asking as the menu's, as it's a click away from the dial.
+void App::drawPowerButton(ImVec2 digitsAt, float digitsEnd, float digitsH) {
+  float sz = S(36), right = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x;
+  ImVec2 at(right - sz, digitsAt.y + std::max(0.f, (digitsH - sz) / 2));
+  if (digitsH > 0 && right - sz < digitsEnd + S(6)) {
+    // A 10-digit dial fills the width: a smaller button, under its right-hand end on the mode's line.
+    sz = S(26);
+    at = ImVec2(right - sz, digitsAt.y + digitsH);
+  }
+  ImVec2 back = ImGui::GetCursorScreenPos();
+  ImGui::SetCursorScreenPos(at);
+  ImGui::InvisibleButton("##power", ImVec2(sz, sz));
+  note("power");
+  bool hovered = ImGui::IsItemHovered(), clicked = ImGui::IsItemClicked();
+  double now = glfwGetTime();
+  bool on = st_.connected, starting = !on && now - powerOnAt_ < 20;
+  if (clicked) {
+    if (on) {
+      openPowerOff_ = true;
+    } else {
+      rig_.powerOn();
+      powerOnAt_ = now;
+      say(tr("Switching the rig on"));
+    }
+  }
+  if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+  ImGui::SetItemTooltip("%s", on ? tr("The rig is on. Click to switch it off.") : starting ? tr("Switching on...") : tr("The rig is off, or not answering. Click to switch it on."));
+  // The power symbol: a ring broken at the top, and a bar through the gap.
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  ImVec2 c(at.x + sz / 2, at.y + sz / 2);
+  float pulse = 0.5f + 0.5f * sinf((float)now * 6.f);
+  ImU32 col = on ? C_GREEN : starting ? (ImU32)ImColor(1.f, 0.75f, 0.27f, 0.4f + 0.6f * pulse) : C_DIM;
+  if (hovered) dl->AddRectFilled(at, ImVec2(at.x + sz, at.y + sz), IM_COL32(255, 255, 255, 22), 4);
+  float r = sz * 0.32f, th = S(2.5f);
+  const float gap = 0.7f;  // radians each side of the top
+  dl->PathArcTo(c, r, -IM_PI / 2 + gap, IM_PI * 1.5f - gap, 24);
+  dl->PathStroke(col, ImDrawFlags_None, th);
+  dl->AddLine(ImVec2(c.x, c.y - r - S(2)), ImVec2(c.x, c.y + S(1)), col, th);
+  ImGui::SetCursorScreenPos(back);
 }
 
 void App::drawMeters() {
@@ -2411,9 +2489,7 @@ void App::drawTxPanel() {
 }
 
 void App::drawHeader() {
-  ImGui::BeginDisabled(!st_.connected);
-  drawVfo();
-  ImGui::EndDisabled();
+  drawVfo();  // greys itself out with no radio, all but the power button
   ImGui::SameLine();
   drawMeters();  // stays clickable with no radio, for swapping the meter
   ImGui::SameLine();
@@ -3414,6 +3490,57 @@ void App::autoAudioLevels() {
   audioRangeDb_ = 55.f;
 }
 
+// Text wrapped to a width with line ends, at the spaces where it can be.
+static std::string wrapToWidth(const std::string& text, float width) {
+  ImFont* font = ImGui::GetFont();
+  float scale = ImGui::GetFontSize() / font->FontSize;
+  std::string out;
+  out.reserve(text.size() + text.size() / 32);
+  const char *p = text.data(), *end = p + text.size();
+  while (p < end) {
+    const char* nl = (const char*)memchr(p, '\n', (size_t)(end - p));
+    const char* lineEnd = nl ? nl : end;
+    while (p < lineEnd) {
+      const char* e = font->CalcWordWrapPositionA(scale, p, lineEnd, width);
+      if (e <= p) {  // one character wider than the width: it goes on its own
+        e = p + 1;
+        while (e < lineEnd && ((unsigned char)*e & 0xC0) == 0x80) e++;
+      }
+      out.append(p, e);
+      p = e;
+      if (p < lineEnd) {
+        out += '\n';
+        while (p < lineEnd && *p == ' ') p++;
+      }
+    }
+    if (nl) {
+      out += '\n';
+      p = nl + 1;
+    }
+  }
+  return out;
+}
+
+// The callsign in what's been selected: its first word that has letters and a figure, as calls do. "" for none.
+static std::string callIn(const std::string& sel) {
+  size_t i = 0;
+  while (i < sel.size()) {
+    while (i < sel.size() && !isalnum((unsigned char)sel[i])) i++;
+    size_t j = i;
+    while (j < sel.size() && (isalnum((unsigned char)sel[j]) || sel[j] == '/')) j++;
+    std::string w = sel.substr(i, j - i);
+    while (!w.empty() && w.back() == '/') w.pop_back();
+    bool digit = false, alpha = false;
+    for (char c : w) digit |= isdigit((unsigned char)c) != 0, alpha |= isalpha((unsigned char)c) != 0;
+    if (digit && alpha && w.size() >= 3 && w.size() <= 14) {
+      for (char& c : w) c = (char)toupper((unsigned char)c);
+      return w;
+    }
+    i = j;
+  }
+  return "";
+}
+
 void App::drawDecodeText() {
   const Decoder::Status& d = decodeStatus_;
   ImGui::SameLine();
@@ -3436,10 +3563,52 @@ void App::drawDecodeText() {
   if (decodeText_.empty()) {
     ImGui::TextDisabled("%s", tr("Nothing decoded yet"));
   } else {
-    ImGui::PushTextWrapPos(0);
-    ImGui::TextUnformatted(decodeText_.data(), decodeText_.data() + decodeText_.size());
-    ImGui::PopTextWrapPos();
-    if (atEnd) ImGui::SetScrollHereY(1.f);
+    // A read-only text box, so it can be selected and copied: drag, double-click a word, Ctrl+A, Ctrl+C,
+    // or right-click. It has no wrapping of its own, so the text is wrapped to the panel here.
+    float wrapW = std::max(S(40), ImGui::GetContentRegionAvail().x - S(4));
+    if (decodeText_ != decodeWrapSrc_ || wrapW != decodeWrapW_) {
+      decodeWrapSrc_ = decodeText_;
+      decodeWrapW_ = wrapW;
+      decodeWrapped_ = wrapToWidth(decodeText_, wrapW);
+    }
+    int lines = 1;
+    for (char c : decodeWrapped_) lines += c == '\n';
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
+    ImGui::InputTextMultiline("##decodetext", (char*)decodeWrapped_.c_str(), decodeWrapped_.size() + 1,
+                              ImVec2(-FLT_MIN, lines * ImGui::GetTextLineHeight() + S(2)), ImGuiInputTextFlags_ReadOnly);
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    note("decodetext");
+    ImGuiID boxId = ImGui::GetItemID();
+    bool selecting = false;  // then it's left where it is, not scrolled on as text comes
+    if (ImGui::IsItemActive()) {
+      ImGuiInputTextState* st = ImGui::GetInputTextState(boxId);
+      selecting = ImGui::IsMouseDown(ImGuiMouseButton_Left) || (st && st->HasSelection());
+    }
+    // What's selected, taken before the menu opens and the box lets go of it.
+    if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+      decodeSel_.clear();
+      if (ImGuiInputTextState* st = ImGui::GetInputTextState(boxId)) {
+        int a = std::min(st->GetSelectionStart(), st->GetSelectionEnd()), b = std::max(st->GetSelectionStart(), st->GetSelectionEnd());
+        a = std::max(0, std::min(a, (int)decodeWrapped_.size())), b = std::max(a, std::min(b, (int)decodeWrapped_.size()));
+        decodeSel_ = decodeWrapped_.substr((size_t)a, (size_t)(b - a));
+      }
+    }
+    if (ImGui::BeginPopupContextItem("decodemenu")) {
+      std::string call = callIn(decodeSel_);
+      if (ImGui::MenuItem(trId("Copy"), nullptr, false, !decodeSel_.empty())) ImGui::SetClipboardText(decodeSel_.c_str());
+      if (ImGui::MenuItem(trId("Copy all"))) ImGui::SetClipboardText(decodeText_.c_str());
+      ImGui::Separator();
+      std::string find = call.empty() ? std::string(tr("Find a callsign on the map")) : trf("Find %s on the map", call.c_str());
+      if (ImGui::MenuItem((find + "##findcall").c_str(), nullptr, false, !call.empty())) {
+        showMap_ = true;
+        findOnMap(call, false);
+      }
+      if (call.empty()) ImGui::SetItemTooltip("%s", tr("Select a callsign first: double-click it"));
+      ImGui::EndPopup();
+    }
+    if (atEnd && !selecting) ImGui::SetScrollHereY(1.f);
   }
   ImGui::EndChild();
   if (!d.error.empty()) {
@@ -3704,6 +3873,21 @@ void App::drawAudioPane() {
     ImGui::EndDisabled();
     ImGui::EndPopup();
   }
+  flow(S(110));  // Filter and Notch, side by side
+  if (toggle("Filter##af", afOn_, ImVec2(0, 0), "afilter")) afOn_ = !afOn_;
+  ImGui::SetItemTooltip(tr("Trim the low and high ends of what you hear, to take out interference: %.0f Hz to %s.\n"
+                           "Drag the edges on the waterfall. The waterfall, decoders and recordings keep the rig's audio as it is."),
+                        afLowHz_, afHighHz_ >= kAfFilterTopHz ? tr("the top") : (std::to_string((int)lround(afHighHz_)) + " Hz").c_str());
+  ImGui::SameLine(0, S(2));
+  if (toggle("Notch##notch", notchOn_, ImVec2(0, 0), "notch")) {
+    notchOn_ = !notchOn_;
+    // Turned on out of sight, it comes to the middle of the view.
+    if (notchOn_ && notchHz_ > kAudioRanges[audioRangeIdx_]) notchHz_ = kAudioRanges[audioRangeIdx_] / 2;
+  }
+  ImGui::SetItemTooltip(tr("Take a tone out of the middle of what you hear: %.0f Hz, %.0f Hz wide.\n"
+                           "Drag it on the waterfall to move it, drag its edges to size it, or turn the wheel over it.\n"
+                           "The waterfall, decoders and recordings keep the rig's audio as it is."),
+                        notchHz_, notchWidthHz_);
   flow(S(90));
   // The level coming in. The rig's USB AF Output Level sets this; clipping ruins a waterfall.
   {
@@ -3755,6 +3939,111 @@ void App::drawAudioPane() {
     float x = toX(pitch);
     dl->AddLine(ImVec2(x, a.p0.y), ImVec2(x, a.p1.y), C_AMBER, 1.f);
   }
+  // The listening filter: what it takes out is shaded, and its two edges drag. An edge past the end of the view
+  // sits at the end, where it can still be taken hold of.
+  bool onEdge = false;
+  if (afOn_) {
+    float mx = ImGui::GetIO().MousePos.x, grabW = S(6);
+    float xl = std::min(toX(afLowHz_), a.p1.x - S(2)), xh = std::min(toX(afHighHz_), a.p1.x - S(2));
+    ImU32 shade = IM_COL32(0, 0, 0, 150), edge = IM_COL32(110, 200, 255, 230);
+    if (xl > a.p0.x) dl->AddRectFilled(a.p0, ImVec2(xl, a.p1.y), shade);
+    if (toX(afHighHz_) < a.p1.x) dl->AddRectFilled(ImVec2(xh, a.p0.y), a.p1, shade);
+    int grab = 0;
+    if (a.hovered && afDrag_ == 0 && notchDrag_ == 0) {
+      float dl0 = fabsf(mx - xl), dh = fabsf(mx - xh);
+      if (dl0 <= grabW || dh <= grabW) grab = dl0 < dh ? 1 : 2;
+    }
+    for (int e = 1; e <= 2; e++) {
+      float x = e == 1 ? xl : xh;
+      bool hot = grab == e || afDrag_ == e;
+      dl->AddLine(ImVec2(x, a.p0.y), ImVec2(x, a.p1.y), edge, hot ? 2.5f : 1.5f);
+      // A tab at the top of the waterfall to grab, and what the edge is set to.
+      float ty = a.w0.y + S(2);
+      dl->AddRectFilled(ImVec2(x - S(4), ty), ImVec2(x + S(4), ty + S(18)), edge, 2);
+      char b[64];
+      float hz = e == 1 ? afLowHz_ : afHighHz_;
+      if (e == 1 && hz < 20) snprintf(b, sizeof b, "%s", tr("no low cut"));
+      else if (e == 2 && hz >= kAfFilterTopHz) snprintf(b, sizeof b, "%s", tr("no high cut"));
+      else if (hz >= 1000) snprintf(b, sizeof b, "%.2f kHz", hz / 1000);
+      else snprintf(b, sizeof b, "%.0f Hz", hz);
+      float tw = ImGui::CalcTextSize(b).x;
+      float lx = e == 1 ? x + S(7) : x - S(7) - tw;
+      lx = std::max(a.p0.x + S(2), std::min(lx, a.p1.x - tw - S(2)));
+      dl->AddRectFilled(ImVec2(lx - S(3), ty), ImVec2(lx + tw + S(3), ty + S(18)), IM_COL32(0, 0, 0, 190), 3);
+      dl->AddText(ImVec2(lx, ty + S(1)), edge, b);
+    }
+    if (a.clicked && grab) afDrag_ = grab;
+    if (afDrag_ && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) afDrag_ = 0;
+    if (afDrag_) {
+      double hz = (mx - a.p0.x) / (a.p1.x - a.p0.x) * top;
+      hz = std::max(0.0, std::min(top, hz));
+      hz = hz < 1000 ? round(hz / 10) * 10 : round(hz / 50) * 50;
+      if (afDrag_ == 1) afLowHz_ = (float)std::min(hz, afHighHz_ - 100.0);
+      else afHighHz_ = (float)std::max(hz >= nyq - 100 ? (double)kAfFilterTopHz : hz, afLowHz_ + 100.0);
+    }
+    onEdge = grab != 0 || afDrag_ != 0;
+    if (onEdge) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+  }
+  // The notch: a band shaded red, moved by its middle and sized by its edges, or by the wheel over it.
+  bool onNotch = false;
+  if (notchOn_) {
+    float mx = ImGui::GetIO().MousePos.x, grabW = S(6);
+    float xl = toX(notchHz_ - notchWidthHz_ / 2), xr = toX(notchHz_ + notchWidthHz_ / 2);
+    if (xr - xl < S(3)) xl = (xl + xr) / 2 - S(1.5f), xr = xl + S(3);  // never too thin to see
+    float inner = std::min(grabW, (xr - xl) * 0.25f);
+    int grab = 0;
+    if (a.hovered && !onEdge && notchDrag_ == 0) {
+      if (mx >= xl - grabW && mx <= xl + inner) grab = 1;
+      else if (mx >= xr - inner && mx <= xr + grabW) grab = 2;
+      else if (mx > xl && mx < xr) grab = 3;
+    }
+    bool hot = grab != 0 || notchDrag_ != 0;
+    ImU32 edge = IM_COL32(255, 110, 110, 230);
+    dl->AddRectFilled(ImVec2(xl, a.p0.y), ImVec2(xr, a.p1.y), IM_COL32(255, 60, 60, hot ? 80 : 55));
+    for (int e = 1; e <= 2; e++) {
+      float x = e == 1 ? xl : xr;
+      dl->AddLine(ImVec2(x, a.p0.y), ImVec2(x, a.p1.y), edge, grab == e || notchDrag_ == e ? 2.5f : 1.5f);
+    }
+    // A tab to take hold of under the filter's, with what it's set to.
+    float ty = a.w0.y + S(24), cx = (xl + xr) / 2;
+    char b[64];
+    snprintf(b, sizeof b, tr("Notch %.0f Hz, %.0f wide"), notchHz_, notchWidthHz_);
+    float tw = ImGui::CalcTextSize(b).x;
+    dl->AddRectFilled(ImVec2(cx - S(4), ty), ImVec2(cx + S(4), ty + S(18)), edge, 2);
+    float lx = std::max(a.p0.x + S(2), std::min(xr + S(7), a.p1.x - tw - S(2)));
+    if (lx < xr + S(7) && xl - S(7) - tw > a.p0.x) lx = xl - S(7) - tw;  // no room to its right: to its left
+    dl->AddRectFilled(ImVec2(lx - S(3), ty), ImVec2(lx + tw + S(3), ty + S(18)), IM_COL32(0, 0, 0, 190), 3);
+    dl->AddText(ImVec2(lx, ty + S(1)), edge, b);
+    double hzAtMouse = std::max(0.0, std::min(top, (mx - a.p0.x) / (a.p1.x - a.p0.x) * top));
+    if (a.clicked && grab) {
+      notchDrag_ = grab;
+      notchGrabOffset_ = hzAtMouse - notchHz_;
+    }
+    if (notchDrag_ && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) notchDrag_ = 0;
+    if (notchDrag_) {
+      double lo = notchHz_ - notchWidthHz_ / 2.0, hi = notchHz_ + notchWidthHz_ / 2.0;
+      double hz = round(hzAtMouse / 5) * 5;
+      if (notchDrag_ == 1) lo = std::max(0.0, std::min(hz, hi - kNotchMinHz)), lo = std::max(lo, hi - kNotchMaxHz);
+      else if (notchDrag_ == 2) hi = std::min(nyq - 100, std::max(hz, lo + kNotchMinHz)), hi = std::min(hi, lo + kNotchMaxHz);
+      else {
+        double mid = round((hzAtMouse - notchGrabOffset_) / 5) * 5, w = hi - lo;
+        mid = std::max(w / 2, std::min(nyq - 100 - w / 2, mid));
+        lo = mid - w / 2, hi = mid + w / 2;
+      }
+      notchHz_ = (float)((lo + hi) / 2), notchWidthHz_ = (float)(hi - lo);
+    }
+    // The wheel over it sizes it, about its middle, instead of tuning.
+    if (grab == 3 && a.wheel != 0.f) {
+      double w = notchWidthHz_ * pow(1.2, a.wheel);
+      w = std::max((double)kNotchMinHz, std::min((double)kNotchMaxHz, round(w / 5) * 5));
+      if (w == notchWidthHz_) w = std::max((double)kNotchMinHz, std::min((double)kNotchMaxHz, notchWidthHz_ + (a.wheel > 0 ? 5.0 : -5.0)));
+      notchWidthHz_ = (float)w;
+      notchHz_ = std::max(notchWidthHz_ / 2, notchHz_);
+    }
+    onNotch = grab != 0 || notchDrag_ != 0;
+    if (grab == 1 || grab == 2 || notchDrag_ == 1 || notchDrag_ == 2) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+    else if (grab == 3 || notchDrag_ == 3) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+  }
   // What the decoder has found, or where it expects a chart's black and white.
   if (decodeStatus_.mode == Decoder::WEFAX) {
     for (float hz : {decodeStatus_.faxCentre - 400.f, decodeStatus_.faxCentre + 400.f}) dl->AddLine(ImVec2(toX(hz), a.p0.y), ImVec2(toX(hz), a.p1.y), C_GREEN, 1.f);
@@ -3791,9 +4080,11 @@ void App::drawAudioPane() {
   }
   dl->PopClipRect();
   if (a.hovered && st_.connected) {
-    if (a.clicked && target > 0) tuneTo(tuning::dialToCentre(st_.hz, st_.mode, a.x, target));
+    if (onEdge || onNotch) {
+      // taking hold of the filter or the notch, not tuning
+    } else if (a.clicked && target > 0) tuneTo(tuning::dialToCentre(st_.hz, st_.mode, a.x, target));
     else if (a.clicked && st_.data) say(tr("Data mode: the dial stays put, so your digital program keeps its place"));
-    if (a.wheel != 0.f) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1, radio()));
+    if (a.wheel != 0.f && !onNotch) tuneTo(tuning::stepFreq(st_.hz, kSteps[stepIdx_], a.wheel > 0 ? 1 : -1, radio()));
   }
   ImGui::EndChild();
   if (split) {
@@ -6479,7 +6770,7 @@ void App::drawAntennaScope() {
   const float fieldW = S(130);
   ImGui::BeginDisabled(running || restoring);
   ImGui::SetNextItemWidth(fieldW);
-  if (ImGui::BeginCombo(trId("Band"), sweepBand_ >= 0 ? list[(size_t)sweepBand_].name.c_str() : tr("None"))) {
+  if (ImGui::BeginCombo(trId("Band"), sweepBand_ >= 0 ? list[(size_t)sweepBand_].name.c_str() : tr("None"), ImGuiComboFlags_HeightLarge)) {
     for (int i = 0; i < (int)list.size(); i++)
       if (ImGui::Selectable(list[(size_t)i].name.c_str(), i == sweepBand_)) sweepBand_ = i;
     ImGui::EndCombo();
@@ -7733,6 +8024,9 @@ void App::frame() {
     en.setStrength(nrStrength_);
     en.setLeveller(nrOn_ && nrLeveller_);
     en.setEq(eqOn_, kEqLowHz[eqLowIdx_], eqBass_, eqMid_, eqTreble_, kEqHighHz[eqHighIdx_]);
+    // At the top of the range the high cut is as good as off, so it is off.
+    en.setNotch(notchOn_, notchHz_, notchWidthHz_);
+    en.setFilter(afOn_, afLowHz_ < 20 ? 0 : afLowHz_, afHighHz_ >= kAfFilterTopHz ? 0 : afHighHz_);
   }
   pumpAudio();
   followRigMode();
